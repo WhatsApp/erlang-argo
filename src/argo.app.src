@@ -1,0 +1,17 @@
+%%% % @format
+
+{application, argo, [
+    {description, "argo: GraphQL encoding format"},
+    {vsn, "1.0.0"},
+    {modules, []},
+    {registered, []},
+    %% NOTE: Remember to sync changes to `applications` to
+    %% the BUCK file in the application's base folder
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    %,
+    {env, []}
+    % {mod, {argo_app, []}}
+]}.
