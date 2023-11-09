@@ -3,7 +3,9 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-include("argo_common.hrl").
 -include("argo_header.hrl").
+-include("argo_index_map.hrl").
 -include("argo_label.hrl").
 -include("argo_message.hrl").
 -include("argo_value.hrl").
@@ -234,7 +236,7 @@ encode_desc_value(ValueEncoder1 = #argo_value_encoder{}, DescValue = #argo_desc_
         {list, List} ->
             MessageEncoder2 = argo_message_encoder:write_core_length(MessageEncoder1, length(List)),
             ValueEncoder3 = ValueEncoder2#argo_value_encoder{message = MessageEncoder2},
-            ValueEncoder4 = argo_index_map:foldl(
+            ValueEncoder4 = lists:foldl(
                 fun(Value, ValueEncoderAcc1) ->
                     encode_desc_value(ValueEncoderAcc1, Value)
                 end,
@@ -263,14 +265,188 @@ encode_desc_value(ValueEncoder1 = #argo_value_encoder{}, DescValue = #argo_desc_
 %% @private
 -spec encode_error_value(ValueEncoder, ErrorValue) -> ValueEncoder when
     ValueEncoder :: t(), ErrorValue :: argo_error_value:t().
-encode_error_value(_ValueEncoder1 = #argo_value_encoder{message = _MessageEncoder1}, _ErrorValue = #argo_error_value{}) ->
-    erlang:error(unsupported).
+encode_error_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, ErrorValue = #argo_error_value{}) ->
+    case
+        argo_header:self_describing(MessageEncoder1#argo_message_encoder.header) orelse
+            argo_header:self_describing_errors(MessageEncoder1#argo_message_encoder.header)
+    of
+        false ->
+            MessageEncoder2 = argo_message_encoder:encode_block_string(
+                MessageEncoder1, ErrorValue#argo_error_value.message
+            ),
+            MessageEncoder3 =
+                case ErrorValue#argo_error_value.location of
+                    none ->
+                        argo_message_encoder:write_core_label(MessageEncoder2, ?ARGO_LABEL_MARKER_ABSENT);
+                    {some, Location} when is_list(Location) ->
+                        ME2_1 = MessageEncoder2,
+                        ME2_2 = argo_message_encoder:write_core_label(ME2_1, ?ARGO_LABEL_MARKER_NON_NULL),
+                        ME2_3 = argo_message_encoder:write_core_length(ME2_2, length(Location)),
+                        ME2_4 = lists:foldl(
+                            fun(LocationValue = #argo_location_value{}, ME2_3_Acc1) ->
+                                ME2_3_Acc2 = argo_message_encoder:encode_block_varint(
+                                    ME2_3_Acc1, LocationValue#argo_location_value.line
+                                ),
+                                ME2_3_Acc3 = argo_message_encoder:encode_block_varint(
+                                    ME2_3_Acc2, LocationValue#argo_location_value.column
+                                ),
+                                ME2_3_Acc3
+                            end,
+                            ME2_3,
+                            Location
+                        ),
+                        ME2_4
+                end,
+            ValueEncoder2 =
+                #argo_value_encoder{message = MessageEncoder4} =
+                case ErrorValue#argo_error_value.path of
+                    none ->
+                        ME3_1 = MessageEncoder3,
+                        ME3_2 = argo_message_encoder:write_core_label(ME3_1, ?ARGO_LABEL_MARKER_ABSENT),
+                        VE1_1 = ValueEncoder1,
+                        VE1_2 = VE1_1#argo_value_encoder{message = ME3_2},
+                        VE1_2;
+                    {some, Path = #argo_path_value{}} ->
+                        ME3_1 = MessageEncoder3,
+                        ME3_2 = argo_message_encoder:write_core_label(ME3_1, ?ARGO_LABEL_MARKER_NON_NULL),
+                        VE1_1 = ValueEncoder1,
+                        VE1_2 = VE1_1#argo_value_encoder{message = ME3_2},
+                        VE1_3 = encode_path_value(VE1_2, Path),
+                        VE1_3
+                end,
+            ValueEncoder3 =
+                #argo_value_encoder{} =
+                case ErrorValue#argo_error_value.extensions of
+                    none ->
+                        ME4_1 = MessageEncoder4,
+                        ME4_2 = argo_message_encoder:write_core_label(ME4_1, ?ARGO_LABEL_MARKER_ABSENT),
+                        VE2_1 = ValueEncoder2,
+                        VE2_2 = VE2_1#argo_value_encoder{message = ME4_2},
+                        VE2_2;
+                    {some, Extensions = #argo_index_map{}} ->
+                        ME4_1 = MessageEncoder4,
+                        ME4_2 = argo_message_encoder:write_core_label(ME4_1, ?ARGO_LABEL_MARKER_NON_NULL),
+                        VE2_1 = ValueEncoder2,
+                        VE2_2 = VE2_1#argo_value_encoder{message = ME4_2},
+                        VE2_3 = encode_desc_value(VE2_2, argo_desc_value:object(Extensions)),
+                        VE2_3
+                end,
+            ValueEncoder3;
+        true ->
+            encode_self_describing_error_value(ValueEncoder1, ErrorValue)
+    end.
 
 %% @private
 -spec encode_path_value(ValueEncoder, PathValue) -> ValueEncoder when
     ValueEncoder :: t(), PathValue :: argo_path_value:t().
-encode_path_value(_ValueEncoder1 = #argo_value_encoder{message = _MessageEncoder1}, _PathValue = #argo_path_value{}) ->
-    erlang:error(unsupported).
+encode_path_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, PathValue = #argo_path_value{}) ->
+    case argo_header:self_describing(MessageEncoder1#argo_message_encoder.header) of
+        false ->
+            MessageEncoder2 = argo_message_encoder:write_core_length(MessageEncoder1, argo_path_value:size(PathValue)),
+            MessageEncoder3 = argo_path_value:foldl(
+                PathValue,
+                MessageEncoder2,
+                fun(PathSegment, MessageEncoderAcc1) ->
+                    case PathSegment of
+                        {field_name, Name} when is_binary(Name) andalso byte_size(Name) > 0 ->
+                            MessageEncoderAcc2 = argo_message_encoder:encode_block_string(MessageEncoderAcc1, Name),
+                            MessageEncoderAcc2;
+                        {list_index, Index} when ?is_usize(Index) ->
+                            MessageEncoderAcc2 = argo_message_encoder:write_core_label(
+                                MessageEncoderAcc1, ?ARGO_LABEL_MARKER_NON_NULL
+                            ),
+                            MessageEncoderAcc3 = argo_message_encoder:encode_block_varint(MessageEncoderAcc2, Index),
+                            MessageEncoderAcc3
+                    end
+                end
+            ),
+            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
+            ValueEncoder2;
+        true ->
+            encode_self_describing_path_value(ValueEncoder1, PathValue)
+    end.
+
+%% @private
+-spec encode_self_describing_error_value(ValueEncoder, ErrorValue) -> ValueEncoder when
+    ValueEncoder :: t(), ErrorValue :: argo_error_value:t().
+encode_self_describing_error_value(
+    ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, ErrorValue = #argo_error_value{}
+) ->
+    MessageEncoder2 = argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT),
+    Length = argo_error_value:present_fields_count(ErrorValue),
+    MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, Length),
+    MessageEncoder4 = argo_message_encoder:encode_block_string(MessageEncoder3, <<"message">>),
+    MessageEncoder5 = argo_message_encoder:write_core_label(MessageEncoder4, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING),
+    MessageEncoder6 = argo_message_encoder:encode_block_string(MessageEncoder5, ErrorValue#argo_error_value.message),
+    MessageEncoder7 =
+        case ErrorValue#argo_error_value.location of
+            none ->
+                MessageEncoder6;
+            {some, Location} when is_list(Location) ->
+                ME6_1 = MessageEncoder6,
+                ME6_2 = argo_message_encoder:encode_block_string(ME6_1, <<"location">>),
+                ME6_3 = argo_message_encoder:write_core_label(ME6_2, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_LIST),
+                ME6_4 = argo_message_encoder:write_core_length(ME6_3, length(Location)),
+                ME6_5 = lists:foldl(
+                    fun(LocationValue = #argo_location_value{}, ME6_4_Acc1) ->
+                        ME6_4_Acc2 = argo_message_encoder:write_core_label(
+                            ME6_4_Acc1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT
+                        ),
+                        ME6_4_Acc3 = argo_message_encoder:write_core_length(ME6_4_Acc2, 2),
+                        ME6_4_Acc4 = argo_message_encoder:encode_block_string(ME6_4_Acc3, <<"line">>),
+                        ME6_4_Acc5 = argo_message_encoder:write_core_label(
+                            ME6_4_Acc4, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT
+                        ),
+                        ME6_4_Acc6 = argo_message_encoder:encode_block_varint(
+                            ME6_4_Acc5, LocationValue#argo_location_value.line
+                        ),
+                        ME6_4_Acc7 = argo_message_encoder:encode_block_string(ME6_4_Acc6, <<"column">>),
+                        ME6_4_Acc8 = argo_message_encoder:write_core_label(
+                            ME6_4_Acc7, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT
+                        ),
+                        ME6_4_Acc9 = argo_message_encoder:encode_block_varint(
+                            ME6_4_Acc8, LocationValue#argo_location_value.column
+                        ),
+                        ME6_4_Acc9
+                    end,
+                    ME6_4,
+                    Location
+                ),
+                ME6_5
+        end,
+    ValueEncoder2 =
+        #argo_value_encoder{message = MessageEncoder8} =
+        case ErrorValue#argo_error_value.path of
+            none ->
+                ME7_1 = MessageEncoder7,
+                VE1_1 = ValueEncoder1,
+                VE1_2 = VE1_1#argo_value_encoder{message = ME7_1},
+                VE1_2;
+            {some, Path = #argo_path_value{}} ->
+                ME7_1 = MessageEncoder7,
+                ME7_2 = argo_message_encoder:encode_block_string(ME7_1, <<"path">>),
+                VE1_1 = ValueEncoder1,
+                VE1_2 = VE1_1#argo_value_encoder{message = ME7_2},
+                VE1_3 = encode_self_describing_path_value(VE1_2, Path),
+                VE1_3
+        end,
+    ValueEncoder3 =
+        #argo_value_encoder{} =
+        case ErrorValue#argo_error_value.extensions of
+            none ->
+                ME8_1 = MessageEncoder8,
+                VE2_1 = ValueEncoder2,
+                VE2_2 = VE2_1#argo_value_encoder{message = ME8_1},
+                VE2_2;
+            {some, Extensions = #argo_index_map{}} ->
+                ME8_1 = MessageEncoder8,
+                ME8_2 = argo_message_encoder:encode_block_string(ME8_1, <<"extensions">>),
+                VE2_1 = ValueEncoder2,
+                VE2_2 = VE2_1#argo_value_encoder{message = ME8_2},
+                VE2_3 = encode_desc_value(VE2_2, argo_desc_value:object(Extensions)),
+                VE2_3
+        end,
+    ValueEncoder3.
 
 %% @private
 -spec encode_self_describing_label_for_desc(ValueEncoder, DescValue) -> ValueEncoder when
@@ -337,4 +513,35 @@ encode_self_describing_label_for_scalar(
                 argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES)
         end,
     ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
+    ValueEncoder2.
+
+%% @private
+-spec encode_self_describing_path_value(ValueEncoder, PathValue) -> ValueEncoder when
+    ValueEncoder :: t(), PathValue :: argo_path_value:t().
+encode_self_describing_path_value(
+    ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, PathValue = #argo_path_value{}
+) ->
+    MessageEncoder2 = argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_LIST),
+    MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, argo_path_value:size(PathValue)),
+    MessageEncoder4 = argo_path_value:foldl(
+        PathValue,
+        MessageEncoder3,
+        fun(PathSegment, MessageEncoderAcc1) ->
+            case PathSegment of
+                {field_name, Name} when is_binary(Name) andalso byte_size(Name) > 0 ->
+                    MessageEncoderAcc2 = argo_message_encoder:write_core_label(
+                        MessageEncoderAcc1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING
+                    ),
+                    MessageEncoderAcc3 = argo_message_encoder:encode_block_string(MessageEncoderAcc2, Name),
+                    MessageEncoderAcc3;
+                {list_index, Index} when ?is_usize(Index) ->
+                    MessageEncoderAcc2 = argo_message_encoder:write_core_label(
+                        MessageEncoderAcc1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT
+                    ),
+                    MessageEncoderAcc3 = argo_message_encoder:encode_block_varint(MessageEncoderAcc2, Index),
+                    MessageEncoderAcc3
+            end
+        end
+    ),
+    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder4},
     ValueEncoder2.

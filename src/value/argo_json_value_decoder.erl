@@ -199,7 +199,7 @@ decode_array_wire_type(
                 {JsonValueDecoder1, []},
                 JsonValue
             ),
-            ArrayValue = argo_array_value:array(lists:reverse(Items)),
+            ArrayValue = argo_array_value:new(lists:reverse(Items)),
             {JsonValueDecoder2, ArrayValue}
     end.
 
@@ -298,7 +298,7 @@ decode_desc_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue)
                 {JsonValueDecoder1, []},
                 JsonValue
             ),
-            DescValue = argo_desc_value:array(Items),
+            DescValue = argo_desc_value:list(lists:reverse(Items)),
             {JsonValueDecoder2, DescValue};
         _ when ?is_json_object(JsonValue) ->
             {JsonValueDecoder2, Object1} = argo_json:object_fold(
@@ -366,7 +366,9 @@ decode_error_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonObjec
         case argo_json:object_find(<<"extensions">>, JsonObject) of
             {ok, ExtensionsObject} when ?is_json_object(ExtensionsObject) ->
                 Dec3_1 = JsonValueDecoder3,
-                {Dec3_2, ExtensionsValue} = decode_desc_wire_type(Dec3_1, ExtensionsObject),
+                {Dec3_2, #argo_desc_value{inner = {object, ExtensionsValue}}} = decode_desc_wire_type(
+                    Dec3_1, ExtensionsObject
+                ),
                 {Dec3_2, {some, ExtensionsValue}};
             {ok, ExtensionsActual} ->
                 error_with_info(badarg, [JsonValueDecoder1, JsonObject], #{

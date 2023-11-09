@@ -21,6 +21,7 @@
     new/1,
     decode_boolean/2,
     decode_bytes/2,
+    decode_fixed/3,
     decode_float64/2,
     decode_scalar_with_key/4,
     decode_string/2,
@@ -73,6 +74,14 @@ decode_bytes(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_r
     Inner2 = argo_index_map:put(Key, BlockDecoder2, Inner1),
     BlockDecoders3 = BlockDecoders2#argo_block_decoders{inner = Inner2},
     {BlockDecoders3, CoreReader2, Value}.
+
+-spec decode_fixed(BlockDecoders, CoreReader, Length) -> {BlockDecoders, CoreReader, Value} when
+    BlockDecoders :: t(), CoreReader :: t(), Length :: argo_types:length(), Value :: binary().
+decode_fixed(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}, Length) when
+    ?is_usize(Length)
+->
+    {CoreReader2, Value} = argo_core_reader:read_bytes(CoreReader1, Length),
+    {BlockDecoders1, CoreReader2, Value}.
 
 -spec decode_float64(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
     BlockDecoders :: t(), CoreReader :: t(), Value :: float().

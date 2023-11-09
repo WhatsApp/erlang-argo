@@ -16,6 +16,7 @@
     to_writer/1,
     encode_block_boolean/2,
     encode_block_bytes/2,
+    encode_block_fixed/2,
     encode_block_float64/2,
     encode_block_string/2,
     encode_block_type/2,
@@ -67,6 +68,14 @@ encode_block_bytes(MessageEncoder1 = #argo_message_encoder{blocks = Blocks1, cor
     MessageEncoder2 = MessageEncoder1#argo_message_encoder{blocks = Blocks2, core = Core2},
     MessageEncoder2.
 
+-spec encode_block_fixed(MessageEncoder, Value) -> MessageEncoder when MessageEncoder :: t(), Value :: binary().
+encode_block_fixed(MessageEncoder1 = #argo_message_encoder{blocks = Blocks1, core = Core1}, Value) when
+    is_binary(Value)
+->
+    {Blocks2, Core2} = argo_block_encoders:encode_fixed(Blocks1, Core1, Value),
+    MessageEncoder2 = MessageEncoder1#argo_message_encoder{blocks = Blocks2, core = Core2},
+    MessageEncoder2.
+
 -spec encode_block_float64(MessageEncoder, Value) -> MessageEncoder when MessageEncoder :: t(), Value :: float().
 encode_block_float64(MessageEncoder1 = #argo_message_encoder{blocks = Blocks1, core = Core1}, Value) when
     is_float(Value)
@@ -89,7 +98,7 @@ encode_block_string(MessageEncoder1 = #argo_message_encoder{blocks = Blocks1, co
 encode_block_type(
     MessageEncoder1 = #argo_message_encoder{blocks = Blocks1, core = Core1}, BlockValue = #argo_block_value{}
 ) ->
-    {Blocks2, Core2} = argo_block_encoders:encode_block_scalar_with_key(
+    {Blocks2, Core2} = argo_block_encoders:encode_scalar_with_key(
         Blocks1, Core1, BlockValue#argo_block_value.key, BlockValue, BlockValue#argo_block_value.value
     ),
     MessageEncoder2 = MessageEncoder1#argo_message_encoder{blocks = Blocks2, core = Core2},

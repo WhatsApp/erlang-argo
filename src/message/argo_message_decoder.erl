@@ -22,6 +22,7 @@
     from_reader/1,
     decode_block_boolean/1,
     decode_block_bytes/1,
+    decode_block_fixed/2,
     decode_block_float64/1,
     decode_block_scalar/2,
     decode_block_string/1,
@@ -100,6 +101,15 @@ decode_block_boolean(MessageDecoder1 = #argo_message_decoder{blocks = Blocks1, c
 -spec decode_block_bytes(MessageDecoder) -> {MessageDecoder, Value} when MessageDecoder :: t(), Value :: binary().
 decode_block_bytes(MessageDecoder1 = #argo_message_decoder{blocks = Blocks1, core = Core1}) ->
     {Blocks2, Core2, Value} = argo_block_decoders:decode_bytes(Blocks1, Core1),
+    MessageDecoder2 = MessageDecoder1#argo_message_decoder{blocks = Blocks2, core = Core2},
+    {MessageDecoder2, Value}.
+
+-spec decode_block_fixed(MessageDecoder, Length) -> {MessageDecoder, Value} when
+    MessageDecoder :: t(), Length :: argo_types:length(), Value :: binary().
+decode_block_fixed(MessageDecoder1 = #argo_message_decoder{blocks = Blocks1, core = Core1}, Length) when
+    ?is_usize(Length)
+->
+    {Blocks2, Core2, Value} = argo_block_decoders:decode_fixed(Blocks1, Core1, Length),
     MessageDecoder2 = MessageDecoder1#argo_message_decoder{blocks = Blocks2, core = Core2},
     {MessageDecoder2, Value}.
 

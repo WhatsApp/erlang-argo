@@ -8,11 +8,14 @@
 
 %% API
 -export([
+    foldl/3,
+    foldr/3,
     from_list/1,
     new/0,
     pop/1,
     push_field_name/2,
     push_list_index/2,
+    size/1,
     to_list/1
 ]).
 
@@ -30,6 +33,38 @@
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
+
+-spec foldl(PathValue, Acc0, Function) -> Acc1 when
+    PathValue :: t(),
+    Acc0 :: dynamic(),
+    Function :: fun((segment(), AccIn) -> AccOut),
+    AccIn :: dynamic(),
+    AccOut :: dynamic(),
+    Acc1 :: dynamic().
+foldl(#argo_path_value{segments = Segments}, Init, Function) when is_function(Function, 2) ->
+    array:foldl(
+        fun(_Index, Segment, Acc) ->
+            Function(Segment, Acc)
+        end,
+        Init,
+        Segments
+    ).
+
+-spec foldr(PathValue, Acc0, Function) -> Acc1 when
+    PathValue :: t(),
+    Acc0 :: dynamic(),
+    Function :: fun((segment(), AccIn) -> AccOut),
+    AccIn :: dynamic(),
+    AccOut :: dynamic(),
+    Acc1 :: dynamic().
+foldr(#argo_path_value{segments = Segments}, Init, Function) when is_function(Function, 2) ->
+    array:foldr(
+        fun(_Index, Segment, Acc) ->
+            Function(Segment, Acc)
+        end,
+        Init,
+        Segments
+    ).
 
 -spec from_list(SegmentsList) -> PathValue when SegmentsList :: segments_list(), PathValue :: t().
 from_list(SegmentsList) when is_list(SegmentsList) ->
@@ -60,6 +95,10 @@ push_field_name(PathValue0 = #argo_path_value{}, Name) when is_binary(Name) ->
 -spec push_list_index(PathValue, Index) -> PathValue when PathValue :: t(), Index :: non_neg_integer().
 push_list_index(PathValue0 = #argo_path_value{}, Index) when ?is_usize(Index) ->
     push(PathValue0, {list_index, Index}).
+
+-spec size(PathValue) -> non_neg_integer() when PathValue :: t().
+size(#argo_path_value{segments = Segments}) ->
+    array:size(Segments).
 
 -spec to_list(PathValue) -> SegmentsList when PathValue :: t(), SegmentsList :: segments_list().
 to_list(#argo_path_value{segments = Segments}) ->

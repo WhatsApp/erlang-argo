@@ -8,7 +8,8 @@
 
 %% API
 -export([
-    new/4
+    new/4,
+    present_fields_count/1
 ]).
 
 %% Types
@@ -39,3 +40,29 @@ new(Message, Location, Path, Extensions) when
         ?is_option_record(Extensions, argo_index_map)
 ->
     #argo_error_value{message = Message, location = Location, path = Path, extensions = Extensions}.
+
+-spec present_fields_count(ErrorValue) -> non_neg_integer() when ErrorValue :: t().
+present_fields_count(#argo_error_value{location = Location, path = Path, extensions = Extensions}) ->
+    Count1 = 1,
+    Count2 =
+        case Location of
+            none ->
+                Count1;
+            {some, _} ->
+                Count1 + 1
+        end,
+    Count3 =
+        case Path of
+            none ->
+                Count2;
+            {some, _} ->
+                Count2 + 1
+        end,
+    Count4 =
+        case Extensions of
+            none ->
+                Count3;
+            {some, _} ->
+                Count3 + 1
+        end,
+    Count4.
