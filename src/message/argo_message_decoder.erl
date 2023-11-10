@@ -31,6 +31,7 @@
     read_core_float64/1,
     read_core_label/1,
     read_core_length/1,
+    read_core_omittable_type/2,
     read_core_string/2,
     read_core_varint/1
 ]).
@@ -169,6 +170,13 @@ read_core_length(MessageDecoder1 = #argo_message_decoder{core = Core1}) ->
     {Core2, Length} = argo_core_reader:read_length(Core1),
     MessageDecoder2 = MessageDecoder1#argo_message_decoder{core = Core2},
     {MessageDecoder2, Length}.
+
+-spec read_core_omittable_type(MessageDecoder, IsLabeled) -> {MessageDecoder, OmittableType} when
+    MessageDecoder :: t(), IsLabeled :: boolean(), OmittableType :: argo_core:omittable_type().
+read_core_omittable_type(MessageDecoder1 = #argo_message_decoder{core = Core1}, IsLabeled) when is_boolean(IsLabeled) ->
+    {Core2, OmittableType} = argo_core_reader:read_omittable_type(Core1, IsLabeled),
+    MessageDecoder2 = MessageDecoder1#argo_message_decoder{core = Core2},
+    {MessageDecoder2, OmittableType}.
 
 -spec read_core_string(MessageDecoder, Length) -> {MessageDecoder, Value} when
     MessageDecoder :: t(), Length :: argo_types:length(), Value :: unicode:unicode_binary().

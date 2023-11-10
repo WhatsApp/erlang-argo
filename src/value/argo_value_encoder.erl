@@ -174,10 +174,7 @@ encode_field_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1
                     ValueEncoder2;
                 {optional, {some, Value}} ->
                     MessageEncoder2 =
-                        case
-                            argo_header:inline_everything(MessageEncoder1#argo_message_encoder.header) orelse
-                                argo_value:is_labeled(Value)
-                        of
+                        case argo_value:is_labeled(Value) of
                             false ->
                                 MessageEncoder1;
                             true ->
