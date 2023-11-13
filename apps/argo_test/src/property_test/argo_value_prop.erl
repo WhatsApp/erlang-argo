@@ -29,6 +29,7 @@
 %% Properties
 -export([
     prop_roundtrip_encoder_and_decoder/1,
+    prop_roundtrip_json_encoder_and_json_decoder/1,
     prop_to_wire_type/1
 ]).
 
@@ -61,6 +62,18 @@ prop_roundtrip_encoder_and_decoder(_Config) ->
             Encoded = argo_value:to_writer(Value, Header),
             {<<>>, Decoded} = argo_value:from_reader(WireType, Encoded),
             ?EQUALS(Value, Decoded)
+        end
+    ).
+
+-spec prop_roundtrip_json_encoder_and_json_decoder(ct_suite:ct_config()) -> proper:test().
+prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
+    ?FORALL(
+        {WireType, Value},
+        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value(WireType)}),
+        begin
+            JsonEncoded = jsone:encode(argo_value:to_json(Value)),
+            JsonDecoded = argo_value:from_json(WireType, jsone:decode(JsonEncoded)),
+            ?EQUALS(JsonEncoded, jsone:encode(argo_value:to_json(JsonDecoded)))
         end
     ).
 

@@ -36,6 +36,8 @@
 -export([
     prop_roundtrip_encoder_and_decoder/0,
     prop_roundtrip_encoder_and_decoder/1,
+    prop_roundtrip_json_encoder_and_json_decoder/0,
+    prop_roundtrip_json_encoder_and_json_decoder/1,
     prop_to_wire_type/0,
     prop_to_wire_type/1
 ]).
@@ -53,6 +55,7 @@ groups() ->
     [
         {value, [parallel], [
             prop_roundtrip_encoder_and_decoder,
+            % prop_roundtrip_json_encoder_and_json_decoder,
             prop_to_wire_type
         ]}
     ].
@@ -89,6 +92,24 @@ prop_roundtrip_encoder_and_decoder(Config) ->
     argo_proper:quickcheck(
         argo_value_prop,
         prop_roundtrip_encoder_and_decoder,
+        Config,
+        [
+            verbose,
+            {max_shrinks, 100},
+            {numtests, 100}
+        ]
+    ).
+
+prop_roundtrip_json_encoder_and_json_decoder() ->
+    [
+        {doc, "Property-based test for `argo_value' JSON encoder and JSON decoder."},
+        {timetrap, {seconds, 600}}
+    ].
+
+prop_roundtrip_json_encoder_and_json_decoder(Config) ->
+    argo_proper:quickcheck(
+        argo_value_prop,
+        prop_roundtrip_json_encoder_and_json_decoder,
         Config,
         [
             verbose,
