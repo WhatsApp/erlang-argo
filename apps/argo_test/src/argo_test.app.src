@@ -1,0 +1,23 @@
+%%%-----------------------------------------------------------------------------
+%%% Copyright (c) Meta Platforms, Inc. and affiliates.
+%%% Copyright (c) WhatsApp LLC
+%%%
+%%% This source code is licensed under the MIT license found in the
+%%% LICENSE.md file in the root directory of this source tree.
+%%% % @format
+{application, argo_test, [
+    {description, "argo_test: test modules for Argo"},
+    {vsn, "1.0.0"},
+    {modules, []},
+    {registered, []},
+    %% NOTE: Remember to sync changes to `applications` to
+    %% the BUCK file in the application's base folder
+    {applications, [
+        kernel,
+        stdlib,
+        common_test,
+        proper,
+        argo
+    ]},
+    {env, []}
+]}.
