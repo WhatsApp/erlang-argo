@@ -1,0 +1,4 @@
+%{
+  "jsone": {:hex, :jsone, "1.8.1", "6bc74d3863d55d420077346da97c601711017a057f2fd1df65d6d65dd562fbab", [:rebar3], [], "hexpm", "c78918124148c51a7a84c678e39bbc6281f8cb582f1d88584628a98468e99738"},
+  "proper": {:git, "https://github.com/proper-testing/proper.git", "a5ae5669f01143b0828fc21667d4f5e344aa760b", [branch: "master"]},
+}
