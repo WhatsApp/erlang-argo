@@ -342,13 +342,6 @@ field_value(FieldWireType = #argo_field_wire_type{'of' = Of, omittable = true}) 
         case OptionValue of
             none ->
                 argo_field_value:optional(FieldWireType, OptionValue);
-            % {some, #argo_value{inner = RecordValue = #argo_record_value{}}} ->
-            %     case argo_record_value:present_fields_count(RecordValue) of
-            %         0 ->
-            %             argo_field_value:optional(FieldWireType, none);
-            %         _ ->
-            %             argo_field_value:optional(FieldWireType, OptionValue)
-            %     end;
             {some, _} ->
                 argo_field_value:optional(FieldWireType, OptionValue)
         end

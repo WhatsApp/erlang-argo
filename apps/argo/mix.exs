@@ -35,7 +35,7 @@ defmodule Argo.MixProject do
   defp package() do
     {_app, desc} = load_app()
     [
-      build_tools: ["mix", "rebar3"],
+      build_tools: Enum.map(Keyword.fetch!(desc, :build_tools), &to_string/1),
       description: to_string(Keyword.fetch!(desc, :description)),
       exclude_patterns: Enum.map(Keyword.fetch!(desc, :exclude_patterns), fn pattern ->
         Regex.compile!(to_string(pattern))
@@ -44,7 +44,8 @@ defmodule Argo.MixProject do
       licenses: Enum.map(Keyword.fetch!(desc, :licenses), &to_string/1),
       links: Enum.into(Keyword.fetch!(desc, :links), Map.new(), fn {key, value} ->
         {to_string(key), to_string(value)}
-      end)
+      end),
+      name: to_string(Keyword.fetch!(desc, :pkg_name))
     ]
   end
 
