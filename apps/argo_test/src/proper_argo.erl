@@ -96,7 +96,10 @@
 
 -spec complexity() -> pos_integer().
 complexity() ->
-    max(parameter(?COMPLEXITY, 0), 1).
+    case parameter(?COMPLEXITY, 0) of
+        Complexity when is_integer(Complexity) andalso Complexity >= 0 ->
+            max(Complexity, 1)
+    end.
 
 -spec mostly(U :: proper_types:type(), T :: proper_types:type()) -> proper_types:type().
 mostly(U, T) ->
@@ -111,7 +114,11 @@ option(T) ->
 
 -spec with_complexity(RawType :: proper_types:type()) -> proper_types:type().
 with_complexity(RawType) ->
-    Complexity = parameter(?COMPLEXITY, 0) + 1,
+    Complexity =
+        case parameter(?COMPLEXITY, 0) of
+            C when is_integer(C) andalso C >= 0 ->
+                C + 1
+        end,
     with_parameter(?COMPLEXITY, Complexity, RawType).
 
 %%%=============================================================================
@@ -171,18 +178,36 @@ varint() ->
 -spec header() -> proper_types:type().
 header() ->
     ?LET(
-        Header,
-        #argo_header{
-            inline_everything = boolean(),
-            self_describing = boolean(),
-            out_of_band_field_errors = exactly(true),
-            self_describing_errors = boolean(),
-            null_terminated_strings = boolean(),
-            no_deduplication = boolean(),
-            has_user_flags = exactly(false),
-            user_flags = exactly(undefined)
+        {
+            InlineEverything,
+            SelfDescribing,
+            OutOfBandFieldErrors,
+            SelfDescribingErrors,
+            NullTerminatedStrings,
+            NoDeduplication,
+            HasUserFlags,
+            UserFlags
         },
-        Header
+        {
+            boolean(),
+            boolean(),
+            exactly(true),
+            boolean(),
+            boolean(),
+            boolean(),
+            exactly(false),
+            exactly(undefined)
+        },
+        #argo_header{
+            inline_everything = InlineEverything,
+            self_describing = SelfDescribing,
+            out_of_band_field_errors = OutOfBandFieldErrors,
+            self_describing_errors = SelfDescribingErrors,
+            null_terminated_strings = NullTerminatedStrings,
+            no_deduplication = NoDeduplication,
+            has_user_flags = HasUserFlags,
+            user_flags = UserFlags
+        }
     ).
 
 %%%=============================================================================

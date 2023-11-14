@@ -71,9 +71,9 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
         {WireType, Value},
         ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value(WireType)}),
         begin
-            JsonEncoded = jsone:encode(argo_value:to_json(Value)),
-            JsonDecoded = argo_value:from_json(WireType, jsone:decode(JsonEncoded)),
-            ?EQUALS(JsonEncoded, jsone:encode(argo_value:to_json(JsonDecoded)))
+            JsonEncoded = jsone:encode(dynamic_cast(argo_value:to_json(Value))),
+            JsonDecoded = argo_value:from_json(WireType, dynamic_cast(jsone:decode(JsonEncoded))),
+            ?EQUALS(JsonEncoded, jsone:encode(dynamic_cast(argo_value:to_json(JsonDecoded))))
         end
     ).
 
@@ -93,5 +93,6 @@ prop_to_wire_type(_Config) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
+-compile({inline, [dynamic_cast/1]}).
 -spec dynamic_cast(term()) -> dynamic().
 dynamic_cast(X) -> X.
