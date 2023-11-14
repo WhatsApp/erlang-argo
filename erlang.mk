@@ -1,4 +1,6 @@
 # Copyright (c) 2013-2016, Loïc Hoguin <essen@ninenines.eu>
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) WhatsApp LLC
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
