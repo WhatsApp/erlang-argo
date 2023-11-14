@@ -102,7 +102,7 @@ new(Header = #argo_header{}, BlockWireType = #argo_block_wire_type{'of' = Of, de
                                     {some, Block} when is_binary(Block) ->
                                         #argo_dedupe_block_decoder{
                                             header = Header,
-                                            references = array:new(0, fixed),
+                                            references = dynamic_cast(array:new(0, fixed)),
                                             values = argo_block_reader:new(Block)
                                         };
                                     none ->
@@ -219,6 +219,7 @@ decode_fixed(
     Of = BlockWireType#argo_block_wire_type.'of',
     case argo_scalar_wire_type:is_fixed(Of) of
         true ->
+            % eqwalizer:ignore argo_scalar_wire_type:is_fixed/1 already checked that this is safe
             Length = Of#argo_scalar_wire_type.inner#argo_fixed_wire_type.length,
             case Kind0 of
                 #argo_dedupe_block_decoder{} ->
@@ -436,3 +437,12 @@ format_error_description(_Key, {unsupported_normal_block_decoder_scalar_wire_typ
     io_lib:format("scalar wire type ~ts does not support non-inline decoding", [Type]);
 format_error_description(_Key, Value) ->
     Value.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.

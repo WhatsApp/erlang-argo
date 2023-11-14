@@ -36,14 +36,14 @@
     Module :: module(),
     Function :: atom(),
     Config :: ct_suite:ct_config(),
-    Options :: eqwalizer:dynamic(),
-    Reason :: eqwalizer:dynamic().
+    Options :: dynamic(),
+    Reason :: dynamic().
 quickcheck(Module, Function, Config0, Options) ->
     _ = erlang:put(?PROPER_QUICKCHECK_OPTIONS, {Module, Function, Config0, Options}),
     Config1 = lists:keystore(property_test_tool, 1, Config0, {property_test_tool, ?MODULE}),
     ct_property_test:quickcheck(undefined, Config1).
 
--spec quickcheck(undefined) -> true | Reason when Reason :: eqwalizer:dynamic().
+-spec quickcheck(undefined) -> true | Reason when Reason :: dynamic().
 quickcheck(undefined) ->
     {Module, Function, Config, Options0} = erlang:erase(?PROPER_QUICKCHECK_OPTIONS),
     {Store, Options1} =

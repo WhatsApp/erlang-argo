@@ -85,13 +85,19 @@ display(WireType = #argo_wire_type{}) ->
 display(WireType = #argo_wire_type{}, IoDevice) when not is_list(IoDevice) ->
     Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
     Printer2 = argo_wire_type_printer:print_wire_type(Printer1, WireType),
-    argo_wire_type_printer:finalize(Printer2).
+    case argo_wire_type_printer:finalize(Printer2) of
+        ok ->
+            ok
+    end.
 
 -spec format(WireType) -> Output when WireType :: t(), Output :: iolist().
 format(WireType = #argo_wire_type{}) ->
     Printer1 = argo_wire_type_printer:new_string(),
     Printer2 = argo_wire_type_printer:print_wire_type(Printer1, WireType),
-    argo_wire_type_printer:finalize(Printer2).
+    case argo_wire_type_printer:finalize(Printer2) of
+        Output when is_list(Output) ->
+            Output
+    end.
 
 -spec from_reader(Reader) -> {Reader, WireType} when Reader :: binary(), WireType :: t().
 from_reader(Reader1) when is_binary(Reader1) ->
@@ -167,8 +173,6 @@ is_error(#argo_wire_type{inner = #argo_error_wire_type{}}) -> true;
 is_error(#argo_wire_type{}) -> false.
 
 -spec is_labeled(WireType) -> boolean() when WireType :: t().
-% is_labeled(#argo_wire_type{}) ->
-%     true.
 is_labeled(#argo_wire_type{inner = ScalarWireType = #argo_scalar_wire_type{}}) ->
     argo_scalar_wire_type:is_labeled(ScalarWireType);
 is_labeled(#argo_wire_type{inner = BlockWireType = #argo_block_wire_type{}}) ->
@@ -177,8 +181,6 @@ is_labeled(#argo_wire_type{inner = #argo_nullable_wire_type{}}) ->
     true;
 is_labeled(#argo_wire_type{inner = #argo_array_wire_type{}}) ->
     true;
-% is_labeled(#argo_wire_type{inner = #argo_record_wire_type{}}) ->
-%     true;
 is_labeled(#argo_wire_type{}) ->
     false.
 

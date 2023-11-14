@@ -108,7 +108,7 @@ decode_bit(0) -> false;
 decode_bit(1) -> true.
 
 %% @private
-%% TODO: limit decoding to X number of bits
+%% TODO: T169479375 limit decoding to X number of bits
 -spec decode_varbit(Reader, Varbit) -> {Reader, Varbit} when Reader :: binary(), Varbit :: bitstring().
 decode_varbit(<<Head:7/bits, 1:1, Rest/bits>>, Varbit) ->
     decode_varbit(Rest, <<Varbit/bits, Head:7/bits>>);

@@ -221,16 +221,6 @@ decode_array_wire_type_items(
     {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, ArrayWireType#argo_array_wire_type.'of'),
     decode_array_wire_type_items(ValueDecoder2, ArrayWireType, Length - 1, [Value | Items]).
 
-% push_caught(Value) ->
-%     LastValues =
-%         case erlang:get(caught) of
-%             undefined ->
-%                 [];
-%             Values ->
-%                 Values
-%         end,
-%     erlang:put(caught, [Value | LastValues]).
-
 %% @private
 -spec decode_record_wire_type(ValueDecoder, RecordWireType) -> {ValueDecoder, RecordValue} when
     ValueDecoder :: t(), RecordWireType :: argo_record_wire_type:t(), RecordValue :: argo_record_value:t().
@@ -241,15 +231,6 @@ decode_record_wire_type(
         false ->
             argo_index_map:foldl(
                 fun(_Index, _FieldName, FieldWireType, {ValueDecoderAcc1, RecordValueAcc1}) ->
-                    % try decode_field_wire_type(ValueDecoderAcc1, FieldWireType) of
-                    %     {ValueDecoderAcc2, FieldValue} ->
-                    %         RecordValueAcc2 = argo_record_value:insert(RecordValueAcc1, FieldValue),
-                    %         {ValueDecoderAcc2, RecordValueAcc2}
-                    % catch
-                    %     Class:Reason:Stacktrace ->
-                    %         push_caught({FieldWireType, argo_value:record(RecordValueAcc1)}),
-                    %         erlang:raise(error, badarg, Stacktrace)
-                    % end
                     {ValueDecoderAcc2, FieldValue} = decode_field_wire_type(ValueDecoderAcc1, FieldWireType),
                     RecordValueAcc2 = argo_record_value:insert(RecordValueAcc1, FieldValue),
                     {ValueDecoderAcc2, RecordValueAcc2}
@@ -313,11 +294,15 @@ decode_desc_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDecod
         ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT ->
             {MessageDecoder3, Length} = argo_message_decoder:read_core_length(MessageDecoder2),
             ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
-            decode_desc_wire_type_object(ValueDecoder2, Length, argo_index_map:new());
+            {ValueDecoder3, Object} = decode_desc_wire_type_object(ValueDecoder2, Length, argo_index_map:new()),
+            DescValue = argo_desc_value:object(Object),
+            {ValueDecoder3, DescValue};
         ?ARGO_LABEL_SELF_DESCRIBING_MARKER_LIST ->
             {MessageDecoder3, Length} = argo_message_decoder:read_core_length(MessageDecoder2),
             ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
-            decode_desc_wire_type_list(ValueDecoder2, Length, []);
+            {ValueDecoder3, List} = decode_desc_wire_type_list(ValueDecoder2, Length, []),
+            DescValue = argo_desc_value:list(List),
+            {ValueDecoder3, DescValue};
         ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING ->
             {MessageDecoder3, Value} = argo_message_decoder:decode_block_string(MessageDecoder2),
             DescValue = argo_desc_value:string(Value),
@@ -348,8 +333,7 @@ decode_desc_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDecod
     Length :: non_neg_integer(),
     Object :: argo_index_map:t(unicode:unicode_binary(), argo_desc_value:t()).
 decode_desc_wire_type_object(ValueDecoder1 = #argo_value_decoder{}, 0, Object1) ->
-    DescValue = argo_desc_value:object(Object1),
-    {ValueDecoder1, DescValue};
+    {ValueDecoder1, Object1};
 decode_desc_wire_type_object(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, Length, Object1) when
     is_integer(Length) andalso Length > 0
 ->
@@ -363,8 +347,7 @@ decode_desc_wire_type_object(ValueDecoder1 = #argo_value_decoder{message = Messa
 -spec decode_desc_wire_type_list(ValueDecoder, Length, List) -> {ValueDecoder, List} when
     ValueDecoder :: t(), Length :: non_neg_integer(), List :: [argo_desc_value:t()].
 decode_desc_wire_type_list(ValueDecoder1 = #argo_value_decoder{}, 0, List1) ->
-    DescValue = argo_desc_value:list(lists:reverse(List1)),
-    {ValueDecoder1, DescValue};
+    {ValueDecoder1, lists:reverse(List1)};
 decode_desc_wire_type_list(ValueDecoder1 = #argo_value_decoder{}, Length, List1) when
     is_integer(Length) andalso Length > 0
 ->
@@ -425,7 +408,7 @@ decode_error_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDeco
                                 {MD7_3, ExtensionsLength} = argo_message_decoder:read_core_length(MD7_2),
                                 VD6_1 = ValueDecoder6,
                                 VD6_2 = VD6_1#argo_value_decoder{message = MD7_3},
-                                {VD6_3, #argo_desc_value{inner = {object, ExtensionsValue}}} = decode_desc_wire_type_object(
+                                {VD6_3, ExtensionsValue} = decode_desc_wire_type_object(
                                     VD6_2, ExtensionsLength, argo_index_map:new()
                                 ),
                                 {VD6_3, {some, ExtensionsValue}};
@@ -583,7 +566,7 @@ decode_self_describing_error_wire_type_fields(
                 ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT ->
                     {MessageDecoder4, ExtensionsLength} = argo_message_decoder:read_core_length(MessageDecoder3),
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder4},
-                    {ValueDecoder3, #argo_desc_value{inner = {object, ExtensionsObject}}} = decode_desc_wire_type_object(
+                    {ValueDecoder3, ExtensionsObject} = decode_desc_wire_type_object(
                         ValueDecoder2, ExtensionsLength, argo_index_map:new()
                     ),
                     Map2 = maps:put(Key, ExtensionsObject, Map1),
@@ -780,8 +763,8 @@ decode_self_describing_path_wire_type_segments(
     end.
 
 %% @private
--spec decode_self_describing_record_wire_type(ValueDecoder, RecordWireType) -> ValueDecoder when
-    ValueDecoder :: t(), RecordWireType :: argo_record_wire_type:t().
+-spec decode_self_describing_record_wire_type(ValueDecoder, RecordWireType) -> {ValueDecoder, RecordValue} when
+    ValueDecoder :: t(), RecordWireType :: argo_record_wire_type:t(), RecordValue :: argo_record_value:t().
 decode_self_describing_record_wire_type(
     ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, RecordWireType = #argo_record_wire_type{}
 ) ->

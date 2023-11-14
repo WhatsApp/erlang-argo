@@ -58,14 +58,13 @@ new(Header = #argo_header{}) ->
 
 -spec to_writer(BlockEncoders) -> Writer when BlockEncoders :: t(), Writer :: binary().
 to_writer(#argo_block_encoders{inner = Inner}) ->
-    Blocks = argo_index_map:foldl(
+    argo_index_map:foldl(
         fun(_Index, _Key, BlockEncoder, Acc) ->
-            [Acc | argo_block_encoder:to_writer(BlockEncoder)]
+            <<Acc/bytes, (argo_block_encoder:to_writer(BlockEncoder))/bytes>>
         end,
-        [],
+        <<>>,
         Inner
-    ),
-    erlang:iolist_to_binary(Blocks).
+    ).
 
 -spec encode_boolean(BlockEncoders, CoreWriter, Value) -> {BlockEncoders, CoreWriter} when
     BlockEncoders :: t(), CoreWriter :: argo_core_writer:t(), Value :: boolean().

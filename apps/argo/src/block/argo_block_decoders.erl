@@ -66,7 +66,7 @@ new(Header = #argo_header{}) ->
     #argo_block_decoders{header = Header, core_popped = false, blocks = queue:new(), inner = argo_index_map:new()}.
 
 -spec decode_boolean(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Value :: boolean().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Value :: boolean().
 decode_boolean(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}) ->
     Key = ?ARGO_LABEL_SELF_DESCRIBING_BLOCK_BOOLEAN,
     {BlockDecoders2 = #argo_block_decoders{inner = Inner1}, BlockDecoder1} = get_or_else(
@@ -78,7 +78,7 @@ decode_boolean(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core
     {BlockDecoders3, CoreReader2, Value}.
 
 -spec decode_bytes(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Value :: binary().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Value :: binary().
 decode_bytes(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}) ->
     Key = ?ARGO_LABEL_SELF_DESCRIBING_BLOCK_BYTES,
     {BlockDecoders2 = #argo_block_decoders{inner = Inner1}, BlockDecoder1} = get_or_else(
@@ -90,7 +90,7 @@ decode_bytes(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_r
     {BlockDecoders3, CoreReader2, Value}.
 
 -spec decode_fixed(BlockDecoders, CoreReader, Length) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Length :: argo_types:length(), Value :: binary().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Length :: argo_types:length(), Value :: binary().
 decode_fixed(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}, Length) when
     ?is_usize(Length)
 ->
@@ -98,7 +98,7 @@ decode_fixed(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_r
     {BlockDecoders1, CoreReader2, Value}.
 
 -spec decode_float64(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Value :: float().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Value :: float().
 decode_float64(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}) ->
     Key = ?ARGO_LABEL_SELF_DESCRIBING_BLOCK_FLOAT64,
     {BlockDecoders2 = #argo_block_decoders{inner = Inner1}, BlockDecoder1} = get_or_else(
@@ -113,7 +113,7 @@ decode_float64(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core
     {BlockDecoders, CoreReader, ScalarValue}
 when
     BlockDecoders :: t(),
-    CoreReader :: t(),
+    CoreReader :: argo_core_reader:t(),
     Key :: argo_types:name(),
     MaybeBlockWireType :: maybe_block_wire_type(),
     ScalarValue :: argo_scalar_value:t().
@@ -132,7 +132,7 @@ decode_scalar_with_key(
     {BlockDecoders3, CoreReader2, Value}.
 
 -spec decode_string(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Value :: unicode:unicode_binary().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Value :: unicode:unicode_binary().
 decode_string(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}) ->
     Key = ?ARGO_LABEL_SELF_DESCRIBING_BLOCK_STRING,
     {BlockDecoders2 = #argo_block_decoders{inner = Inner1}, BlockDecoder1} = get_or_else(
@@ -144,7 +144,7 @@ decode_string(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_
     {BlockDecoders3, CoreReader2, Value}.
 
 -spec decode_varint(BlockDecoders, CoreReader) -> {BlockDecoders, CoreReader, Value} when
-    BlockDecoders :: t(), CoreReader :: t(), Value :: argo_types:i64().
+    BlockDecoders :: t(), CoreReader :: argo_core_reader:t(), Value :: argo_types:i64().
 decode_varint(BlockDecoders1 = #argo_block_decoders{}, CoreReader1 = #argo_core_reader{}) ->
     Key = ?ARGO_LABEL_SELF_DESCRIBING_BLOCK_VARINT,
     {BlockDecoders2 = #argo_block_decoders{inner = Inner1}, BlockDecoder1} = get_or_else(

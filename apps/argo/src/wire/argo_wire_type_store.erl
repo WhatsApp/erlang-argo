@@ -60,13 +60,19 @@ display(WireTypeStore = #argo_wire_type_store{}) ->
 display(WireTypeStore = #argo_wire_type_store{}, IoDevice) when not is_list(IoDevice) ->
     Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
     Printer2 = argo_wire_type_printer:print_wire_type_store(Printer1, WireTypeStore),
-    argo_wire_type_printer:finalize(Printer2).
+    case argo_wire_type_printer:finalize(Printer2) of
+        ok ->
+            ok
+    end.
 
 -spec format(WireTypeStore) -> Output when WireTypeStore :: t(), Output :: iolist().
 format(WireTypeStore = #argo_wire_type_store{}) ->
     Printer1 = argo_wire_type_printer:new_string(),
     Printer2 = argo_wire_type_printer:print_wire_type_store(Printer1, WireTypeStore),
-    argo_wire_type_printer:finalize(Printer2).
+    case argo_wire_type_printer:finalize(Printer2) of
+        Output when is_list(Output) ->
+            Output
+    end.
 
 -spec from_reader(Reader) -> {Reader, WireTypeStore} when Reader :: binary(), WireTypeStore :: t().
 from_reader(Reader1) when is_binary(Reader1) ->

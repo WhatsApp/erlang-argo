@@ -86,7 +86,7 @@ from_list(SegmentsList) when is_list(SegmentsList) ->
 
 -spec new() -> PathValue when PathValue :: t().
 new() ->
-    #argo_path_value{segments = array:new(0, fixed)}.
+    #argo_path_value{segments = dynamic_cast(array:new(0, fixed))}.
 
 -spec pop(PathValue) -> {PathValue, none | {some, Segment}} when PathValue :: t(), Segment :: segment().
 pop(PathValue0 = #argo_path_value{segments = Segments0}) ->
@@ -121,6 +121,11 @@ to_list(#argo_path_value{segments = Segments}) ->
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
+
+%% @private
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.
 
 %% @private
 -spec from_list(NameOrIndex, Acc) -> Acc when NameOrIndex :: argo_types:name() | non_neg_integer(), Acc :: t().

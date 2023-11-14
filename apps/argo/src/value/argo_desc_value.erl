@@ -49,8 +49,8 @@
 %% Types
 -type desc_null() :: null.
 -type desc_boolean() :: boolean().
--type desc_object() :: argo_index_map:t(unicode:unicode_binary(), argo_desc_value:t()).
--type desc_list() :: [argo_desc_value:t()].
+-type desc_object() :: argo_index_map:t(unicode:unicode_binary(), t()).
+-type desc_list() :: [t()].
 -type desc_string() :: unicode:unicode_binary().
 -type desc_bytes() :: binary().
 -type desc_int() :: argo_types:i64().

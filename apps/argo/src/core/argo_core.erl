@@ -54,29 +54,32 @@
 %%% New API functions
 %%%=============================================================================
 
--spec absent() -> OmittableType when OmittableType :: omittable_type().
+-compile({inline, [absent/0]}).
+-spec absent() -> absent.
 absent() ->
     absent.
 
--spec backreference(Backreference) -> LabeledType when
-    Backreference :: argo_types:backreference(), LabeledType :: labeled_type().
+-compile({inline, [backreference/1]}).
+-spec backreference(Backreference) -> {backreference, Backreference} when Backreference :: argo_types:backreference().
 backreference(Backreference) when ?is_u32(Backreference) ->
     {backreference, Backreference}.
 
--spec error() -> NullableType when NullableType :: nullable_type().
+-compile({inline, [error/0]}).
+-spec error() -> error.
 error() ->
     error.
 
--spec length(Length) -> LabeledType when Length :: argo_types:length(), LabeledType :: labeled_type().
+-spec length(Length) -> {length, Length} when Length :: argo_types:length().
 length(Length) when ?is_u32(Length) ->
     {length, Length}.
 
--spec non_null() -> NullableType | OmittableType when
-    NullableType :: nullable_type(), OmittableType :: omittable_type().
+-compile({inline, [non_null/0]}).
+-spec non_null() -> non_null.
 non_null() ->
     non_null.
 
--spec null() -> OmittableType when OmittableType :: omittable_type().
+-compile({inline, [null/0]}).
+-spec null() -> null.
 null() ->
     null.
 
@@ -84,27 +87,33 @@ null() ->
 %%% Instance API functions
 %%%=============================================================================
 
+-compile({inline, [is_absent/1]}).
 -spec is_absent(OmittableType) -> boolean() when OmittableType :: omittable_type().
 is_absent(absent) -> true;
 is_absent(_) -> false.
 
+-compile({inline, [is_backreference/1]}).
 -spec is_backreference(LabeledType) -> boolean() when LabeledType :: labeled_type().
 is_backreference({backreference, _}) -> true;
 is_backreference(_) -> false.
 
+-compile({inline, [is_error/1]}).
 -spec is_error(NullableType) -> boolean() when NullableType :: nullable_type().
 is_error(error) -> true;
 is_error(_) -> false.
 
+-compile({inline, [is_length/1]}).
 -spec is_length(LabeledType) -> boolean() when LabeledType :: labeled_type().
 is_length({length, _}) -> true;
 is_length(_) -> false.
 
+-compile({inline, [is_non_null/1]}).
 -spec is_non_null(NullableType | OmittableType) -> boolean() when
     NullableType :: nullable_type(), OmittableType :: omittable_type().
 is_non_null(non_null) -> true;
 is_non_null(_) -> false.
 
+-compile({inline, [is_null/1]}).
 -spec is_null(NullableType) -> boolean() when NullableType :: nullable_type().
 is_null(non_null) -> true;
 is_null(_) -> false.

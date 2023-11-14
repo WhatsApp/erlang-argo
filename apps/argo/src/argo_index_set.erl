@@ -48,11 +48,9 @@
 -type element() :: dynamic().
 -type index() :: argo_index_map:index().
 -type iterator() :: iterator(element()).
--type iterator(ElementType) ::
+-opaque iterator(T) ::
     none
-    | maybe_improper_list(
-        {ordered, index()} | {revered, index()} | {custom, [{index(), ElementType}]}, t(ElementType)
-    ).
+    | {{ordered, index()} | {reversed, index()} | {custom, [{index(), T}]}, t(T)}.
 -type iterator_order() :: iterator_order(element()).
 -type iterator_order(ElementType) ::
     ordered | reversed | iterator_order_func(ElementType).
@@ -140,7 +138,7 @@ first(IndexSet = #argo_index_set{}) ->
 foldl(Function, Init, IndexSet = #argo_index_set{}) when is_function(Function, 3) ->
     Iterator = iterator(IndexSet, ordered),
     foldl_iterator(Iterator, Function, Init);
-foldl(Function, Init, Iterator = [_ | #argo_index_set{}]) when is_function(Function, 3) ->
+foldl(Function, Init, Iterator = {{_, _}, #argo_index_set{}}) when is_function(Function, 3) ->
     foldl_iterator(Iterator, Function, Init).
 
 -spec foldr(Function, Acc0, IndexSetOrIterator) -> Acc1 when
@@ -154,7 +152,7 @@ foldl(Function, Init, Iterator = [_ | #argo_index_set{}]) when is_function(Funct
 foldr(Function, Init, IndexSet = #argo_index_set{}) when is_function(Function, 3) ->
     Iterator = iterator(IndexSet, reversed),
     foldl_iterator(Iterator, Function, Init);
-foldr(Function, Init, Iterator = [_ | #argo_index_set{}]) when is_function(Function, 3) ->
+foldr(Function, Init, Iterator = {{_, _}, #argo_index_set{}}) when is_function(Function, 3) ->
     foldr_iterator(Iterator, Function, Init, []).
 
 -spec from_list(ElementList) -> IndexSet when ElementList :: [Element], Element :: element(), IndexSet :: t(Element).
@@ -162,12 +160,6 @@ from_list([]) ->
     new();
 from_list(List) when is_list(List) ->
     lists:foldl(fun from_list/2, new(), List).
-
-%% @private
--spec from_list(Element, IndexSet1) -> IndexSet2 when
-    Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
-from_list(Element, IndexSet) ->
-    ?MODULE:add_element(Element, IndexSet).
 
 -spec is_index(Index, IndexSet) -> boolean() when Index :: index(), IndexSet :: t().
 is_index(Index, IndexSet = #argo_index_set{}) ->
@@ -184,12 +176,12 @@ iterator(IndexSet = #argo_index_set{}) ->
 -spec iterator(IndexSet, Order) -> Iterator when
     Element :: element(), Order :: iterator_order(Element), IndexSet :: t(Element), Iterator :: iterator(Element).
 iterator(IndexSet = #argo_index_set{}, ordered) ->
-    [{ordered, 0} | IndexSet];
+    {{ordered, 0}, IndexSet};
 iterator(IndexSet = #argo_index_set{}, reversed) ->
-    [{reversed, ?MODULE:size(IndexSet)} | IndexSet];
+    {{reversed, ?MODULE:size(IndexSet)}, IndexSet};
 iterator(IndexSet = #argo_index_set{map = IndexMap}, OrderFun) when is_function(OrderFun, 4) ->
-    [{custom, Custom} | IndexMap] = argo_index_map:iterator(IndexMap, OrderFun),
-    [{custom, Custom} | IndexSet].
+    {{custom, Custom}, IndexMap} = argo_index_map:iterator(IndexMap, OrderFun),
+    {{custom, dynamic_cast(Custom)}, IndexSet}.
 
 -spec last(IndexSet) -> {ok, Element} | error when Element :: element(), IndexSet :: t(Element).
 last(IndexSet = #argo_index_set{}) ->
@@ -209,13 +201,13 @@ new() ->
     Element :: element(),
     Iterator :: iterator(Element),
     NextIterator :: iterator(Element).
-next([{ordered, Index} | IndexSet = #argo_index_set{}]) when is_integer(Index) andalso Index >= 0 ->
+next({{ordered, Index}, IndexSet = #argo_index_set{}}) when is_integer(Index) andalso Index >= 0 ->
     case find_index(Index, IndexSet) of
         {ok, Element} ->
             NextIterator =
                 case is_index(Index + 1, IndexSet) of
                     true ->
-                        [{ordered, Index + 1} | IndexSet];
+                        {{ordered, Index + 1}, IndexSet};
                     false ->
                         none
                 end,
@@ -223,13 +215,13 @@ next([{ordered, Index} | IndexSet = #argo_index_set{}]) when is_integer(Index) a
         error ->
             none
     end;
-next([{reversed, Index} | IndexSet = #argo_index_set{}]) when is_integer(Index) andalso Index >= 0 ->
+next({{reversed, Index}, IndexSet = #argo_index_set{}}) when is_integer(Index) andalso Index >= 0 ->
     case find_index(Index - 1, IndexSet) of
         {ok, Element} ->
             NextIterator =
                 case Index - 2 >= 0 andalso is_index(Index - 2, IndexSet) of
                     true ->
-                        [{reversed, Index - 1} | IndexSet];
+                        {{reversed, Index - 1}, IndexSet};
                     false ->
                         none
                 end,
@@ -237,16 +229,16 @@ next([{reversed, Index} | IndexSet = #argo_index_set{}]) when is_integer(Index) 
         error ->
             none
     end;
-next([{custom, [{Index, {Element, []}} | Custom]} | IndexSet = #argo_index_set{}]) ->
+next({{custom, [{Index, {Element, []}} | Custom]}, IndexSet = #argo_index_set{}}) ->
     NextIterator =
         case length(Custom) > 0 of
             true ->
-                [{custom, Custom} | IndexSet];
+                {{custom, Custom}, IndexSet};
             false ->
                 none
         end,
     {Index, Element, NextIterator};
-next([{custom, []} | #argo_index_set{}]) ->
+next({{custom, []}, #argo_index_set{}}) ->
     none;
 next(none) ->
     none.
@@ -301,14 +293,23 @@ take_index_of(Element, IndexSet1 = #argo_index_set{}) ->
     Element :: element(), IndexSetOrIterator :: t(Element) | iterator(Element), ElementList :: [Element].
 to_list(#argo_index_set{map = IndexMap}) ->
     argo_index_map:keys(IndexMap);
-to_list(Iterator = [_ | #argo_index_set{}]) ->
+to_list(Iterator = {{_, _}, #argo_index_set{}}) ->
     lists:reverse(foldl_iterator(Iterator, fun collect_elements/3, [])).
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
 
 %% @private
 -spec collect_elements(Index, Element, Elements) -> Elements when
     Index :: index(), Element :: element(), Elements :: [Element].
 collect_elements(_Index, Element, Elements) ->
     [Element | Elements].
+
+%% @private
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.
 
 %% @private
 -spec foldl_iterator(Iterator, Function, AccIn) -> AccOut when
@@ -358,3 +359,9 @@ foldr_iterator(Iterator, Function, Acc1, Entries1) ->
             Entries2 = [{Index, Element} | Entries1],
             foldr_iterator(NextIterator, Function, Acc1, Entries2)
     end.
+
+%% @private
+-spec from_list(Element, IndexSet1) -> IndexSet2 when
+    Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
+from_list(Element, IndexSet) ->
+    ?MODULE:add_element(Element, IndexSet).

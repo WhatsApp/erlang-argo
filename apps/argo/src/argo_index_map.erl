@@ -53,7 +53,7 @@
 ]).
 
 %% Types
--type index() :: array:array_indx().
+-type index() :: non_neg_integer().
 -type key() :: dynamic().
 -type value() :: dynamic().
 -type t(KeyType, ValueType) :: #argo_index_map{
@@ -62,11 +62,9 @@
 -type t(KeyType) :: t(KeyType, value()).
 -type t() :: t(key(), value()).
 -type iterator() :: iterator(key(), value()).
--type iterator(KeyType, ValueType) ::
+-opaque iterator(KeyType, ValueType) ::
     none
-    | maybe_improper_list(
-        {ordered, index()} | {revered, index()} | {custom, [{index(), {KeyType, ValueType}}]}, t(KeyType, ValueType)
-    ).
+    | {{ordered, index()} | {reversed, index()} | {custom, [{index(), {KeyType, ValueType}}]}, t(KeyType, ValueType)}.
 -type iterator_order() :: iterator_order(key()).
 -type iterator_order(Key) ::
     ordered | reversed | iterator_order_func(Key).
@@ -146,7 +144,7 @@ first(IndexMap = #argo_index_map{}) ->
 foldl(Function, Init, IndexMap = #argo_index_map{}) when is_function(Function, 4) ->
     Iterator = iterator(IndexMap, ordered),
     foldl_iterator(Iterator, Function, Init);
-foldl(Function, Init, Iterator = [_ | #argo_index_map{}]) when is_function(Function, 4) ->
+foldl(Function, Init, Iterator = {{_, _}, #argo_index_map{}}) when is_function(Function, 4) ->
     foldl_iterator(Iterator, Function, Init).
 
 -spec foldr(Function, Acc0, IndexMapOrIterator) -> Acc1 when
@@ -161,7 +159,7 @@ foldl(Function, Init, Iterator = [_ | #argo_index_map{}]) when is_function(Funct
 foldr(Function, Init, IndexMap = #argo_index_map{}) when is_function(Function, 4) ->
     Iterator = iterator(IndexMap, reversed),
     foldl_iterator(Iterator, Function, Init);
-foldr(Function, Init, Iterator = [_ | #argo_index_map{}]) when is_function(Function, 4) ->
+foldr(Function, Init, Iterator = {{_, _}, #argo_index_map{}}) when is_function(Function, 4) ->
     foldr_iterator(Iterator, Function, Init, []).
 
 -spec from_list(KeyValueList) -> IndexMap when
@@ -170,11 +168,6 @@ from_list([]) ->
     new();
 from_list(List) when is_list(List) ->
     lists:foldl(fun from_list/2, new(), List).
-
-%% @private
--spec from_list({Key, Value}, IndexMap) -> IndexMap when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
-from_list({Key, Value}, IndexMap) ->
-    ?MODULE:put(Key, Value, IndexMap).
 
 -spec get(Key, IndexMap) -> Value when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
 get(Key, IndexMap = #argo_index_map{}) ->
@@ -234,9 +227,9 @@ iterator(IndexMap = #argo_index_map{}) ->
     Order :: iterator_order(Key),
     Iterator :: iterator(Key, Value).
 iterator(IndexMap = #argo_index_map{}, ordered) ->
-    [{ordered, 0} | IndexMap];
+    {{ordered, 0}, IndexMap};
 iterator(IndexMap = #argo_index_map{}, reversed) ->
-    [{reversed, ?MODULE:size(IndexMap)} | IndexMap];
+    {{reversed, ?MODULE:size(IndexMap)}, IndexMap};
 iterator(IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_function(OrderFun, 4) ->
     Custom = lists:sort(
         fun({AIndex, {AKey, _AValue}}, {BIndex, {BKey, _BValue}}) ->
@@ -244,13 +237,13 @@ iterator(IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_functi
         end,
         array:to_orddict(Entries)
     ),
-    [{custom, Custom} | IndexMap].
+    {{custom, Custom}, IndexMap}.
 
 -spec keys(IndexMapOrIterator) -> Keys when
     Key :: key(), Value :: value(), IndexMapOrIterator :: t(Key, Value) | iterator(Key, Value), Keys :: [Key].
 keys(#argo_index_map{entries = Entries}) ->
     array:foldr(fun collect_keys/3, [], Entries);
-keys(Iterator = [_ | #argo_index_map{}]) ->
+keys(Iterator = {{_, _}, #argo_index_map{}}) ->
     lists:reverse(foldl_iterator(Iterator, fun collect_keys/4, [])).
 
 -spec last(IndexMap) -> {ok, {Key, Value}} | error when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
@@ -266,7 +259,7 @@ last(IndexMap = #argo_index_map{entries = Entries}) ->
 new() ->
     #argo_index_map{
         indices = maps:new(),
-        entries = array:new(0, fixed)
+        entries = dynamic_cast(array:new(0, fixed))
     }.
 
 -spec next(Iterator) -> none | {Index, Key, Value, NextIterator} when
@@ -275,13 +268,13 @@ new() ->
     Value :: value(),
     Iterator :: iterator(Key, Value),
     NextIterator :: iterator(Key, Value).
-next([{ordered, Index} | IndexMap = #argo_index_map{}]) when is_integer(Index) andalso Index >= 0 ->
+next({{ordered, Index}, IndexMap = #argo_index_map{}}) when is_integer(Index) andalso Index >= 0 ->
     case find_index(Index, IndexMap) of
         {ok, {Key, Value}} ->
             NextIterator =
                 case is_index(Index + 1, IndexMap) of
                     true ->
-                        [{ordered, Index + 1} | IndexMap];
+                        {{ordered, Index + 1}, IndexMap};
                     false ->
                         none
                 end,
@@ -289,13 +282,13 @@ next([{ordered, Index} | IndexMap = #argo_index_map{}]) when is_integer(Index) a
         error ->
             none
     end;
-next([{reversed, Index} | IndexMap = #argo_index_map{}]) when is_integer(Index) andalso Index >= 0 ->
+next({{reversed, Index}, IndexMap = #argo_index_map{}}) when is_integer(Index) andalso Index >= 0 ->
     case find_index(Index - 1, IndexMap) of
         {ok, {Key, Value}} ->
             NextIterator =
                 case Index - 2 >= 0 andalso is_index(Index - 2, IndexMap) of
                     true ->
-                        [{reversed, Index - 1} | IndexMap];
+                        {{reversed, Index - 1}, IndexMap};
                     false ->
                         none
                 end,
@@ -303,16 +296,16 @@ next([{reversed, Index} | IndexMap = #argo_index_map{}]) when is_integer(Index) 
         error ->
             none
     end;
-next([{custom, [{Index, {Key, Value}} | Custom]} | IndexMap = #argo_index_map{}]) ->
+next({{custom, [{Index, {Key, Value}} | Custom]}, IndexMap = #argo_index_map{}}) ->
     NextIterator =
         case length(Custom) > 0 of
             true ->
-                [{custom, Custom} | IndexMap];
+                {{custom, Custom}, IndexMap};
             false ->
                 none
         end,
     {Index, Key, Value, NextIterator};
-next([{custom, []} | #argo_index_map{}]) ->
+next({{custom, []}, #argo_index_map{}}) ->
     none;
 next(none) ->
     none.
@@ -378,7 +371,7 @@ take_full(Key, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entries
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = Entries3},
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = dynamic_cast(Entries3)},
             {{Index, Key, Value}, IndexMap2};
         error ->
             error
@@ -397,7 +390,7 @@ take_index(Index, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entr
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = Entries3},
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = dynamic_cast(Entries3)},
             {{Key, Value}, IndexMap2};
         false ->
             error
@@ -420,8 +413,12 @@ take_index_of(Key, IndexMap1 = #argo_index_map{}) ->
     KeyValueList :: [{Key, Value}].
 to_list(#argo_index_map{entries = Entries}) ->
     array:foldr(fun collect_pairs/3, [], Entries);
-to_list(Iterator = [_ | #argo_index_map{}]) ->
+to_list(Iterator = {{_, _}, #argo_index_map{}}) ->
     lists:reverse(foldl_iterator(Iterator, fun collect_pairs/4, [])).
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
 
 %% @private
 -spec collect_keys(Index, {Key, Value}, Keys) -> Keys when
@@ -446,6 +443,11 @@ collect_pairs(_Index, {Key, Value}, Pairs) ->
     Index :: index(), Key :: key(), Value :: value(), Pairs :: [{Key, Value}].
 collect_pairs(_Index, Key, Value, Pairs) ->
     [{Key, Value} | Pairs].
+
+%% @private
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.
 
 %% @private
 -spec foldl_iterator(Iterator, Function, AccIn) -> AccOut when
@@ -500,13 +502,18 @@ foldr_iterator(Iterator, Function, Acc1, Entries1) ->
     end.
 
 %% @private
+-spec from_list({Key, Value}, IndexMap) -> IndexMap when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
+from_list({Key, Value}, IndexMap) ->
+    ?MODULE:put(Key, Value, IndexMap).
+
+%% @private
 -spec repair(Index, undefined | {Key, Value}, Acc) -> Acc when
     Index :: index(),
     Key :: key(),
     Value :: value(),
     Acc :: {cont, Indices, Entries, NewSize} | {halt, Indices, Entries},
     Indices :: #{Key => Index},
-    Entries :: array:array({Key, Value}),
+    Entries :: array:array(undefined | {Key, Value}),
     NewSize :: non_neg_integer().
 repair(_Index, undefined, {cont, Indices, Entries1, NewSize}) ->
     Entries2 = array:set(NewSize, undefined, Entries1),

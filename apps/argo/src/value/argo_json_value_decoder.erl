@@ -234,10 +234,11 @@ decode_record_wire_type(
                 3 => {mismatch, expected_object, JsonValue}
             });
         true ->
+            JsonObject = dynamic_cast(JsonValue),
             {JsonValueDecoder2, RecordValue} = argo_index_map:foldl(
                 fun(_Index, _FieldName, FieldWireType, {JsonValueDecoderAcc1, RecordValueAcc1}) ->
                     {JsonValueDecoderAcc2, FieldValue} = decode_field_wire_type(
-                        JsonValueDecoderAcc1, FieldWireType, JsonValue
+                        JsonValueDecoderAcc1, FieldWireType, JsonObject
                     ),
                     RecordValueAcc2 = argo_record_value:insert(RecordValueAcc1, FieldValue),
                     {JsonValueDecoderAcc2, RecordValueAcc2}
@@ -490,3 +491,12 @@ format_error_description(_Key, {required_object_key_missing, Key}) ->
     io_lib:format("required JSON object key is missing: ~0tp", [Key]);
 format_error_description(_Key, Value) ->
     Value.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.

@@ -88,13 +88,19 @@ display(Value = #argo_value{}) ->
 display(Value = #argo_value{}, IoDevice) when not is_list(IoDevice) ->
     Printer1 = argo_value_printer:new_io_device(IoDevice),
     Printer2 = argo_value_printer:print_value(Printer1, Value),
-    argo_value_printer:finalize(Printer2).
+    case argo_value_printer:finalize(Printer2) of
+        ok ->
+            ok
+    end.
 
 -spec format(Value) -> Output when Value :: t(), Output :: iolist().
 format(Value = #argo_value{}) ->
     Printer1 = argo_value_printer:new_string(),
     Printer2 = argo_value_printer:print_value(Printer1, Value),
-    argo_value_printer:finalize(Printer2).
+    case argo_value_printer:finalize(Printer2) of
+        Output when is_list(Output) ->
+            Output
+    end.
 
 -spec from_json(WireType, JsonValue) -> Value when
     WireType :: argo_wire_type:t(), JsonValue :: argo_json:json_value(), Value :: t().
