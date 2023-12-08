@@ -41,6 +41,7 @@ _*
 *.plt
 *.swp
 *.swo
+.DS_Store
 .erlang.cookie
 ebin
 log
@@ -59,5 +60,7 @@ rebar3.crashdump
 /apps/argo/priv/*.dll
 /apps/argo/priv/*.dylib
 /apps/argo/priv/*.so
+/apps/argo/src/**/argo_graphql_language_parser.erl
+/apps/argo/src/**/argo_graphql_language_scanner.erl
 /erlfmt
 /rebar3

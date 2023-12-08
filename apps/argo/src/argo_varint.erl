@@ -126,6 +126,7 @@ zigzag_encode(From) when ?is_i64(From) ->
 %%%=============================================================================
 
 %% @private
+-compile({inline, [error_with_info/3]}).
 -spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
 error_with_info(Reason, Args, Cause) ->
     erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).

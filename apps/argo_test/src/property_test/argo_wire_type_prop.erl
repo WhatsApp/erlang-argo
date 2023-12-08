@@ -68,5 +68,6 @@ prop_roundtrip_encoder_and_decoder(_Config) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
+-compile({inline, [dynamic_cast/1]}).
 -spec dynamic_cast(term()) -> dynamic().
 dynamic_cast(X) -> X.

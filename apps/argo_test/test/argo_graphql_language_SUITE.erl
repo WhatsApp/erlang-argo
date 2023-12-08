@@ -13,7 +13,7 @@
 %%% Created :  10 Nov 2023 by Andrew Bennett <potatosaladx@meta.com>
 %%%-----------------------------------------------------------------------------
 %%% % @format
--module(argo_wire_type_SUITE).
+-module(argo_graphql_language_SUITE).
 -author("potatosaladx@meta.com").
 -oncall("whatsapp_clr").
 
@@ -34,8 +34,8 @@
 
 %% Test Cases
 -export([
-    prop_roundtrip_encoder_and_decoder/0,
-    prop_roundtrip_encoder_and_decoder/1
+    prop_roundtrip_formatter_and_parser/0,
+    prop_roundtrip_formatter_and_parser/1
 ]).
 
 %%%=============================================================================
@@ -44,13 +44,13 @@
 
 all() ->
     [
-        {group, wire_type}
+        {group, graphql}
     ].
 
 groups() ->
     [
-        {wire_type, [parallel], [
-            prop_roundtrip_encoder_and_decoder
+        {graphql, [parallel], [
+            prop_roundtrip_formatter_and_parser
         ]}
     ].
 
@@ -76,21 +76,21 @@ end_per_testcase(_TestCase, _Config) ->
 %%% Test Cases
 %%%=============================================================================
 
-prop_roundtrip_encoder_and_decoder() ->
+prop_roundtrip_formatter_and_parser() ->
     [
-        {doc, "Loads the `argo_wire_type' and runs property tests for encoder/decoder."},
+        {doc, "Loads the `argo_graphql_language' and runs property tests for formatter/parser."},
         {timetrap, {seconds, 600}}
     ].
 
-prop_roundtrip_encoder_and_decoder(Config) ->
+prop_roundtrip_formatter_and_parser(Config) ->
     argo_proper:quickcheck(
-        argo_wire_type_prop,
-        prop_roundtrip_encoder_and_decoder,
+        argo_graphql_language_prop,
+        prop_roundtrip_formatter_and_parser,
         Config,
         [
             verbose,
-            {max_shrinks, 100},
-            {numtests, 1000}
+            {max_shrinks, 10},
+            {numtests, 100}
         ]
     ).
 

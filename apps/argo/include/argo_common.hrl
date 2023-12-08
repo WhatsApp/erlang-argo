@@ -22,4 +22,10 @@
 -define(is_u64(X), (is_integer((X)) andalso (X) >= 0 andalso (X) =< 16#FFFFFFFFFFFFFFFF)).
 -define(is_usize(X), ?is_u64(X)).
 
+-define(is_option_none(X), ((X) =:= none)).
+-define(is_option_some(X), (is_tuple((X)) andalso tuple_size((X)) =:= 2 andalso element(1, (X)) =:= some)).
+-define(is_option_binary(X), (?is_option_none(X) orelse (?is_option_some(X) andalso is_binary(element(2, (X)))))).
+-define(is_option_boolean(X), (?is_option_none(X) orelse (?is_option_some(X) andalso is_boolean(element(2, (X)))))).
+-define(is_option_record(X, T), (?is_option_none(X) orelse (?is_option_some(X) andalso is_record(element(2, (X)), T)))).
+
 -endif.

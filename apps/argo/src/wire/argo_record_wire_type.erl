@@ -20,10 +20,14 @@
 -include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
-%% API
+%% New API
 -export([
     new/0,
-    new/1,
+    new/1
+]).
+%% Instance API
+-export([
+    find/2,
     insert/2
     % insert/4
 ]).
@@ -36,7 +40,7 @@
 ]).
 
 %%%=============================================================================
-%%% API functions
+%%% New API functions
 %%%=============================================================================
 
 -spec new() -> RecordWireType when RecordWireType :: t().
@@ -47,6 +51,15 @@ new() ->
     Fields :: argo_index_map:t(argo_types:name(), argo_field_wire_type:t()), RecordWireType :: t().
 new(Fields = #argo_index_map{}) ->
     #argo_record_wire_type{fields = Fields}.
+
+%%%=============================================================================
+%%% Instance API functions
+%%%=============================================================================
+
+-spec find(RecordWireType, Name) -> {ok, FieldWireType} | error when
+    RecordWireType :: t(), Name :: argo_types:name(), FieldWireType :: argo_field_wire_type:t().
+find(#argo_record_wire_type{fields = Fields}, Name) when is_binary(Name) ->
+    argo_index_map:find(Name, Fields).
 
 -spec insert(RecordWireType, FieldWireType) -> RecordWireType when
     RecordWireType :: t(), FieldWireType :: argo_field_wire_type:t().
