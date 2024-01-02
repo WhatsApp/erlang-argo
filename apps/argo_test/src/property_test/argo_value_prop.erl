@@ -18,8 +18,7 @@
 -oncall("whatsapp_clr").
 -compile(warn_missing_spec).
 
--include_lib("proper/include/proper.hrl").
-
+-include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_value.hrl").
 
 %% Helpers
@@ -34,11 +33,6 @@
 ]).
 
 %% Macros
--ifdef(WHENFAIL).
--undef(WHENFAIL).
--endif.
-% eqWAlizer gets angry about `fun(() -> boolean())` not being a subtype of `fun(() -> proper:test())`
--define(WHENFAIL(Action, Prop), proper:whenfail(?DELAY(Action), dynamic_cast(?DELAY(Prop)))).
 -define(EQUALS(A, B), ?WHENFAIL(report_not_equal(A, B), A =:= B)).
 
 %%%=============================================================================
@@ -71,9 +65,9 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
         {WireType, Value},
         ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value(WireType)}),
         begin
-            JsonEncoded = jsone:encode(dynamic_cast(argo_value:to_json(Value))),
-            JsonDecoded = argo_value:from_json(WireType, dynamic_cast(jsone:decode(JsonEncoded))),
-            ?EQUALS(JsonEncoded, jsone:encode(dynamic_cast(argo_value:to_json(JsonDecoded))))
+            JsonEncoded = jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value))),
+            JsonDecoded = argo_value:from_json(WireType, argo_types:dynamic_cast(jsone:decode(JsonEncoded))),
+            ?EQUALS(JsonEncoded, jsone:encode(argo_types:dynamic_cast(argo_value:to_json(JsonDecoded))))
         end
     ).
 
@@ -91,8 +85,3 @@ prop_to_wire_type(_Config) ->
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.

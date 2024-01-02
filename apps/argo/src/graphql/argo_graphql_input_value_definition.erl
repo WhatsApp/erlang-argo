@@ -30,6 +30,7 @@
 %% Instance API
 -export([
     add_directive_const/2,
+    is_required/1,
     set_default_value/2,
     set_description/2
 ]).
@@ -110,6 +111,17 @@ add_directive_const(
     DirectivesConst2 = argo_graphql_directives_const:add_directive_const(DirectivesConst1, DirectiveConst),
     InputValueDefinition2 = InputValueDefinition1#argo_graphql_input_value_definition{directives = DirectivesConst2},
     InputValueDefinition2.
+
+-spec is_required(InputValueDefinition) -> boolean() when InputValueDefinition :: t().
+is_required(#argo_graphql_input_value_definition{type = Type, default_value = none}) ->
+    case Type of
+        #argo_graphql_type{inner = #argo_graphql_non_null_type{}} ->
+            true;
+        #argo_graphql_type{} ->
+            false
+    end;
+is_required(#argo_graphql_input_value_definition{default_value = {some, _}}) ->
+    false.
 
 -spec set_default_value(InputValueDefinition, OptionDefaultValue) -> InputValueDefinition when
     InputValueDefinition :: t(), OptionDefaultValue :: none | {some, argo_graphql_value_const:t()}.

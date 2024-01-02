@@ -31,6 +31,9 @@
 -export([
     add_directive/2,
     add_selection/2,
+    find_field/3,
+    fold_fields/4,
+    get_shape/2,
     set_type_condition/2
 ]).
 %% argo_graphql_display callbacks
@@ -112,6 +115,42 @@ add_selection(InlineFragment1 = #argo_graphql_inline_fragment{selection_set = Se
     InlineFragment2 = InlineFragment1#argo_graphql_inline_fragment{selection_set = SelectionSet2},
     InlineFragment2.
 
+-spec find_field(InlineFragment, FieldAliasOrName, ExecutableDocument) -> {ok, Field} | error when
+    InlineFragment :: t(),
+    FieldAliasOrName :: argo_types:name(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Field :: argo_graphql_field:t().
+find_field(
+    _InlineFragment = #argo_graphql_inline_fragment{selection_set = SelectionSet},
+    FieldAliasOrName,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_binary(FieldAliasOrName) ->
+    argo_graphql_selection_set:find_field(SelectionSet, FieldAliasOrName, ExecutableDocument).
+
+-spec fold_fields(InlineFragment, AccIn, Fun, ExecutableDocument) -> AccOut when
+    InlineFragment :: t(),
+    AccIn :: dynamic(),
+    Fun :: argo_graphql_selection_set:fold_fields_func(AccIn, AccOut),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    AccOut :: dynamic().
+fold_fields(
+    _InlineFragment = #argo_graphql_inline_fragment{selection_set = SelectionSet},
+    AccIn,
+    Fun,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_function(Fun, 3) ->
+    argo_graphql_selection_set:fold_fields(SelectionSet, AccIn, Fun, ExecutableDocument).
+
+-spec get_shape(InlineFragment, ExecutableDocument) -> Shape when
+    InlineFragment :: t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Shape :: argo_graphql_selection_set:shape().
+get_shape(
+    _InlineFragment = #argo_graphql_inline_fragment{selection_set = SelectionSet},
+    ExecutableDocument = #argo_graphql_executable_document{}
+) ->
+    argo_graphql_selection_set:get_shape(SelectionSet, ExecutableDocument).
+
 -spec set_type_condition(InlineFragment, OptionTypeCondition) -> InlineFragment when
     InlineFragment :: t(), OptionTypeCondition :: none | {some, unicode:unicode_binary()}.
 set_type_condition(InlineFragment1 = #argo_graphql_inline_fragment{}, OptionTypeCondition) when
@@ -139,5 +178,5 @@ format(Formatter1, #argo_graphql_inline_fragment{
         end,
     Formatter4 = argo_graphql_directives:format(Formatter3, Directives),
     Formatter5 = argo_graphql_formatter:write(Formatter4, " ", []),
-    Formatter6 = argo_graphql_selection_set:format(Formatter5, SelectionSet),
+    Formatter6 = argo_graphql_selection_set:format_shorthand(Formatter5, SelectionSet),
     Formatter6.

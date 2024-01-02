@@ -19,19 +19,14 @@
 -compile(warn_missing_spec).
 -wacov(ignore).
 
--include_lib("proper/include/proper.hrl").
+-include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_graphql_language.hrl").
 
 %% Helper API
 -export([
-    complex/1,
-    complexity/0,
-    mostly/2,
-    option/1,
     strip_whitespace/1,
     strip_whitespace_left/1,
-    strip_whitespace_right/1,
-    with_complexity/1
+    strip_whitespace_right/1
 ]).
 
 %% Primitive API
@@ -138,7 +133,6 @@
 ]).
 
 %% Macros
--define(COMPLEXITY, 'proper_argo_complexity').
 -define(CONTEXT(KeyValueListType),
     ?LET(
         KeyValueList,
@@ -165,34 +159,6 @@
 %%% Helper API functions
 %%%=============================================================================
 
--spec complex(RawType :: proper_types:raw_type()) -> proper_types:type().
-complex(RawType) ->
-    with_complexity(
-        ?SIZED(Size, begin
-            Complexity = complexity(),
-            ComplexSize = max(1, Size bsr Complexity),
-            ?LET(NewSize, mostly(range(1, min(ComplexSize, 4)), range(1, ComplexSize)), resize(NewSize, RawType))
-        end)
-    ).
-
--spec complexity() -> pos_integer().
-complexity() ->
-    case parameter(?COMPLEXITY, 0) of
-        Complexity when is_integer(Complexity) andalso Complexity >= 0 ->
-            max(Complexity, 1)
-    end.
-
--spec mostly(U :: proper_types:type(), T :: proper_types:type()) -> proper_types:type().
-mostly(U, T) ->
-    frequency([
-        {100, U},
-        {1, T}
-    ]).
-
--spec option(T :: proper_types:type()) -> proper_types:type().
-option(T) ->
-    oneof([none, {some, T}]).
-
 -spec strip_whitespace(string()) -> string().
 strip_whitespace(S) ->
     strip_whitespace_right(strip_whitespace_left(S)).
@@ -217,15 +183,6 @@ strip_whitespace_right([C | S]) ->
     [C | strip_whitespace_right(S)];
 strip_whitespace_right([]) ->
     [].
-
--spec with_complexity(RawType :: proper_types:raw_type()) -> proper_types:type().
-with_complexity(RawType) ->
-    Complexity =
-        case parameter(?COMPLEXITY, 0) of
-            C when is_integer(C) andalso C >= 0 ->
-                C + 1
-        end,
-    with_parameter(?COMPLEXITY, Complexity, RawType).
 
 %%%=============================================================================
 %%% Primitive API functions
@@ -601,7 +558,7 @@ definition() ->
         )
     ]).
 
--spec definition(PreviousDefinition :: argo_graphql_language_definition:t()) -> proper_types:t().
+-spec definition(PreviousDefinition :: argo_graphql_language_definition:t()) -> proper_types:type().
 definition(PreviousDefinition) ->
     case argo_graphql_language_definition:is_ambiguous(PreviousDefinition) of
         false ->

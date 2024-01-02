@@ -439,26 +439,26 @@ extract_location([Record | _]) when is_tuple(Record) ->
 extract_atom({Value, _Loc}) ->
   Value;
 extract_atom({executable_directive_location, _Loc, Value}) ->
-  erlang:binary_to_existing_atom(unicode:characters_to_binary(Value, utf8), utf8);
+  argo_graphql_language_executable_directive_location:name_from_string(Value);
 extract_atom({type_system_directive_location, _Loc, Value}) ->
-  erlang:binary_to_existing_atom(unicode:characters_to_binary(Value, utf8), utf8).
+  argo_graphql_language_type_system_directive_location:name_from_string(Value).
 
 extract_binary(Value) when is_binary(Value) ->
   Value;
 extract_binary({Token, _Loc}) when is_atom(Token) ->
   erlang:atom_to_binary(Token, utf8);
 extract_binary({_Token, _Loc, Value}) ->
-  unicode:characters_to_binary(Value).
+  argo_types:unicode_binary(Value).
 
 % String
 
 extract_quoted_string_token({_Token, _Loc, Value}) ->
-  unicode:characters_to_binary(lists:sublist(Value, 2, length(Value) - 2)).
+  argo_types:unicode_binary(lists:sublist(Value, 2, length(Value) - 2)).
 
 % Block String
 
 extract_quoted_block_string_token({_Token, _Loc, Value}) ->
-  unicode:characters_to_binary(process_block_string(lists:sublist(Value, 4, length(Value) - 6))).
+  argo_types:unicode_binary(process_block_string(lists:sublist(Value, 4, length(Value) - 6))).
 
 -spec process_block_string(string()) -> string().
 process_block_string(Escaped) ->

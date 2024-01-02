@@ -28,9 +28,8 @@
 ]).
 %% Instance API
 -export([
-    add_field_definition/3,
     add_union_member_type/2,
-    resolve_field_definitions/2
+    get_shape/2
 ]).
 %% argo_graphql_display callbacks
 -export([
@@ -42,9 +41,14 @@
 ]).
 
 %% Types
+-type shape() :: #{
+    argo_types:name() => argo_graphql_type:t(),
+    type := union
+}.
 -type t() :: #argo_graphql_union_type_definition{}.
 
 -export_type([
+    shape/0,
     t/0
 ]).
 
@@ -77,45 +81,12 @@ from_language(#argo_graphql_language_union_type_definition{types = LanguageOptio
 -spec new() -> UnionTypeDefinition when UnionTypeDefinition :: t().
 new() ->
     #argo_graphql_union_type_definition{
-        types = argo_index_set:new(),
-        fields = argo_index_map:new(),
-        resolved = false
+        types = argo_index_set:new()
     }.
 
 %%%=============================================================================
 %%% Instance API functions
 %%%=============================================================================
-
--spec add_field_definition(UnionTypeDefinition, UnionMemberType, FieldDefinition) -> UnionTypeDefinition when
-    UnionTypeDefinition :: t(), UnionMemberType :: argo_types:name(), FieldDefinition :: argo_graphql_field_const:t().
-add_field_definition(
-    UnionTypeDefinition1 = #argo_graphql_union_type_definition{fields = FieldsMap1},
-    UnionMemberType,
-    FieldDefinition = #argo_graphql_field_definition{name = FieldName}
-) when is_binary(UnionMemberType) ->
-    case argo_index_map:find(FieldName, FieldsMap1) of
-        {ok, ExistingFieldDefinition = #argo_graphql_field_definition{}} ->
-            Type = FieldDefinition#argo_graphql_field_definition.type,
-            ExistingType = ExistingFieldDefinition#argo_graphql_field_definition.type,
-            case Type =:= ExistingType of
-                false ->
-                    error_with_info(badarg, [UnionTypeDefinition1, UnionMemberType, FieldDefinition], #{
-                        2 =>
-                            {shape_mismatch, #{
-                                union_member_type => UnionMemberType,
-                                field_name => FieldName,
-                                existing_type => ExistingType,
-                                type => Type
-                            }}
-                    });
-                true ->
-                    UnionTypeDefinition1
-            end;
-        error ->
-            FieldsMap2 = argo_index_map:put(FieldName, FieldDefinition, FieldsMap1),
-            UnionTypeDefinition2 = UnionTypeDefinition1#argo_graphql_union_type_definition{fields = FieldsMap2},
-            UnionTypeDefinition2
-    end.
 
 -spec add_union_member_type(UnionTypeDefinition, UnionMemberType) -> UnionTypeDefinition when
     UnionTypeDefinition :: t(), UnionMemberType :: argo_types:name().
@@ -126,58 +97,45 @@ add_union_member_type(
     UnionTypeDefinition2 = UnionTypeDefinition1#argo_graphql_union_type_definition{types = UnionMemberTypes2},
     UnionTypeDefinition2.
 
--spec resolve_field_definitions(UnionTypeDefinition, ServiceDocument) -> UnionTypeDefinition when
-    UnionTypeDefinition :: t(), ServiceDocument :: argo_graphql_service_document:t().
-resolve_field_definitions(
-    UnionTypeDefinition1 = #argo_graphql_union_type_definition{types = UnionMemberTypes, resolved = false},
+-spec get_shape(UnionTypeDefinition, ServiceDocument) -> UnionMemberShape when
+    UnionTypeDefinition :: t(), ServiceDocument :: argo_graphql_service_document:t(), UnionMemberShape :: shape().
+get_shape(
+    UnionTypeDefinition = #argo_graphql_union_type_definition{types = UnionMemberTypes},
     ServiceDocument = #argo_graphql_service_document{}
 ) ->
-    {UnionTypeDefinition2, ServiceDocument} = argo_index_set:foldl(
-        fun resolve_union_member_type/3, {UnionTypeDefinition1, ServiceDocument}, UnionMemberTypes
-    ),
-    UnionTypeDefinition3 = UnionTypeDefinition2#argo_graphql_union_type_definition{resolved = true},
-    UnionTypeDefinition3;
-resolve_field_definitions(
-    UnionTypeDefinition = #argo_graphql_union_type_definition{resolved = true},
-    _ServiceDocument = #argo_graphql_service_document{}
-) ->
-    UnionTypeDefinition.
-
-%% @private
--spec resolve_union_member_type(Index, UnionMemberType, {UnionTypeDefinition, ServiceDocument}) ->
-    {UnionTypeDefinition, ServiceDocument}
-when
-    Index :: argo_index_set:index(),
-    UnionMemberType :: argo_types:name(),
-    UnionTypeDefinition :: t(),
-    ServiceDocument :: argo_graphql_service_document:t().
-resolve_union_member_type(_Index, UnionMemberType, {
-    UnionTypeDefinition1 = #argo_graphql_union_type_definition{}, ServiceDocument = #argo_graphql_service_document{}
-}) ->
-    UnionMemberTypeDefinition = argo_graphql_service_document:get_union_member_type_definition(
-        ServiceDocument, UnionMemberType
-    ),
-    {UnionTypeDefinition2, UnionMemberType} = argo_index_map:foldl(
-        fun resolve_union_member_type_field_definition/4,
-        {UnionTypeDefinition1, UnionMemberType},
-        UnionMemberTypeDefinition#argo_graphql_type_definition.kind#argo_graphql_object_type_definition.fields
-    ),
-    {UnionTypeDefinition2, ServiceDocument}.
-
-%% @private
--spec resolve_union_member_type_field_definition(
-    Index, FieldName, FieldDefinition, {UnionTypeDefinition, UnionMemberType}
-) -> {UnionTypeDefinition, UnionMemberType} when
-    Index :: argo_index_map:index(),
-    FieldName :: argo_types:name(),
-    FieldDefinition :: argo_graphql_field_definition:t(),
-    UnionTypeDefinition :: t(),
-    UnionMemberType :: argo_types:name().
-resolve_union_member_type_field_definition(
-    _Index, _FieldName, FieldDefinition, {UnionTypeDefinition1, UnionMemberType}
-) ->
-    UnionTypeDefinition2 = add_field_definition(UnionTypeDefinition1, UnionMemberType, FieldDefinition),
-    {UnionTypeDefinition2, UnionMemberType}.
+    argo_index_set:foldl(
+        fun(_, UnionMemberType, Shape_Acc1) ->
+            #argo_graphql_type_definition{
+                kind = #argo_graphql_object_type_definition{fields = UnionMemberTypeDefinitionFields}
+            } = argo_graphql_service_document:get_union_member_type_definition(
+                ServiceDocument, UnionMemberType
+            ),
+            argo_index_map:foldl(
+                fun(_, FieldName, #argo_graphql_field_definition{type = FieldType}, Shape_Acc1_Acc1) ->
+                    case maps:find(FieldName, Shape_Acc1_Acc1) of
+                        {ok, FieldType} ->
+                            Shape_Acc1_Acc1;
+                        {ok, ExistingFieldType} ->
+                            error_with_info(badarg, [UnionTypeDefinition, ServiceDocument], #{
+                                1 =>
+                                    {shape_mismatch, #{
+                                        union_member_type => UnionMemberType,
+                                        field_name => FieldName,
+                                        existing_type => ExistingFieldType,
+                                        type => FieldType
+                                    }}
+                            });
+                        error ->
+                            maps:put(FieldName, FieldType, Shape_Acc1_Acc1)
+                    end
+                end,
+                Shape_Acc1,
+                UnionMemberTypeDefinitionFields
+            )
+        end,
+        #{type => union},
+        UnionMemberTypes
+    ).
 
 %%%=============================================================================
 %%% argo_graphql_display callbacks
@@ -235,7 +193,7 @@ format_error_description(
     }}
 ) ->
     io_lib:format(
-        "shape mismatch for UnionMemberType ~0tp for FieldDefinition ~0tp (existing Type ~ts does not match the shape of Type ~ts)",
+        "union shape mismatch for UnionMemberType ~0tp for FieldDefinition ~0tp (existing Type ~ts does not match the shape of Type ~ts)",
         [UnionMemberType, FieldName, argo_graphql:format(ExistingType), argo_graphql:format(Type)]
     );
 format_error_description(_Key, Value) ->

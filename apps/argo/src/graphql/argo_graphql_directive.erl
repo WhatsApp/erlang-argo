@@ -74,7 +74,7 @@ new(Name) when is_binary(Name) ->
 
 -spec add_argument(Directives, Argument) -> Directives when Directives :: t(), Argument :: argo_graphql_argument:t().
 add_argument(Directives1 = #argo_graphql_directive{arguments = Arguments1}, Argument = #argo_graphql_argument{}) ->
-    Arguments2 = argo_graphql_argument:add_argument(Arguments1, Argument),
+    Arguments2 = argo_graphql_arguments:add_argument(Arguments1, Argument),
     Directives2 = Directives1#argo_graphql_directive{arguments = Arguments2},
     Directives2.
 

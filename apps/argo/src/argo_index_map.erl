@@ -49,7 +49,8 @@
     take_full/2,
     take_index/2,
     take_index_of/2,
-    to_list/1
+    to_list/1,
+    values/1
 ]).
 
 %% Types
@@ -416,6 +417,13 @@ to_list(#argo_index_map{entries = Entries}) ->
 to_list(Iterator = {{_, _}, #argo_index_map{}}) ->
     lists:reverse(foldl_iterator(Iterator, fun collect_pairs/4, [])).
 
+-spec values(IndexMapOrIterator) -> Values when
+    Key :: key(), Value :: value(), IndexMapOrIterator :: t(Key, Value) | iterator(Key, Value), Values :: [Value].
+values(#argo_index_map{entries = Entries}) ->
+    array:foldr(fun collect_values/3, [], Entries);
+values(Iterator = {{_, _}, #argo_index_map{}}) ->
+    lists:reverse(foldl_iterator(Iterator, fun collect_values/4, [])).
+
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
@@ -443,6 +451,18 @@ collect_pairs(_Index, {Key, Value}, Pairs) ->
     Index :: index(), Key :: key(), Value :: value(), Pairs :: [{Key, Value}].
 collect_pairs(_Index, Key, Value, Pairs) ->
     [{Key, Value} | Pairs].
+
+%% @private
+-spec collect_values(Index, {Key, Value}, Values) -> Values when
+    Index :: index(), Key :: key(), Value :: value(), Values :: [Value].
+collect_values(_Index, {_Key, Value}, Values) ->
+    [Value | Values].
+
+%% @private
+-spec collect_values(Index, Key, Value, Values) -> Values when
+    Index :: index(), Key :: key(), Value :: value(), Values :: [Value].
+collect_values(_Index, _Key, Value, Values) ->
+    [Value | Values].
 
 %% @private
 -compile({inline, [dynamic_cast/1]}).

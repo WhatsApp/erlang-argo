@@ -18,8 +18,7 @@
 -oncall("whatsapp_clr").
 -compile(warn_missing_spec).
 
--include_lib("proper/include/proper.hrl").
-
+-include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_graphql_language.hrl").
 
 %% Helpers
@@ -32,11 +31,6 @@
 ]).
 
 %% Macros
--ifdef(WHENFAIL).
--undef(WHENFAIL).
--endif.
-% eqWAlizer gets angry about `fun(() -> boolean())` not being a subtype of `fun(() -> proper:test())`
--define(WHENFAIL(Action, Prop), proper:whenfail(?DELAY(Action), dynamic_cast(?DELAY(Prop)))).
 -define(EQUALS(A, B), ?WHENFAIL(report_not_equal(A, B), A =:= B)).
 -define(SHOULD_LOG_SIZE, false).
 
@@ -58,13 +52,13 @@ prop_roundtrip_formatter_and_parser(_Config) ->
         Document,
         maybe_log_size(proper_argo_graphql_language:document()),
         begin
-            Expected = dump_document(Document),
-            String = unicode:characters_to_list(Expected, utf8),
+            Expected = argo_graphql:format(Document),
+            String = argo_types:unicode_string(Expected),
             case argo_graphql_language_scanner:string(String) of
                 {ok, Tokens, _} ->
                     case argo_graphql_language_parser:parse(Tokens) of
                         {ok, ParsedDocument} ->
-                            Actual = dump_document(ParsedDocument),
+                            Actual = argo_graphql:format(ParsedDocument),
                             ?WHENFAIL(
                                 begin
                                     io:format(
@@ -117,19 +111,12 @@ prop_roundtrip_formatter_and_parser(_Config) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
--spec dump_document(argo_graphql_language_document:t()) -> unicode:unicode_binary().
-dump_document(Document = #argo_graphql_language_document{}) ->
-    Printer1 = argo_graphql_printer:new_string(),
-    Printer2 = argo_graphql_language_document:format(Printer1, Document),
-    dynamic_cast(argo_graphql_printer:finalize(Printer2)).
-
-%% @private
--spec dump_with_lines(String :: unicode:chardata()) -> unicode:chardata().
+-spec dump_with_lines(String :: unicode:chardata()) -> unicode:unicode_binary().
 dump_with_lines(String) ->
-    Binary = unicode:characters_to_binary(String),
+    Binary = argo_types:unicode_binary(String),
     Lines = binary:split(Binary, <<$\n>>, [global]),
     Width = byte_size(erlang:iolist_to_binary(io_lib:format("~w", [length(Lines)]))),
-    unicode:characters_to_binary(
+    argo_types:unicode_binary(
         lists:map(
             fun({Row, Line}) ->
                 io_lib:format("~*w: ~ts~n", [Width, Row, Line])
@@ -139,17 +126,12 @@ dump_with_lines(String) ->
     ).
 
 %% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.
-
-%% @private
 -compile({inline, [maybe_log_size/1]}).
 -spec maybe_log_size(RawType :: proper_types:raw_type()) -> proper_types:type().
 maybe_log_size(RawType) ->
     case ?SHOULD_LOG_SIZE of
         false ->
-            RawType;
+            proper_types:cook_outer(RawType);
         true ->
             ?SIZED(
                 Size,

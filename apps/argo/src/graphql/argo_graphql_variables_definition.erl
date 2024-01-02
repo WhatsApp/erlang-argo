@@ -51,7 +51,7 @@
 %%%=============================================================================
 
 -spec from_language(LanguageVariablesDefinition) -> VariablesDefinition when
-    LanguageVariablesDefinition :: argo_graphql_variables_definition:t(), VariablesDefinition :: t().
+    LanguageVariablesDefinition :: argo_graphql_language_variables_definition:t(), VariablesDefinition :: t().
 from_language(#argo_graphql_language_variables_definition{variables = LanguageVariableDefinitionList}) ->
     VariablesDefinition1 = new(),
     VariablesDefinition2 = lists:foldl(

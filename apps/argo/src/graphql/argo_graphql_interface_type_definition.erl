@@ -29,7 +29,10 @@
 %% Instance API
 -export([
     add_field_definition/2,
-    add_interface/2
+    add_interface/2,
+    get_implements_interfaces/2,
+    get_shape/1,
+    get_shape/2
 ]).
 %% argo_graphql_display callbacks
 -export([
@@ -41,9 +44,14 @@
 ]).
 
 %% Types
+-type shape() :: #{
+    argo_types:name() => argo_graphql_type:t(),
+    type := interface
+}.
 -type t() :: #argo_graphql_interface_type_definition{}.
 
 -export_type([
+    shape/0,
     t/0
 ]).
 
@@ -111,7 +119,7 @@ new() ->
 %%%=============================================================================
 
 -spec add_field_definition(InterfaceTypeDefinition, FieldDefinition) -> InterfaceTypeDefinition when
-    InterfaceTypeDefinition :: t(), FieldDefinition :: argo_graphql_field_const:t().
+    InterfaceTypeDefinition :: t(), FieldDefinition :: argo_graphql_field_definition:t().
 add_field_definition(
     InterfaceTypeDefinition1 = #argo_graphql_interface_type_definition{fields = FieldsMap1},
     FieldDefinition = #argo_graphql_field_definition{name = FieldName}
@@ -139,6 +147,100 @@ add_interface(
         implements = Implements2
     },
     InterfaceTypeDefinition2.
+
+-spec get_implements_interfaces(InterfaceTypeDefinition, ServiceDocument) -> ImplementsInterfaces when
+    InterfaceTypeDefinition :: t(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    ImplementsInterfaces :: [argo_types:name()].
+get_implements_interfaces(
+    _InterfaceTypeDefinition = #argo_graphql_interface_type_definition{implements = Implements},
+    ServiceDocument = #argo_graphql_service_document{}
+) ->
+    get_implements_interfaces(argo_index_set:to_list(Implements), ServiceDocument, maps:new()).
+
+%% @private
+-spec get_implements_interfaces(ImplementsInterfaces, ServiceDocument, Seen) -> ImplementsInterfaces when
+    ImplementsInterfaces :: [argo_types:name()],
+    ServiceDocument :: argo_graphql_service_document:t(),
+    Seen :: #{argo_types:name() => []}.
+get_implements_interfaces([InterfaceName | Implements], ServiceDocument = #argo_graphql_service_document{}, Seen1) when
+    is_map_key(InterfaceName, Seen1)
+->
+    get_implements_interfaces(Implements, ServiceDocument, Seen1);
+get_implements_interfaces([InterfaceName | Implements1], ServiceDocument = #argo_graphql_service_document{}, Seen1) ->
+    #argo_graphql_type_definition{kind = #argo_graphql_interface_type_definition{implements = MoreImplements}} = argo_graphql_service_document:get_interface_type_definition(
+        ServiceDocument, InterfaceName
+    ),
+    Seen2 = maps:put(InterfaceName, [], Seen1),
+    Implements2 = Implements1 ++ argo_index_set:to_list(MoreImplements),
+    get_implements_interfaces(Implements2, ServiceDocument, Seen2);
+get_implements_interfaces([], _ServiceDocument = #argo_graphql_service_document{}, Seen) ->
+    lists:sort(maps:keys(Seen)).
+
+-spec get_shape(InterfaceTypeDefinition) -> InterfaceShape when
+    InterfaceTypeDefinition :: t(), InterfaceShape :: shape().
+get_shape(_InterfaceTypeDefinition = #argo_graphql_interface_type_definition{fields = FieldsMap}) ->
+    Shape1 = #{type => interface},
+    Shape2 =
+        argo_index_map:foldl(
+            fun(_, FieldName, #argo_graphql_field_definition{type = FieldType}, Shape1_Acc1) ->
+                maps:put(FieldName, FieldType, Shape1_Acc1)
+            end,
+            Shape1,
+            FieldsMap
+        ),
+    Shape2.
+
+-spec get_shape(InterfaceTypeDefinition, ServiceDocument) -> InterfaceShape when
+    InterfaceTypeDefinition :: t(), ServiceDocument :: argo_graphql_service_document:t(), InterfaceShape :: shape().
+get_shape(
+    InterfaceTypeDefinition = #argo_graphql_interface_type_definition{},
+    ServiceDocument = #argo_graphql_service_document{}
+) ->
+    Shape1 = get_shape(InterfaceTypeDefinition),
+    ImplementsInterfaces = get_implements_interfaces(InterfaceTypeDefinition, ServiceDocument),
+    ok = lists:foreach(
+        fun(InterfaceName) ->
+            #argo_graphql_type_definition{
+                kind = ImplementsInterfaceTypeDefinition = #argo_graphql_interface_type_definition{}
+            } = argo_graphql_service_document:get_interface_type_definition(ServiceDocument, InterfaceName),
+            ImplementsInterfaceShape = get_shape(ImplementsInterfaceTypeDefinition),
+            ok = maps:foreach(
+                fun
+                    (type, interface) ->
+                        ok;
+                    (FieldName, FieldType) ->
+                        case maps:find(FieldName, Shape1) of
+                            {ok, FieldType} ->
+                                ok;
+                            {ok, ExistingFieldType} ->
+                                error_with_info(badarg, [InterfaceTypeDefinition, ServiceDocument], #{
+                                    1 =>
+                                        {shape_mismatch, #{
+                                            interface_name => InterfaceName,
+                                            field_name => FieldName,
+                                            existing_type => ExistingFieldType,
+                                            type => FieldType
+                                        }}
+                                });
+                            error ->
+                                error_with_info(badarg, [InterfaceTypeDefinition, ServiceDocument], #{
+                                    1 =>
+                                        {shape_mismatch_missing, #{
+                                            interface_name => InterfaceName,
+                                            field_name => FieldName,
+                                            type => FieldType
+                                        }}
+                                })
+                        end
+                end,
+                argo_types:dynamic_cast(maps:iterator(ImplementsInterfaceShape, ordered))
+            ),
+            ok
+        end,
+        ImplementsInterfaces
+    ),
+    Shape1.
 
 %%%=============================================================================
 %%% argo_graphql_display callbacks
@@ -222,5 +324,25 @@ format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
 -spec format_error_description(dynamic(), dynamic()) -> dynamic().
 format_error_description(_Key, {duplicate_field_name, FieldName}) ->
     io_lib:format("duplicate FieldDefinition name: ~0tp", [FieldName]);
+format_error_description(
+    _Key,
+    {shape_mismatch, #{
+        interface_name := InterfaceName, field_name := FieldName, existing_type := ExistingType, type := Type
+    }}
+) ->
+    io_lib:format(
+        "interface shape mismatch for Interface ~0tp for FieldDefinition ~0tp (existing Type ~ts does not match the shape of Type ~ts)",
+        [InterfaceName, FieldName, argo_graphql:format(ExistingType), argo_graphql:format(Type)]
+    );
+format_error_description(
+    _Key,
+    {shape_mismatch_missing, #{
+        interface_name := InterfaceName, field_name := FieldName, type := Type
+    }}
+) ->
+    io_lib:format(
+        "interface shape mismatch for Interface ~0tp for FieldDefinition ~0tp (missing expected Type ~ts)",
+        [InterfaceName, FieldName, argo_graphql:format(Type)]
+    );
 format_error_description(_Key, Value) ->
     Value.

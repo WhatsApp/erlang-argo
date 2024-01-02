@@ -33,6 +33,9 @@
     add_directive/2,
     add_selection/2,
     add_variable_definition/2,
+    find_field/3,
+    fold_fields/4,
+    get_shape/2,
     is_shorthand/1
 ]).
 %% argo_graphql_display callbacks
@@ -169,6 +172,42 @@ add_variable_definition(
         variables_definition = VariablesDefinition2
     },
     OperationDefinition2.
+
+-spec find_field(OperationDefinition, FieldAliasOrName, ExecutableDocument) -> {ok, Field} | error when
+    OperationDefinition :: t(),
+    FieldAliasOrName :: argo_types:name(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Field :: argo_graphql_field:t().
+find_field(
+    _OperationDefinition = #argo_graphql_operation_definition{selection_set = SelectionSet},
+    FieldAliasOrName,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_binary(FieldAliasOrName) ->
+    argo_graphql_selection_set:find_field(SelectionSet, FieldAliasOrName, ExecutableDocument).
+
+-spec fold_fields(OperationDefinition, AccIn, Fun, ExecutableDocument) -> AccOut when
+    OperationDefinition :: t(),
+    AccIn :: dynamic(),
+    Fun :: argo_graphql_selection_set:fold_fields_func(AccIn, AccOut),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    AccOut :: dynamic().
+fold_fields(
+    _OperationDefinition = #argo_graphql_operation_definition{selection_set = SelectionSet},
+    AccIn,
+    Fun,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_function(Fun, 3) ->
+    argo_graphql_selection_set:fold_fields(SelectionSet, AccIn, Fun, ExecutableDocument).
+
+-spec get_shape(OperationDefinition, ExecutableDocument) -> Shape when
+    OperationDefinition :: t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Shape :: argo_graphql_selection_set:shape().
+get_shape(
+    _OperationDefinition = #argo_graphql_operation_definition{selection_set = SelectionSet},
+    ExecutableDocument = #argo_graphql_executable_document{}
+) ->
+    argo_graphql_selection_set:get_shape(SelectionSet, ExecutableDocument).
 
 -spec is_shorthand(OperationDefinition) -> boolean() when OperationDefinition :: t().
 is_shorthand(#argo_graphql_operation_definition{shorthand = Shorthand}) ->

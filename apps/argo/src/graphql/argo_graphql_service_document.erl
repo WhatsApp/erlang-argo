@@ -42,8 +42,15 @@
     find_directive_definition/2,
     find_type_definition/2,
     get_directive_definition/2,
+    get_input_type_definition/2,
+    get_input_type_graph/1,
+    get_input_type_graph/2,
+    get_interface_type_definition/2,
+    get_root_operation_type_definition/2,
+    get_shape/2,
     get_type_definition/2,
     get_union_member_type_definition/2,
+    replace_type_definition/2,
     resolve_type_definitions/1,
     set_description/2
 ]).
@@ -97,7 +104,7 @@ from_language(#argo_graphql_language_document{definitions = LanguageDefinitionLi
 
 -spec from_string(Input) -> ServiceDocument when Input :: unicode:chardata(), ServiceDocument :: t().
 from_string(Input) ->
-    String = unicode:characters_to_list(Input, utf8),
+    String = argo_types:unicode_string(Input),
     case argo_graphql_language_scanner:string(String) of
         {ok, Tokens, _EndLoc} ->
             case argo_graphql_language_parser:parse(Tokens) of
@@ -626,6 +633,182 @@ get_directive_definition(ServiceDocument = #argo_graphql_service_document{}, Dir
             })
     end.
 
+-spec get_input_type_definition(ServiceDocument, InputTypeName) -> InputTypeDefinition when
+    ServiceDocument :: t(),
+    InputTypeName :: argo_types:name(),
+    InputTypeDefinition :: argo_graphql_type_definition:t().
+get_input_type_definition(ServiceDocument = #argo_graphql_service_document{}, InputTypeName) when
+    is_binary(InputTypeName)
+->
+    case get_type_definition(ServiceDocument, InputTypeName) of
+        InputTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_scalar_type_definition{}} ->
+            InputTypeDefinition;
+        InputTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_enum_type_definition{}} ->
+            InputTypeDefinition;
+        InputTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_input_object_type_definition{}} ->
+            InputTypeDefinition;
+        _ ->
+            error_with_info(badarg, [ServiceDocument, InputTypeName], #{
+                2 => {invalid_input_type, InputTypeName}
+            })
+    end.
+
+-spec get_input_type_graph(ServiceDocument) -> InputTypeGraph when
+    ServiceDocument :: t(),
+    InputTypeGraph :: argo_graphql_input_type_graph:t().
+get_input_type_graph(ServiceDocument = #argo_graphql_service_document{type_definitions = TypeDefinitions}) ->
+    V1 = maps:new(),
+    G1 = argo_graphql_input_type_graph:new(),
+    {_V2, G2 = #argo_graphql_input_type_graph{}} = maps:fold(
+        fun(TypeName, TypeDefinition, {V1_Acc1, G1_Acc1}) ->
+            case argo_graphql_type_definition:is_input_type(TypeDefinition) of
+                false ->
+                    {V1_Acc1, G1_Acc1};
+                true ->
+                    {V1_Acc2, G1_Acc2} = get_input_type_graph(ServiceDocument, TypeName, V1_Acc1, G1_Acc1),
+                    {V1_Acc2, G1_Acc2}
+            end
+        end,
+        {V1, G1},
+        TypeDefinitions
+    ),
+    G2.
+
+-spec get_input_type_graph(ServiceDocument, InputTypeName) -> InputTypeGraph when
+    ServiceDocument :: t(),
+    InputTypeName :: argo_types:name(),
+    InputTypeGraph :: argo_graphql_input_type_graph:t().
+get_input_type_graph(ServiceDocument = #argo_graphql_service_document{}, InputTypeName) when
+    is_binary(InputTypeName)
+->
+    Visited1 = maps:new(),
+    InputTypeGraph1 = argo_graphql_input_type_graph:new(),
+    case get_input_type_graph(ServiceDocument, InputTypeName, Visited1, InputTypeGraph1) of
+        {_Visited2, InputTypeGraph2 = #argo_graphql_input_type_graph{}} ->
+            InputTypeGraph2
+    end.
+
+%% @private
+-spec get_input_type_graph(ServiceDocument, InputTypeName, Visited, InputTypeGraph) -> {Visited, InputTypeGraph} when
+    ServiceDocument :: t(),
+    InputTypeName :: argo_types:name(),
+    Visited :: #{InputTypeName => []},
+    InputTypeGraph :: argo_graphql_input_type_graph:t().
+get_input_type_graph(ServiceDocument = #argo_graphql_service_document{}, InputTypeName, Visited1, InputTypeGraph1) when
+    is_binary(InputTypeName)
+->
+    case maps:is_key(InputTypeName, Visited1) of
+        false ->
+            Visited2 = Visited1#{InputTypeName => []},
+            InputTypeGraph2 = argo_graphql_input_type_graph:add_input(InputTypeGraph1, InputTypeName),
+            case get_input_type_definition(ServiceDocument, InputTypeName) of
+                #argo_graphql_type_definition{kind = #argo_graphql_scalar_type_definition{}} ->
+                    {Visited2, InputTypeGraph2};
+                #argo_graphql_type_definition{kind = #argo_graphql_enum_type_definition{}} ->
+                    {Visited2, InputTypeGraph2};
+                #argo_graphql_type_definition{kind = #argo_graphql_input_object_type_definition{inputs = InputsMap}} ->
+                    V2_1 = Visited2,
+                    G2_1 = InputTypeGraph2,
+                    {V2_2, G2_2} =
+                        argo_index_map:foldl(
+                            fun(
+                                _Index,
+                                _InputName,
+                                InputValueDefinition = #argo_graphql_input_value_definition{type = InputType},
+                                {V2_1_Acc1, G2_1_Acc1}
+                            ) ->
+                                case argo_graphql_input_value_definition:is_required(InputValueDefinition) of
+                                    false ->
+                                        {V2_1_Acc1, G2_1_Acc1};
+                                    true ->
+                                        RequiredInputTypeName = argo_graphql_type:get_type_name(InputType),
+                                        {V2_1_Acc2, G2_1_Acc2} = get_input_type_graph(
+                                            ServiceDocument, RequiredInputTypeName, V2_1_Acc1, G2_1_Acc1
+                                        ),
+                                        G2_1_Acc3 = argo_graphql_input_type_graph:add_dependency(
+                                            G2_1_Acc2, InputTypeName, RequiredInputTypeName
+                                        ),
+                                        {V2_1_Acc2, G2_1_Acc3}
+                                end
+                            end,
+                            {V2_1, G2_1},
+                            InputsMap
+                        ),
+                    {V2_2, G2_2}
+            end;
+        true ->
+            {Visited1, InputTypeGraph1}
+    end.
+
+-spec get_interface_type_definition(ServiceDocument, InterfaceName) -> InterfaceTypeDefinition when
+    ServiceDocument :: t(),
+    InterfaceName :: argo_types:name(),
+    InterfaceTypeDefinition :: argo_graphql_type_definition:t().
+get_interface_type_definition(ServiceDocument = #argo_graphql_service_document{}, InterfaceName) when
+    is_binary(InterfaceName)
+->
+    case get_type_definition(ServiceDocument, InterfaceName) of
+        InterfaceTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_interface_type_definition{}} ->
+            InterfaceTypeDefinition;
+        _ ->
+            error_with_info(badarg, [ServiceDocument, InterfaceName], #{
+                2 => {invalid_interface, InterfaceName}
+            })
+    end.
+
+-spec get_root_operation_type_definition(ServiceDocument, RootOperationType) -> RootOperationTypeDefinition when
+    ServiceDocument :: t(),
+    RootOperationType :: operation_type(),
+    RootOperationTypeDefinition :: argo_graphql_type_definition:t().
+get_root_operation_type_definition(
+    ServiceDocument = #argo_graphql_service_document{'query' = {some, RootOperationTypeName}},
+    RootOperationType = 'query'
+) ->
+    case get_type_definition(ServiceDocument, RootOperationTypeName) of
+        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
+            RootOperationTypeDefinition;
+        _ ->
+            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+                2 => {invalid_root_operation_type, RootOperationType}
+            })
+    end;
+get_root_operation_type_definition(
+    ServiceDocument = #argo_graphql_service_document{'mutation' = {some, RootOperationTypeName}},
+    RootOperationType = 'mutation'
+) ->
+    case get_type_definition(ServiceDocument, RootOperationTypeName) of
+        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
+            RootOperationTypeDefinition;
+        _ ->
+            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+                2 => {invalid_root_operation_type, RootOperationType}
+            })
+    end;
+get_root_operation_type_definition(
+    ServiceDocument = #argo_graphql_service_document{'subscription' = {some, RootOperationTypeName}},
+    RootOperationType = 'subscription'
+) ->
+    case get_type_definition(ServiceDocument, RootOperationTypeName) of
+        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
+            RootOperationTypeDefinition;
+        _ ->
+            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+                2 => {invalid_root_operation_type, RootOperationType}
+            })
+    end;
+get_root_operation_type_definition(ServiceDocument = #argo_graphql_service_document{}, RootOperationType) when
+    ?is_operation_type(RootOperationType)
+->
+    error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+        2 => {missing_root_operation_type, RootOperationType}
+    }).
+
+-spec get_shape(ServiceDocument, TypeName) -> Shape when
+    ServiceDocument :: t(), TypeName :: argo_types:name(), Shape :: argo_graphql_type_definition:shape().
+get_shape(ServiceDocument = #argo_graphql_service_document{}, TypeName) when is_binary(TypeName) ->
+    TypeDefinition = get_type_definition(ServiceDocument, TypeName),
+    argo_graphql_type_definition:get_shape(TypeDefinition, ServiceDocument).
+
 -spec get_type_definition(ServiceDocument, TypeName) -> TypeDefinition when
     ServiceDocument :: t(), TypeName :: argo_types:name(), TypeDefinition :: argo_graphql_type_definition:t().
 get_type_definition(ServiceDocument = #argo_graphql_service_document{}, TypeName) when is_binary(TypeName) ->
@@ -652,6 +835,22 @@ get_union_member_type_definition(ServiceDocument = #argo_graphql_service_documen
             })
     end.
 
+-spec replace_type_definition(ServiceDocument, TypeDefinition) -> ServiceDocument when
+    ServiceDocument :: t(), TypeDefinition :: argo_graphql_type_definition:t().
+replace_type_definition(
+    ServiceDocument1 = #argo_graphql_service_document{type_definitions = TypeDefinitions1},
+    TypeDefinition = #argo_graphql_type_definition{name = TypeName}
+) ->
+    case get_type_definition(ServiceDocument1, TypeName) of
+        TypeDefinition ->
+            % Nothing changed, no need to update
+            ServiceDocument1;
+        _OldTypeDefinition ->
+            TypeDefinitions2 = maps:put(TypeName, TypeDefinition, TypeDefinitions1),
+            ServiceDocument2 = ServiceDocument1#argo_graphql_service_document{type_definitions = TypeDefinitions2},
+            ServiceDocument2
+    end.
+
 -spec resolve_type_definitions(ServiceDocument) -> ServiceDocument when ServiceDocument :: t().
 resolve_type_definitions(ServiceDocument1 = #argo_graphql_service_document{type_definitions = TypeDefinitions}) ->
     ServiceDocument2 = maps:fold(fun resolve_type_definition/3, ServiceDocument1, TypeDefinitions),
@@ -663,22 +862,9 @@ resolve_type_definitions(ServiceDocument1 = #argo_graphql_service_document{type_
     TypeDefinition :: argo_graphql_type_definition:t(),
     ServiceDocument :: t().
 resolve_type_definition(
-    TypeName, TypeDefinition1, ServiceDocument1 = #argo_graphql_service_document{type_definitions = TypeDefinitions1}
-) ->
-    case TypeDefinition1 of
-        #argo_graphql_type_definition{
-            kind = UnionTypeDefinition1 = #argo_graphql_union_type_definition{resolved = false}
-        } ->
-            UnionTypeDefinition2 = argo_graphql_union_type_definition:resolve_field_definitions(
-                UnionTypeDefinition1, ServiceDocument1
-            ),
-            TypeDefinition2 = TypeDefinition1#argo_graphql_type_definition{kind = UnionTypeDefinition2},
-            TypeDefinitions2 = maps:put(TypeName, TypeDefinition2, TypeDefinitions1),
-            ServiceDocument2 = ServiceDocument1#argo_graphql_service_document{type_definitions = TypeDefinitions2},
-            ServiceDocument2;
-        #argo_graphql_type_definition{} ->
-            ServiceDocument1
-    end.
+    TypeName, _TypeDefinition1 = #argo_graphql_type_definition{}, ServiceDocument1 = #argo_graphql_service_document{}
+) when is_binary(TypeName) ->
+    ServiceDocument1.
 
 -spec set_description(ServiceDocument, OptionDescription) -> ServiceDocument when
     ServiceDocument :: t(), OptionDescription :: none | {some, unicode:unicode_binary()}.
@@ -708,7 +894,7 @@ format(
             Formatter2_Acc3
         end,
         Formatter2,
-        maps:iterator(TypeDefinitions, ordered)
+        argo_types:dynamic_cast(maps:iterator(TypeDefinitions, ordered))
     ),
     Formatter4 = maps:fold(
         fun(_TypeName, DirectiveDefinition, Formatter3_Acc1) ->
@@ -717,7 +903,7 @@ format(
             Formatter3_Acc3
         end,
         Formatter3,
-        maps:iterator(DirectiveDefinitions, ordered)
+        argo_types:dynamic_cast(maps:iterator(DirectiveDefinitions, ordered))
     ),
     Formatter4.
 
@@ -823,12 +1009,28 @@ format_error_description(_Key, {duplicate_type_name, TypeName}) ->
     io_lib:format("duplicate TypeDefinition name: ~0tp", [TypeName]);
 format_error_description(_Key, executable_definition_not_supported) ->
     "ExecutableDefinition is not supported by ServiceDocument";
+format_error_description(_Key, {invalid_input_type, InputTypeName}) ->
+    io_lib:format("invalid InputTypeDefinition must be a scalar, enum, or input for named type: ~0tp", [
+        InputTypeName
+    ]);
+format_error_description(_Key, {invalid_interface, InterfaceName}) ->
+    io_lib:format("invalid ImplementsInterfaces must be an InterfaceTypeDefinition for named type: ~0tp", [
+        InterfaceName
+    ]);
+format_error_description(_Key, {invalid_root_operation_type, RootOperationType}) ->
+    io_lib:format("invalid RootOperationTypeDefinition must be an ObjectTypeDefinition for operation type: ~0tp", [
+        RootOperationType
+    ]);
 format_error_description(_Key, {invalid_type_extension, #{type := TypeName, extend := ExtendType}}) ->
     io_lib:format("invalid TypeExtension for ~0tp on named type: ~0tp", [ExtendType, TypeName]);
 format_error_description(_Key, {invalid_union_member_type, UnionMemberType}) ->
     io_lib:format("invalid UnionMemberType must be an ObjectTypeDefinition for named type: ~0tp", [UnionMemberType]);
 format_error_description(_Key, {missing_directive_definition, #{directive := DirectiveName}}) ->
     io_lib:format("missing DirectiveDefinition for named directive: ~0tp", [DirectiveName]);
+format_error_description(_Key, {missing_root_operation_type, RootOperationType}) ->
+    io_lib:format("missing RootOperationTypeDefinition for operation type: ~0tp", [
+        RootOperationType
+    ]);
 format_error_description(_Key, {missing_type_definition, #{type := TypeName}}) ->
     io_lib:format("missing TypeDefinition for named type: ~0tp", [TypeName]);
 format_error_description(_Key, {parser_error, ParserError}) ->

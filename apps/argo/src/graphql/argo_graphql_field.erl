@@ -32,6 +32,9 @@
     add_argument/2,
     add_directive/2,
     add_selection/2,
+    find_field/3,
+    fold_fields/4,
+    get_shape/2,
     set_alias/2
 ]).
 %% argo_graphql_display callbacks
@@ -131,6 +134,40 @@ add_selection(Field1 = #argo_graphql_field{selection_set = SelectionSet1}, Selec
     SelectionSet2 = argo_graphql_selection_set:add_selection(SelectionSet1, Selection),
     Field2 = Field1#argo_graphql_field{selection_set = SelectionSet2},
     Field2.
+
+-spec find_field(Field, FieldAliasOrName, ExecutableDocument) -> {ok, Field} | error when
+    Field :: t(),
+    FieldAliasOrName :: argo_types:name(),
+    ExecutableDocument :: argo_graphql_executable_document:t().
+find_field(
+    _Field = #argo_graphql_field{selection_set = SelectionSet},
+    FieldAliasOrName,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_binary(FieldAliasOrName) ->
+    argo_graphql_selection_set:find_field(SelectionSet, FieldAliasOrName, ExecutableDocument).
+
+-spec fold_fields(Field, AccIn, Fun, ExecutableDocument) -> AccOut when
+    Field :: t(),
+    AccIn :: dynamic(),
+    Fun :: argo_graphql_selection_set:fold_fields_func(AccIn, AccOut),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    AccOut :: dynamic().
+fold_fields(
+    _Field = #argo_graphql_field{selection_set = SelectionSet},
+    AccIn,
+    Fun,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_function(Fun, 3) ->
+    argo_graphql_selection_set:fold_fields(SelectionSet, AccIn, Fun, ExecutableDocument).
+
+-spec get_shape(Field, ExecutableDocument) -> Shape when
+    Field :: t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Shape :: argo_graphql_selection_set:shape().
+get_shape(
+    _Field = #argo_graphql_field{selection_set = SelectionSet}, ExecutableDocument = #argo_graphql_executable_document{}
+) ->
+    argo_graphql_selection_set:get_shape(SelectionSet, ExecutableDocument).
 
 -spec set_alias(Field, OptionAlias) -> Field when
     Field :: t(), OptionAlias :: none | {some, unicode:unicode_binary()}.

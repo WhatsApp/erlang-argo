@@ -37,7 +37,7 @@
     | argo_graphql_language_type_system_directive_location:t().
 -type t() :: #argo_graphql_language_directive_location{}.
 
--export_directive_location([
+-export_type([
     inner/0,
     t/0
 ]).

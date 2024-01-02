@@ -41,6 +41,8 @@
 ]).
 
 %% Types
+-type list_value() :: [argo_graphql_value:t()].
+-type object_value() :: argo_index_map:t(argo_types:name(), argo_graphql_value:t()).
 -type inner() ::
     {variable, argo_types:name()}
     | null
@@ -49,11 +51,13 @@
     | {string, unicode:unicode_binary()}
     | {boolean, boolean()}
     | {enum, argo_types:name()}
-    | {list, [argo_graphql_value:t()]}
-    | {object, argo_index_map:t(argo_types:name(), argo_graphql_value:t())}.
+    | {list, list_value()}
+    | {object, object_value()}.
 -type t() :: #argo_graphql_value{}.
 
 -export_type([
+    list_value/0,
+    object_value/0,
     inner/0,
     t/0
 ]).
@@ -132,13 +136,12 @@ enum(EnumValue) when is_binary(EnumValue) ->
     #argo_graphql_value{inner = {enum, EnumValue}}.
 
 -compile({inline, [list/1]}).
--spec list(ListValue) -> Value when ListValue :: [argo_graphql_value:t()], Value :: t().
+-spec list(ListValue) -> Value when ListValue :: list_value(), Value :: t().
 list(ListValue) when is_list(ListValue) ->
     #argo_graphql_value{inner = {list, ListValue}}.
 
 -compile({inline, [object/1]}).
--spec object(ObjectValue) -> Value when
-    ObjectValue :: argo_index_map:t(argo_types:name(), argo_graphql_value:t()), Value :: t().
+-spec object(ObjectValue) -> Value when ObjectValue :: object_value(), Value :: t().
 object(ObjectValue = #argo_index_map{}) ->
     #argo_graphql_value{inner = {object, ObjectValue}}.
 

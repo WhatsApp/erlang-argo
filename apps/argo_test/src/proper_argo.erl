@@ -19,18 +19,10 @@
 -compile(warn_missing_spec).
 -wacov(ignore).
 
--include_lib("proper/include/proper.hrl").
+-include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
-
-%% Helper API
--export([
-    complexity/0,
-    mostly/2,
-    option/1,
-    with_complexity/1
-]).
 
 %% Primitive API
 -export([
@@ -86,40 +78,6 @@
     scalar_wire_type/0,
     wire_type/0
 ]).
-
-%% Macros
--define(COMPLEXITY, 'proper_argo_complexity').
-
-%%%=============================================================================
-%%% Helper API functions
-%%%=============================================================================
-
--spec complexity() -> pos_integer().
-complexity() ->
-    case parameter(?COMPLEXITY, 0) of
-        Complexity when is_integer(Complexity) andalso Complexity >= 0 ->
-            max(Complexity, 1)
-    end.
-
--spec mostly(U :: proper_types:type(), T :: proper_types:type()) -> proper_types:type().
-mostly(U, T) ->
-    frequency([
-        {100, U},
-        {1, T}
-    ]).
-
--spec option(T :: proper_types:type()) -> proper_types:type().
-option(T) ->
-    oneof([none, {some, T}]).
-
--spec with_complexity(RawType :: proper_types:type()) -> proper_types:type().
-with_complexity(RawType) ->
-    Complexity =
-        case parameter(?COMPLEXITY, 0) of
-            C when is_integer(C) andalso C >= 0 ->
-                C + 1
-        end,
-    with_parameter(?COMPLEXITY, Complexity, RawType).
 
 %%%=============================================================================
 %%% Primitive API functions

@@ -29,7 +29,10 @@
 %% Instance API
 -export([
     add_directive/2,
-    add_selection/2
+    add_selection/2,
+    find_field/3,
+    fold_fields/4,
+    get_shape/2
 ]).
 %% argo_graphql_display callbacks
 -export([
@@ -114,6 +117,42 @@ add_selection(FragmentDefinition1 = #argo_graphql_fragment_definition{selection_
     SelectionSet2 = argo_graphql_selection_set:add_selection(SelectionSet1, Selection),
     FragmentDefinition2 = FragmentDefinition1#argo_graphql_fragment_definition{selection_set = SelectionSet2},
     FragmentDefinition2.
+
+-spec find_field(FragmentDefinition, FieldAliasOrName, ExecutableDocument) -> {ok, Field} | error when
+    FragmentDefinition :: t(),
+    FieldAliasOrName :: argo_types:name(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Field :: argo_graphql_field:t().
+find_field(
+    _FragmentDefinition = #argo_graphql_fragment_definition{selection_set = SelectionSet},
+    FieldAliasOrName,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_binary(FieldAliasOrName) ->
+    argo_graphql_selection_set:find_field(SelectionSet, FieldAliasOrName, ExecutableDocument).
+
+-spec fold_fields(FragmentDefinition, AccIn, Fun, ExecutableDocument) -> AccOut when
+    FragmentDefinition :: t(),
+    AccIn :: dynamic(),
+    Fun :: argo_graphql_selection_set:fold_fields_func(AccIn, AccOut),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    AccOut :: dynamic().
+fold_fields(
+    _FragmentDefinition = #argo_graphql_fragment_definition{selection_set = SelectionSet},
+    AccIn,
+    Fun,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_function(Fun, 3) ->
+    argo_graphql_selection_set:fold_fields(SelectionSet, AccIn, Fun, ExecutableDocument).
+
+-spec get_shape(FragmentDefinition, ExecutableDocument) -> Shape when
+    FragmentDefinition :: t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Shape :: argo_graphql_selection_set:shape().
+get_shape(
+    _FragmentDefinition = #argo_graphql_fragment_definition{selection_set = SelectionSet},
+    ExecutableDocument = #argo_graphql_executable_document{}
+) ->
+    argo_graphql_selection_set:get_shape(SelectionSet, ExecutableDocument).
 
 %%%=============================================================================
 %%% argo_graphql_display callbacks

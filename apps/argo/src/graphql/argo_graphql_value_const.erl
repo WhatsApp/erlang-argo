@@ -40,6 +40,8 @@
 ]).
 
 %% Types
+-type list_value_const() :: [argo_graphql_value_const:t()].
+-type object_value_const() :: argo_index_map:t(argo_types:name(), argo_graphql_value_const:t()).
 -type inner() ::
     null
     | {float, float()}
@@ -47,11 +49,13 @@
     | {string, unicode:unicode_binary()}
     | {boolean, boolean()}
     | {enum, argo_types:name()}
-    | {list, [argo_graphql_value_const:t()]}
-    | {object, argo_index_map:t(argo_types:name(), argo_graphql_value_const:t())}.
+    | {list, list_value_const()}
+    | {object, object_value_const()}.
 -type t() :: #argo_graphql_value_const{}.
 
 -export_type([
+    list_value_const/0,
+    object_value_const/0,
     inner/0,
     t/0
 ]).
@@ -129,13 +133,12 @@ enum(EnumValue) when is_binary(EnumValue) ->
     #argo_graphql_value_const{inner = {enum, EnumValue}}.
 
 -compile({inline, [list/1]}).
--spec list(ListValueConst) -> ValueConst when ListValueConst :: [argo_graphql_value_const:t()], ValueConst :: t().
+-spec list(ListValueConst) -> ValueConst when ListValueConst :: list_value_const(), ValueConst :: t().
 list(ListValueConst) when is_list(ListValueConst) ->
     #argo_graphql_value_const{inner = {list, ListValueConst}}.
 
 -compile({inline, [object/1]}).
--spec object(ObjectValueConst) -> ValueConst when
-    ObjectValueConst :: argo_index_map:t(argo_types:name(), argo_graphql_value_const:t()), ValueConst :: t().
+-spec object(ObjectValueConst) -> ValueConst when ObjectValueConst :: object_value_const(), ValueConst :: t().
 object(ObjectValueConst = #argo_index_map{}) ->
     #argo_graphql_value_const{inner = {object, ObjectValueConst}}.
 

@@ -101,7 +101,7 @@ from_language(LanguageDocument = #argo_graphql_language_document{definitions = L
 
 -spec from_string(Input) -> ExecutableDocument when Input :: unicode:chardata(), ExecutableDocument :: t().
 from_string(Input) ->
-    String = unicode:characters_to_list(Input, utf8),
+    String = argo_types:unicode_string(Input),
     case argo_graphql_language_scanner:string(String) of
         {ok, Tokens, _EndLoc} ->
             case argo_graphql_language_parser:parse(Tokens) of
@@ -206,8 +206,10 @@ get_fragment_definition(
 ) when is_binary(FragmentName) ->
     maps:get(FragmentName, FragmentDefinitions).
 
--spec get_operation_definition(ExecutableDocument) -> OperationDefinition when
-    ExecutableDocument :: t(), OperationDefinition :: argo_graphql_operation_definition:t().
+-spec get_operation_definition(ExecutableDocument) -> {OptionOperationName, OperationDefinition} when
+    ExecutableDocument :: t(),
+    OptionOperationName :: none | {some, argo_types:name()},
+    OperationDefinition :: argo_graphql_operation_definition:t().
 get_operation_definition(ExecutableDocument) ->
     get_operation_definition(ExecutableDocument, none).
 
@@ -291,7 +293,7 @@ format(
             Formatter2_Acc3
         end,
         Formatter2,
-        maps:iterator(FragmentDefinitions, ordered)
+        argo_types:dynamic_cast(maps:iterator(FragmentDefinitions, ordered))
     ),
     Formatter3.
 
@@ -316,7 +318,7 @@ format_operation_definitions(Formatter1, {multiple, OperationDefinitions}) ->
             Formatter1_Acc3
         end,
         Formatter1,
-        maps:iterator(OperationDefinitions, ordered)
+        argo_types:dynamic_cast(maps:iterator(OperationDefinitions, ordered))
     ),
     Formatter2.
 

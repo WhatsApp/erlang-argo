@@ -29,6 +29,8 @@
 %% Instance API
 -export([
     add_input_value_definition/2,
+    get_shape/1,
+    get_shape/2,
     is_ambiguous/1
 ]).
 %% argo_graphql_display callbacks
@@ -41,9 +43,14 @@
 ]).
 
 %% Types
+-type shape() :: #{
+    argo_types:name() => argo_graphql_type:t(),
+    type := input_object
+}.
 -type t() :: #argo_graphql_input_object_type_definition{}.
 
 -export_type([
+    shape/0,
     t/0
 ]).
 
@@ -109,6 +116,28 @@ add_input_value_definition(
                 2 => {duplicate_input_name, InputName}
             })
     end.
+
+-spec get_shape(InputObjectTypeDefinition) -> InputObjectShape when
+    InputObjectTypeDefinition :: t(), InputObjectShape :: shape().
+get_shape(_InputObjectTypeDefinition = #argo_graphql_input_object_type_definition{inputs = InputsMap}) ->
+    Shape1 = #{type => input_object},
+    Shape2 =
+        argo_index_map:foldl(
+            fun(_, InputName, #argo_graphql_input_value_definition{type = InputType}, Shape1_Acc1) ->
+                maps:put(InputName, InputType, Shape1_Acc1)
+            end,
+            Shape1,
+            InputsMap
+        ),
+    Shape2.
+
+-spec get_shape(InputObjectTypeDefinition, ServiceDocument) -> InputObjectShape when
+    InputObjectTypeDefinition :: t(), ServiceDocument :: argo_graphql_service_document:t(), InputObjectShape :: shape().
+get_shape(
+    InputObjectTypeDefinition = #argo_graphql_input_object_type_definition{},
+    _ServiceDocument = #argo_graphql_service_document{}
+) ->
+    get_shape(InputObjectTypeDefinition).
 
 % @doc Schema extensions without additional operation type definitions must not be followed by a { (such as a query shorthand) to avoid parsing ambiguity. The same limitation applies to the type definitions and extensions below.
 -spec is_ambiguous(Definition) -> boolean() when Definition :: t().

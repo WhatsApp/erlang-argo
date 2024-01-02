@@ -44,7 +44,7 @@
     | argo_graphql_language_type_system_extension:t().
 -type t() :: #argo_graphql_language_definition{}.
 
--export_definition([
+-export_type([
     inner/0,
     t/0
 ]).

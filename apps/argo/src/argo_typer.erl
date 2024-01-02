@@ -417,7 +417,7 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                             end,
                         FieldName = Selected#selected_field_node.field#argo_graphql_field.name,
                         FieldDefinition = argo_graphql_type_definition:get_field_definition(
-                            SelectionTypeDefinition, FieldName
+                            SelectionTypeDefinition, FieldName, ServiceDocument
                         ),
                         FieldSelectionSet = Selected#selected_field_node.field#argo_graphql_field.selection_set,
                         FieldType = FieldDefinition#argo_graphql_field_definition.type,

@@ -17,6 +17,18 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+%% API
+-export([
+    dynamic_cast/1,
+    unicode_binary/1,
+    unicode_length/1,
+    unicode_string/1
+]).
+%% Errors API
+-export([
+    format_error/2
+]).
+
 %% Types
 -type backreference() :: usize().
 -type i8() :: -16#80..16#7F.
@@ -51,3 +63,109 @@
     usize/0,
     varint/0
 ]).
+
+%% Macros
+-define(is_unicode_codepoint1(C), ((C) >= 16#00 andalso (C) =< 16#7F)).
+-define(is_unicode_codepoint2(C), ((C) >= 16#80 andalso (C) =< 16#7FF)).
+-define(is_unicode_codepoint3(C),
+    (((C) >= 16#800 andalso (C) =< 16#D7FF) orelse ((C) >= 16#E000 andalso (C) =< 16#FFFD))
+).
+-define(is_unicode_codepoint4(C), ((C) >= 16#10000 andalso (C) =< 16#10FFFF)).
+-define(is_unicode_codepoint(C),
+    (?is_unicode_codepoint1(C) orelse ?is_unicode_codepoint2(C) orelse ?is_unicode_codepoint3(C) orelse
+        ?is_unicode_codepoint4(C))
+).
+
+%%%=============================================================================
+%%% API functions
+%%%=============================================================================
+
+-compile({inline, [dynamic_cast/1]}).
+-spec dynamic_cast(term()) -> dynamic().
+dynamic_cast(X) -> X.
+
+-spec unicode_binary(unicode:chardata()) -> unicode:unicode_binary().
+unicode_binary(Chardata) when is_binary(Chardata) orelse is_list(Chardata) ->
+    case unicode:characters_to_binary(Chardata, utf8) of
+        UnicodeBinary when is_binary(UnicodeBinary) ->
+            UnicodeBinary;
+        {error, Encoded, Rest} ->
+            error_with_info(badarg, [Chardata], #{
+                1 => {unicode_error, #{encoded => Encoded, length => unicode_length(Encoded), rest => Rest}}
+            });
+        {incomplete, Encoded, Rest} ->
+            error_with_info(badarg, [Chardata], #{
+                1 => {unicode_incomplete, #{encoded => Encoded, length => unicode_length(Encoded), rest => Rest}}
+            })
+    end.
+
+-spec unicode_length(unicode:unicode_binary() | string()) -> non_neg_integer().
+unicode_length(UnicodeBinary) when is_binary(UnicodeBinary) ->
+    unicode_binary_length(UnicodeBinary, <<>>, 0);
+unicode_length(UnicodeString) when is_list(UnicodeString) ->
+    unicode_string_length(UnicodeString, <<>>, 0).
+
+%% @private
+-spec unicode_binary_length(unicode:unicode_binary(), unicode:unicode_binary(), non_neg_integer()) -> non_neg_integer().
+unicode_binary_length(<<C/utf8, Rest/bytes>>, Encoded, Length) ->
+    unicode_binary_length(Rest, <<C/utf8, Encoded/bytes>>, Length + 1);
+unicode_binary_length(<<>>, _Encoded, Length) ->
+    Length;
+unicode_binary_length(<<Rest/bytes>>, Encoded, Length) ->
+    error_with_info(badarg, [Rest, Encoded, Length], #{
+        1 => {unicode_length_error, #{encoded => Encoded, length => Length, rest => Rest}}
+    }).
+
+%% @private
+-spec unicode_string_length(string(), unicode:unicode_binary(), non_neg_integer()) -> non_neg_integer().
+unicode_string_length([C | Rest], Encoded, Length) when ?is_unicode_codepoint(C) ->
+    unicode_string_length(Rest, <<C/utf8, Encoded/bytes>>, Length + 1);
+unicode_string_length([], _Encoded, Length) ->
+    Length;
+unicode_string_length(Rest, Encoded, Length) ->
+    error_with_info(badarg, [Rest, Encoded, Length], #{
+        1 => {unicode_length_error, #{encoded => Encoded, length => Length, rest => Rest}}
+    }).
+
+-spec unicode_string(unicode:chardata()) -> string().
+unicode_string(Chardata) when is_binary(Chardata) orelse is_list(Chardata) ->
+    case unicode:characters_to_list(Chardata, utf8) of
+        UnicodeString when is_list(UnicodeString) ->
+            UnicodeString;
+        {error, Encoded, Rest} ->
+            error_with_info(badarg, [Chardata], #{
+                1 => {unicode_error, #{encoded => Encoded, length => unicode_length(Encoded), rest => Rest}}
+            });
+        {incomplete, Encoded, Rest} ->
+            error_with_info(badarg, [Chardata], #{
+                1 => {unicode_incomplete, #{encoded => Encoded, length => unicode_length(Encoded), rest => Rest}}
+            })
+    end.
+
+%%%=============================================================================
+%%% Errors API functions
+%%%=============================================================================
+
+%% @private
+-compile({inline, [error_with_info/3]}).
+-spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
+error_with_info(Reason, Args, Cause) ->
+    erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).
+
+-spec format_error(dynamic(), dynamic()) -> dynamic().
+format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
+    ErrorInfo = proplists:get_value(error_info, Info, #{}),
+    ErrorDescription1 = maps:get(cause, ErrorInfo),
+    ErrorDescription2 = maps:map(fun format_error_description/2, ErrorDescription1),
+    ErrorDescription2.
+
+%% @private
+-spec format_error_description(dynamic(), dynamic()) -> dynamic().
+format_error_description(_Key, {unicode_error, #{encoded := _Encoded, length := Length, rest := Rest}}) ->
+    io_lib:format("invalid Unicode chardata at position ~w: ~0tP", [Length, Rest, 5]);
+format_error_description(_Key, {unicode_incomplete, #{encoded := _Encoded, length := Length, rest := Rest}}) ->
+    io_lib:format("incomplete Unicode chardata at position ~w: ~0tP", [Length, Rest, 5]);
+format_error_description(_Key, {unicode_length_error, #{encoded := _Encoded, length := Length, rest := Rest}}) ->
+    io_lib:format("invalid length calculation of Unicode chardata at position ~w: ~0tP", [Length, Rest, 5]);
+format_error_description(_Key, Value) ->
+    Value.

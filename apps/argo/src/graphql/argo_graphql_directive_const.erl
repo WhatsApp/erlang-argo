@@ -78,7 +78,7 @@ add_argument_const(
     DirectivesConst1 = #argo_graphql_directive_const{arguments = ArgumentsConst1},
     ArgumentConst = #argo_graphql_argument_const{}
 ) ->
-    ArgumentsConst2 = argo_graphql_argument_const:add_argument_const(ArgumentsConst1, ArgumentConst),
+    ArgumentsConst2 = argo_graphql_arguments_const:add_argument_const(ArgumentsConst1, ArgumentConst),
     DirectivesConst2 = DirectivesConst1#argo_graphql_directive_const{arguments = ArgumentsConst2},
     DirectivesConst2.
 

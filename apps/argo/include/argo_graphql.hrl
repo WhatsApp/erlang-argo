@@ -96,7 +96,7 @@
 -record(argo_graphql_field_definition, {
     name :: argo_types:name(),
     type :: argo_graphql_type:t(),
-    arguments :: argo_graphql_arguments_const:t(),
+    arguments :: argo_graphql_arguments_definition:t(),
     description :: none | {some, unicode:unicode_binary()},
     directives :: argo_graphql_directives_const:t()
 }).
@@ -123,6 +123,10 @@
     inputs :: argo_index_map:t(argo_types:name(), argo_graphql_input_value_definition:t())
 }).
 
+-record(argo_graphql_input_type_graph, {
+    inputs :: argo_graphql_input_type_graph:inputs()
+}).
+
 -record(argo_graphql_input_value_definition, {
     name :: argo_types:name(),
     type :: argo_graphql_type:t(),
@@ -137,7 +141,7 @@
 }).
 
 -record(argo_graphql_list_type, {
-    type :: argo_graphql_type:inner()
+    type :: argo_graphql_type:t()
 }).
 
 -record(argo_graphql_non_null_type, {
@@ -187,9 +191,7 @@
 }).
 
 -record(argo_graphql_union_type_definition, {
-    types :: argo_index_set:t(argo_types:name()),
-    fields :: argo_index_map:t(argo_types:name(), argo_graphql_field_definition:t()),
-    resolved :: boolean()
+    types :: argo_index_set:t(argo_types:name())
 }).
 
 -record(argo_graphql_value, {
@@ -197,7 +199,7 @@
 }).
 
 -record(argo_graphql_value_const, {
-    inner :: argo_graphql_value:inner()
+    inner :: argo_graphql_value_const:inner()
 }).
 
 -record(argo_graphql_variable_definition, {

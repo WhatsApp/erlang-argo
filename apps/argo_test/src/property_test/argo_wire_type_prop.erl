@@ -18,8 +18,7 @@
 -oncall("whatsapp_clr").
 -compile(warn_missing_spec).
 
--include_lib("proper/include/proper.hrl").
-
+-include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% Helpers
@@ -32,11 +31,6 @@
 ]).
 
 %% Macros
--ifdef(WHENFAIL).
--undef(WHENFAIL).
--endif.
-% eqWAlizer gets angry about `fun(() -> boolean())` not being a subtype of `fun(() -> proper:test())`
--define(WHENFAIL(Action, Prop), proper:whenfail(?DELAY(Action), dynamic_cast(?DELAY(Prop)))).
 -define(EQUALS(A, B), ?WHENFAIL(report_not_equal(A, B), A =:= B)).
 
 %%%=============================================================================
@@ -66,8 +60,3 @@ prop_roundtrip_encoder_and_decoder(_Config) ->
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.

@@ -23,6 +23,7 @@
 
 %% API
 -export([
+    name_from_string/1,
     parse/2
 ]).
 %% argo_graphql_display callbacks
@@ -72,6 +73,15 @@
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
+
+-spec name_from_string(String) -> Name when String :: unicode:chardata(), Name :: name().
+name_from_string(String) ->
+    case erlang:binary_to_existing_atom(argo_types:unicode_binary(String), utf8) of
+        Name when ?is_name(Name) ->
+            Name;
+        _ ->
+            erlang:error(badarg, [String])
+    end.
 
 -spec parse(Context, Location) -> TypeSystemDirectiveLocation when
     Context :: context(), Location :: erl_anno:location(), TypeSystemDirectiveLocation :: t().

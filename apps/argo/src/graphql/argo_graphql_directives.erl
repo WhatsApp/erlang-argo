@@ -120,7 +120,7 @@ find_directive_repeatable(Directives = #argo_graphql_directives{}, DirectiveName
     DirectiveList :: [Directive],
     Directive :: argo_graphql_directive:t().
 get_directive_list(#argo_graphql_directives{directives = DirectiveList}, DirectiveName) when is_binary(DirectiveName) ->
-    [Directive || Directive = #argo_graphql_directive{name = DirectiveName} <- DirectiveList].
+    [Directive || Directive = #argo_graphql_directive{name = Name} <- DirectiveList, Name =:= DirectiveName].
 
 -spec get_directive_non_repeatable(Directives, DirectiveName) -> Directive when
     Directives :: t(), DirectiveName :: argo_types:name(), Directive :: argo_graphql_directive:t().

@@ -36,9 +36,12 @@
 %% Instance API
 -export([
     add_directive_const/2,
-    find_field_definition/2,
-    get_field_definition/2,
+    find_field_definition/3,
+    get_field_definition/3,
+    get_implementations/2,
+    get_shape/2,
     is_ambiguous/1,
+    is_input_type/1,
     set_description/2
 ]).
 %% argo_graphql_display callbacks
@@ -58,10 +61,16 @@
     | argo_graphql_union_type_definition:t()
     | argo_graphql_enum_type_definition:t()
     | argo_graphql_input_object_type_definition:t().
+-type shape() ::
+    argo_graphql_interface_type_definition:shape()
+    | argo_graphql_object_type_definition:shape()
+    | argo_graphql_union_type_definition:shape()
+    | argo_graphql_input_object_type_definition:shape().
 -type t() :: #argo_graphql_type_definition{}.
 
 -export_type([
     kind/0,
+    shape/0,
     t/0
 ]).
 
@@ -218,9 +227,16 @@ add_directive_const(
     TypeDefinition2 = TypeDefinition1#argo_graphql_type_definition{directives = DirectivesConst2},
     TypeDefinition2.
 
--spec find_field_definition(TypeDefinition, FieldName) -> {ok, FieldDefinition} | error when
-    TypeDefinition :: t(), FieldName :: argo_types:name(), FieldDefinition :: argo_graphql_field_definition:t().
-find_field_definition(TypeDefinition = #argo_graphql_type_definition{kind = Kind}, FieldName) when
+-spec find_field_definition(TypeDefinition, FieldName, ServiceDocument) -> {ok, FieldDefinition} | error when
+    TypeDefinition :: t(),
+    FieldName :: argo_types:name(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    FieldDefinition :: argo_graphql_field_definition:t().
+find_field_definition(
+    TypeDefinition = #argo_graphql_type_definition{kind = Kind},
+    FieldName,
+    ServiceDocument = #argo_graphql_service_document{}
+) when
     is_binary(FieldName)
 ->
     case Kind of
@@ -240,27 +256,111 @@ find_field_definition(TypeDefinition = #argo_graphql_type_definition{kind = Kind
                 error ->
                     argo_graphql_field_definition:builtin(FieldName)
             end;
-        #argo_graphql_union_type_definition{fields = Fields} ->
-            case argo_index_map:find(FieldName, Fields) of
-                {ok, FieldDefinition} ->
-                    {ok, FieldDefinition};
-                error ->
-                    argo_graphql_field_definition:builtin(FieldName)
-            end;
+        #argo_graphql_union_type_definition{types = UnionMemberTypes} ->
+            UnionMemberTypeIterator = argo_index_set:iterator(UnionMemberTypes),
+            find_field_definition_for_union(UnionMemberTypeIterator, FieldName, ServiceDocument);
         #argo_graphql_enum_type_definition{} ->
             error_with_info(badarg, [TypeDefinition, FieldName], #{2 => {no_field_definitions, #{type => enum}}});
         #argo_graphql_input_object_type_definition{} ->
             error_with_info(badarg, [TypeDefinition, FieldName], #{2 => {no_field_definitions, #{type => input_object}}})
     end.
 
--spec get_field_definition(TypeDefinition, FieldName) -> FieldDefinition when
-    TypeDefinition :: t(), FieldName :: argo_types:name(), FieldDefinition :: argo_graphql_field_definition:t().
-get_field_definition(TypeDefinition = #argo_graphql_type_definition{}, FieldName) when is_binary(FieldName) ->
-    case find_field_definition(TypeDefinition, FieldName) of
+%% @private
+-spec find_field_definition_for_union(UnionMemberTypeIterator, FieldName, ServiceDocument) ->
+    {ok, FieldDefinition} | error
+when
+    UnionMemberTypeIterator :: argo_index_set:iterator(argo_types:name()),
+    FieldName :: argo_types:name(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    FieldDefinition :: argo_graphql_field_definition:t().
+find_field_definition_for_union(UnionMemberTypeIterator1, FieldName, ServiceDocument) ->
+    case argo_index_set:next(UnionMemberTypeIterator1) of
+        none ->
+            argo_graphql_field_definition:builtin(FieldName);
+        {_Index, UnionMemberType, UnionMemberTypeIterator2} ->
+            UnionMemberTypeDefinition = argo_graphql_service_document:get_union_member_type_definition(
+                ServiceDocument, UnionMemberType
+            ),
+            case find_field_definition(UnionMemberTypeDefinition, FieldName, ServiceDocument) of
+                {ok, FieldDefinition} ->
+                    {ok, FieldDefinition};
+                error ->
+                    find_field_definition_for_union(UnionMemberTypeIterator2, FieldName, ServiceDocument)
+            end
+    end.
+
+-spec get_field_definition(TypeDefinition, FieldName, ServiceDocument) -> FieldDefinition when
+    TypeDefinition :: t(),
+    FieldName :: argo_types:name(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    FieldDefinition :: argo_graphql_field_definition:t().
+get_field_definition(
+    TypeDefinition = #argo_graphql_type_definition{}, FieldName, ServiceDocument = #argo_graphql_service_document{}
+) when is_binary(FieldName) ->
+    case find_field_definition(TypeDefinition, FieldName, ServiceDocument) of
         {ok, FieldDefinition} ->
             FieldDefinition;
         error ->
             error_with_info(badarg, [TypeDefinition, FieldName], #{2 => {missing_field_definition, FieldName}})
+    end.
+
+-spec get_implementations(InterfaceTypeDefinition, ServiceDocument) -> [TypeName] when
+    InterfaceTypeDefinition :: t(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    TypeName :: argo_types:name().
+get_implementations(
+    InterfaceTypeDefinition = #argo_graphql_type_definition{name = InterfaceName, kind = InterfaceTypeKind},
+    ServiceDocument = #argo_graphql_service_document{type_definitions = TypeDefinitionsMap}
+) ->
+    case InterfaceTypeKind of
+        #argo_graphql_interface_type_definition{} ->
+            Implementations = maps:fold(
+                fun(TypeName, TypeDefinition = #argo_graphql_type_definition{kind = TypeKind}, ImplementationsAcc) ->
+                    case TypeKind of
+                        #argo_graphql_object_type_definition{implements = Implements} ->
+                            case argo_index_set:is_element(InterfaceName, Implements) of
+                                false ->
+                                    ImplementationsAcc;
+                                true ->
+                                    ImplementationsAcc#{TypeName => []}
+                            end;
+                        #argo_graphql_interface_type_definition{implements = Implements} ->
+                            case argo_index_set:is_element(InterfaceName, Implements) of
+                                false ->
+                                    ImplementationsAcc;
+                                true ->
+                                    ImplementationsAcc#{TypeName => []}
+                            end;
+                        _ ->
+                            ImplementationsAcc
+                    end
+                end,
+                maps:new(),
+                TypeDefinitionsMap
+            ),
+            lists:sort(maps:keys(Implementations));
+        _ ->
+            []
+    end.
+
+-spec get_shape(TypeDefinition, ServiceDocument) -> Shape when
+    TypeDefinition :: t(), ServiceDocument :: argo_graphql_service_document:t(), Shape :: shape().
+get_shape(
+    TypeDefinition = #argo_graphql_type_definition{kind = Kind}, ServiceDocument = #argo_graphql_service_document{}
+) ->
+    case Kind of
+        #argo_graphql_scalar_type_definition{} ->
+            error_with_info(badarg, [TypeDefinition, ServiceDocument], #{1 => {shape_not_supported, #{type => scalar}}});
+        #argo_graphql_object_type_definition{} ->
+            argo_graphql_object_type_definition:get_shape(Kind, ServiceDocument);
+        #argo_graphql_interface_type_definition{} ->
+            argo_graphql_interface_type_definition:get_shape(Kind, ServiceDocument);
+        #argo_graphql_union_type_definition{} ->
+            argo_graphql_union_type_definition:get_shape(Kind, ServiceDocument);
+        #argo_graphql_enum_type_definition{} ->
+            error_with_info(badarg, [TypeDefinition, ServiceDocument], #{1 => {shape_not_supported, #{type => enum}}});
+        #argo_graphql_input_object_type_definition{} ->
+            argo_graphql_input_object_type_definition:get_shape(Kind, ServiceDocument)
     end.
 
 % @doc Schema extensions without additional operation type definitions must not be followed by a { (such as a query shorthand) to avoid parsing ambiguity. The same limitation applies to the type definitions and extensions below.
@@ -279,6 +379,23 @@ is_ambiguous(#argo_graphql_type_definition{kind = Kind}) ->
             argo_graphql_enum_type_definition:is_ambiguous(Kind);
         #argo_graphql_input_object_type_definition{} ->
             argo_graphql_input_object_type_definition:is_ambiguous(Kind)
+    end.
+
+-spec is_input_type(Definition) -> boolean() when Definition :: t().
+is_input_type(#argo_graphql_type_definition{kind = Kind}) ->
+    case Kind of
+        #argo_graphql_scalar_type_definition{} ->
+            true;
+        #argo_graphql_object_type_definition{} ->
+            false;
+        #argo_graphql_interface_type_definition{} ->
+            false;
+        #argo_graphql_union_type_definition{} ->
+            false;
+        #argo_graphql_enum_type_definition{} ->
+            true;
+        #argo_graphql_input_object_type_definition{} ->
+            true
     end.
 
 -spec set_description(TypeDefinition, OptionDescription) -> TypeDefinition when
@@ -366,5 +483,7 @@ format_error_description(_Key, {missing_field_definition, FieldName}) ->
     io_lib:format("missing FieldDefinition name: ~0tp", [FieldName]);
 format_error_description(_Key, {no_field_definitions, #{type := Type}}) ->
     io_lib:format("FieldDefinition is not supported on ~0tp", [Type]);
+format_error_description(_Key, {shape_not_supported, #{type := Type}}) ->
+    io_lib:format("shape is not supported for TypeDefinition of kind: ~0tp", [Type]);
 format_error_description(_Key, Value) ->
     Value.

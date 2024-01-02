@@ -28,7 +28,10 @@
 ]).
 %% Instance API
 -export([
-    add_directive/2
+    add_directive/2,
+    find_field/3,
+    fold_fields/4,
+    get_shape/2
 ]).
 %% argo_graphql_display callbacks
 -export([
@@ -82,6 +85,45 @@ add_directive(
     Directives2 = argo_graphql_directives:add_directive(Directives1, Directive),
     FragmentSpread2 = FragmentSpread1#argo_graphql_fragment_spread{directives = Directives2},
     FragmentSpread2.
+
+-spec find_field(FragmentSpread, FieldAliasOrName, ExecutableDocument) -> {ok, Field} | error when
+    FragmentSpread :: t(),
+    FieldAliasOrName :: argo_types:name(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Field :: argo_graphql_field:t().
+find_field(
+    _FragmentSpread = #argo_graphql_fragment_spread{name = FragmentName},
+    FieldAliasOrName,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_binary(FieldAliasOrName) ->
+    FragmentDefinition = argo_graphql_executable_document:get_fragment_definition(ExecutableDocument, FragmentName),
+    argo_graphql_fragment_definition:find_field(FragmentDefinition, FieldAliasOrName, ExecutableDocument).
+
+-spec fold_fields(FragmentSpread, AccIn, Fun, ExecutableDocument) -> AccOut when
+    FragmentSpread :: t(),
+    AccIn :: dynamic(),
+    Fun :: argo_graphql_selection_set:fold_fields_func(AccIn, AccOut),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    AccOut :: dynamic().
+fold_fields(
+    _FragmentSpread = #argo_graphql_fragment_spread{name = FragmentName},
+    AccIn,
+    Fun,
+    ExecutableDocument = #argo_graphql_executable_document{}
+) when is_function(Fun, 3) ->
+    FragmentDefinition = argo_graphql_executable_document:get_fragment_definition(ExecutableDocument, FragmentName),
+    argo_graphql_fragment_definition:fold_fields(FragmentDefinition, AccIn, Fun, ExecutableDocument).
+
+-spec get_shape(FragmentSpread, ExecutableDocument) -> Shape when
+    FragmentSpread :: t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    Shape :: argo_graphql_selection_set:shape().
+get_shape(
+    _FragmentSpread = #argo_graphql_fragment_spread{name = FragmentName},
+    ExecutableDocument = #argo_graphql_executable_document{}
+) ->
+    FragmentDefinition = argo_graphql_executable_document:get_fragment_definition(ExecutableDocument, FragmentName),
+    argo_graphql_fragment_definition:get_shape(FragmentDefinition, ExecutableDocument).
 
 %%%=============================================================================
 %%% argo_graphql_display callbacks

@@ -41,7 +41,7 @@
     | argo_graphql_language_fragment_definition:t().
 -type t() :: #argo_graphql_language_executable_definition{}.
 
--export_executable_definition([
+-export_type([
     inner/0,
     t/0
 ]).
