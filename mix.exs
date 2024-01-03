@@ -13,7 +13,8 @@ defmodule ArgoElixirTests.MixProject do
       version: "1.0.0",
       elixir: "~> 1.14",
       deps: deps(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      compilers: [:leex, :yecc] ++ Mix.compilers()
     ]
   end
 
