@@ -1,8 +1,21 @@
-% GraphQL Lexer
-%
-% See the spec reference
-% https://spec.graphql.org/draft/#sec-Appendix-Grammar-Summary
-% The relevant version is also copied into this repo
+%%%-----------------------------------------------------------------------------
+%%% Copyright (c) Meta Platforms, Inc. and affiliates.
+%%% Copyright (c) WhatsApp LLC
+%%%
+%%% This source code is licensed under the MIT license found in the
+%%% LICENSE.md file in the root directory of this source tree.
+%%%
+%%% @author Andrew Bennett <potatosaladx@meta.com>
+%%% @copyright (c) Meta Platforms, Inc. and affiliates.
+%%% @doc GraphQL Lexer
+%%%
+%%% See the spec reference
+%%% https://spec.graphql.org/draft/#sec-Appendix-Grammar-Summary
+%%%
+%%% @end
+%%% Created :  10 Nov 2023 by Andrew Bennett <potatosaladx@meta.com>
+%%%-----------------------------------------------------------------------------
+%%% % @format
 
 Definitions.
 
