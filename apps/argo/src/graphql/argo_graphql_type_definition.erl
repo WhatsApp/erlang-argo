@@ -309,13 +309,13 @@ get_field_definition(
     ServiceDocument :: argo_graphql_service_document:t(),
     TypeName :: argo_types:name().
 get_implementations(
-    InterfaceTypeDefinition = #argo_graphql_type_definition{name = InterfaceName, kind = InterfaceTypeKind},
-    ServiceDocument = #argo_graphql_service_document{type_definitions = TypeDefinitionsMap}
+    _InterfaceTypeDefinition = #argo_graphql_type_definition{name = InterfaceName, kind = InterfaceTypeKind},
+    _ServiceDocument = #argo_graphql_service_document{type_definitions = TypeDefinitionsMap}
 ) ->
     case InterfaceTypeKind of
         #argo_graphql_interface_type_definition{} ->
             Implementations = maps:fold(
-                fun(TypeName, TypeDefinition = #argo_graphql_type_definition{kind = TypeKind}, ImplementationsAcc) ->
+                fun(TypeName, _TypeDefinition = #argo_graphql_type_definition{kind = TypeKind}, ImplementationsAcc) ->
                     case TypeKind of
                         #argo_graphql_object_type_definition{implements = Implements} ->
                             case argo_index_set:is_element(InterfaceName, Implements) of

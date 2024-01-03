@@ -32,7 +32,7 @@
 
 %% Macros
 -define(EQUALS(A, B), ?WHENFAIL(report_not_equal(A, B), A =:= B)).
--define(SHOULD_LOG_SIZE, false).
+% -define(SHOULD_LOG_SIZE, true).
 
 %%%=============================================================================
 %%% Helpers
@@ -70,8 +70,8 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                         [
                                             Document,
                                             strip_location(ParsedDocument),
-                                            dump_with_lines(Expected),
-                                            dump_with_lines(Actual)
+                                            argo_graphql:format_with_lines(Document),
+                                            argo_graphql:format_with_lines(ParsedDocument)
                                         ]
                                     )
                                 end,
@@ -84,7 +84,7 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                         "FAILURE: Parser Error due to ~0tp~n"
                                         "Expected (Record):~n~0tp~n"
                                         "Expected (String):~n~ts~n",
-                                        [ParserError, Document, dump_with_lines(Expected)]
+                                        [ParserError, Document, argo_graphql:format_with_lines(Document)]
                                     )
                                 end,
                                 false
@@ -97,7 +97,7 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                 "FAILURE: Lexer Error due to ~0tp~n"
                                 "Expected (Record):~n~0tp~n"
                                 "Expected (String):~n~ts~n",
-                                [LexerError, Document, dump_with_lines(Expected)]
+                                [LexerError, Document, argo_graphql:format_with_lines(Document)]
                             )
                         end,
                         false
@@ -111,36 +111,21 @@ prop_roundtrip_formatter_and_parser(_Config) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
--spec dump_with_lines(String :: unicode:chardata()) -> unicode:unicode_binary().
-dump_with_lines(String) ->
-    Binary = argo_types:unicode_binary(String),
-    Lines = binary:split(Binary, <<$\n>>, [global]),
-    Width = byte_size(erlang:iolist_to_binary(io_lib:format("~w", [length(Lines)]))),
-    argo_types:unicode_binary(
-        lists:map(
-            fun({Row, Line}) ->
-                io_lib:format("~*w: ~ts~n", [Width, Row, Line])
-            end,
-            lists:enumerate(Lines)
-        )
-    ).
-
-%% @private
 -compile({inline, [maybe_log_size/1]}).
 -spec maybe_log_size(RawType :: proper_types:raw_type()) -> proper_types:type().
+-ifdef(SHOULD_LOG_SIZE).
 maybe_log_size(RawType) ->
-    case ?SHOULD_LOG_SIZE of
-        false ->
-            proper_types:cook_outer(RawType);
-        true ->
-            ?SIZED(
-                Size,
-                begin
-                    io:format(user, "Size = ~p~n", [Size]),
-                    RawType
-                end
-            )
-    end.
+    ?SIZED(
+        Size,
+        begin
+            io:format(user, "Size = ~p~n", [Size]),
+            RawType
+        end
+    ).
+-else.
+maybe_log_size(RawType) ->
+    proper_types:cook_outer(RawType).
+-endif.
 
 %% @private
 -spec strip_location(dynamic()) -> dynamic().

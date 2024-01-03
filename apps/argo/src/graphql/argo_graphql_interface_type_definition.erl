@@ -32,7 +32,8 @@
     add_interface/2,
     get_implements_interfaces/2,
     get_shape/1,
-    get_shape/2
+    get_shape/2,
+    is_ambiguous/1
 ]).
 %% argo_graphql_display callbacks
 -export([
@@ -241,6 +242,11 @@ get_shape(
         ImplementsInterfaces
     ),
     Shape1.
+
+% @doc Schema extensions without additional operation type definitions must not be followed by a { (such as a query shorthand) to avoid parsing ambiguity. The same limitation applies to the type definitions and extensions below.
+-spec is_ambiguous(Definition) -> boolean() when Definition :: t().
+is_ambiguous(#argo_graphql_interface_type_definition{fields = FieldsMap}) ->
+    argo_index_map:size(FieldsMap) =:= 0.
 
 %%%=============================================================================
 %%% argo_graphql_display callbacks

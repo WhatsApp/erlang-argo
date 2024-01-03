@@ -422,6 +422,8 @@ Expect 35.
 
 Erlang code.
 
+-ignore_xref([return_error/2]).
+
 % Line-Level Utilities
 
 extract_location({_Token, {Line, Column}}) ->

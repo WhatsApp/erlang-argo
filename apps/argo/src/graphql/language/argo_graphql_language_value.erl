@@ -82,7 +82,8 @@ int(Int, Location) when is_integer(Int) ->
     #argo_graphql_language_value{location = Location, inner = {int, Int}}.
 
 -compile({inline, [string/2]}).
--spec string(String, Location) -> Value when String :: string(), Location :: erl_anno:location(), Value :: t().
+-spec string(String, Location) -> Value when
+    String :: unicode:unicode_binary(), Location :: erl_anno:location(), Value :: t().
 string(String, Location) when is_binary(String) ->
     UnescapedString = argo_graphql_language_string_value:string_value_unescape(String),
     #argo_graphql_language_value{location = Location, inner = {string, UnescapedString}}.

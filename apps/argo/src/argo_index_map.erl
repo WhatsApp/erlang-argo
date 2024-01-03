@@ -37,6 +37,7 @@
     is_key/2,
     iterator/1,
     iterator/2,
+    iterator_internal/2,
     keys/1,
     last/1,
     new/0,
@@ -231,14 +232,24 @@ iterator(IndexMap = #argo_index_map{}, ordered) ->
     {{ordered, 0}, IndexMap};
 iterator(IndexMap = #argo_index_map{}, reversed) ->
     {{reversed, ?MODULE:size(IndexMap)}, IndexMap};
-iterator(IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_function(OrderFun, 4) ->
-    Custom = lists:sort(
+iterator(IndexMap = #argo_index_map{}, OrderFun) when is_function(OrderFun, 4) ->
+    IteratorInternal = iterator_internal(IndexMap, OrderFun),
+    {{custom, IteratorInternal}, IndexMap}.
+
+%% @private
+-spec iterator_internal(IndexMap, OrderFun) -> InternalIterator when
+    Key :: key(),
+    Value :: value(),
+    IndexMap :: t(Key, Value),
+    OrderFun :: iterator_order_func(Key),
+    InternalIterator :: [{index(), {Key, Value}}].
+iterator_internal(_IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_function(OrderFun, 4) ->
+    lists:sort(
         fun({AIndex, {AKey, _AValue}}, {BIndex, {BKey, _BValue}}) ->
             OrderFun(AIndex, AKey, BIndex, BKey)
         end,
         array:to_orddict(Entries)
-    ),
-    {{custom, Custom}, IndexMap}.
+    ).
 
 -spec keys(IndexMapOrIterator) -> Keys when
     Key :: key(), Value :: value(), IndexMapOrIterator :: t(Key, Value) | iterator(Key, Value), Keys :: [Key].
@@ -342,7 +353,7 @@ remove(Key, IndexMap1 = #argo_index_map{}) ->
     Index :: index(), Key :: key(), IndexMap1 :: t(Key), IndexMap2 :: t(Key).
 remove_index(Index, IndexMap1 = #argo_index_map{}) when is_integer(Index) andalso Index >= 0 ->
     case take_index(Index, IndexMap1) of
-        {{Index, _Key, _Value}, IndexMap2} ->
+        {{_Key, _Value}, IndexMap2} ->
             IndexMap2;
         error ->
             IndexMap1

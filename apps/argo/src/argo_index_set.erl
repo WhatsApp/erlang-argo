@@ -33,6 +33,7 @@
     is_element/2,
     is_index/2,
     iterator/1,
+    iterator/2,
     last/1,
     new/0,
     next/1,
@@ -85,7 +86,7 @@ add_element(Element, IndexSet1 = #argo_index_set{map = IndexMap1}) ->
     Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
 del_element(Element, IndexSet1 = #argo_index_set{map = IndexMap1}) ->
     case argo_index_map:remove(Element, IndexMap1) of
-        error ->
+        IndexMap1 ->
             IndexSet1;
         IndexMap2 ->
             IndexSet2 = IndexSet1#argo_index_set{map = IndexMap2},
@@ -96,7 +97,7 @@ del_element(Element, IndexSet1 = #argo_index_set{map = IndexMap1}) ->
     Index :: index(), Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
 del_index(Index, IndexSet1 = #argo_index_set{map = IndexMap1}) when is_integer(Index) andalso Index >= 0 ->
     case argo_index_map:remove_index(Index, IndexMap1) of
-        error ->
+        IndexMap1 ->
             IndexSet1;
         IndexMap2 ->
             IndexSet2 = IndexSet1#argo_index_set{map = IndexMap2},
@@ -180,8 +181,8 @@ iterator(IndexSet = #argo_index_set{}, ordered) ->
 iterator(IndexSet = #argo_index_set{}, reversed) ->
     {{reversed, ?MODULE:size(IndexSet)}, IndexSet};
 iterator(IndexSet = #argo_index_set{map = IndexMap}, OrderFun) when is_function(OrderFun, 4) ->
-    {{custom, Custom}, IndexMap} = argo_index_map:iterator(IndexMap, OrderFun),
-    {{custom, dynamic_cast(Custom)}, IndexSet}.
+    IteratorInternal = argo_index_map:iterator_internal(IndexMap, OrderFun),
+    {{custom, argo_types:dynamic_cast(IteratorInternal)}, IndexSet}.
 
 -spec last(IndexSet) -> {ok, Element} | error when Element :: element(), IndexSet :: t(Element).
 last(IndexSet = #argo_index_set{}) ->
@@ -305,11 +306,6 @@ to_list(Iterator = {{_, _}, #argo_index_set{}}) ->
     Index :: index(), Element :: element(), Elements :: [Element].
 collect_elements(_Index, Element, Elements) ->
     [Element | Elements].
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.
 
 %% @private
 -spec foldl_iterator(Iterator, Function, AccIn) -> AccOut when

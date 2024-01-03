@@ -10,6 +10,51 @@ PROJECT_VERSION = 1.0.0
 
 include erlang.mk
 
+.PHONY: eqwalizer distclean-eqwalizer
+
+# Configuration.
+EQWALIZER_VERSION ?= 0.25.3
+
+ELP ?= $(CURDIR)/elp
+export ELP
+
+ifeq ($(PLATFORM),darwin)
+	EQWALIZER_URL ?= https://github.com/WhatsApp/eqwalizer/releases/download/v$(EQWALIZER_VERSION)/elp-macos.tar.gz
+else
+	EQWALIZER_URL ?= https://github.com/WhatsApp/eqwalizer/releases/download/v$(EQWALIZER_VERSION)/elp-linux.tar.gz
+endif
+
+EQWALIZER_OPTS ?=
+EQWALIZER_BUILD_DIR ?= $(CURDIR)/_eqwalizer_build
+EQWALIZER_ARCHIVE = $(EQWALIZER_VERSION).tar.gz
+
+# Core targets.
+
+help::
+	$(verbose) printf "%s\n" "" \
+		"eqwalizer targets:" \
+		"  eqwalizer    Run 'elp eqwalize-all' on the current project"
+
+distclean:: distclean-eqwalizer
+
+# Plugin-specific targets.
+
+$(ELP):
+	$(verbose) mkdir -p $(EQWALIZER_BUILD_DIR)
+	$(verbose) echo "Downloading eqwalizer from: "$(EQWALIZER_URL)
+	$(verbose) $(call core_http_get,$(EQWALIZER_BUILD_DIR)/$(EQWALIZER_ARCHIVE),$(EQWALIZER_URL))
+	$(verbose) cd $(EQWALIZER_BUILD_DIR) && \
+		tar -xzf $(EQWALIZER_ARCHIVE)
+	$(gen_verbose) cp $(EQWALIZER_BUILD_DIR)/elp $(ELP)
+	$(verbose) chmod +x $(ELP)
+	$(verbose) rm -rf $(EQWALIZER_BUILD_DIR)
+
+eqwalizer: $(ELP)
+	$(verbose) $(ELP) eqwalize-all
+
+distclean-eqwalizer:
+	$(gen_verbose) rm -rf $(ELP)
+
 .PHONY: erlfmt erlfmt-check distclean-erlfmt format
 
 # Configuration.

@@ -32,7 +32,7 @@
 
 %% Macros
 -define(EQUALS(A, B), ?WHENFAIL(report_not_equal(A, B), A =:= B)).
--define(SHOULD_LOG_SIZE, false).
+% -define(SHOULD_LOG_SIZE, true).
 
 %%%=============================================================================
 %%% Helpers
@@ -98,16 +98,16 @@ prop_roundtrip(_Config) ->
 %% @private
 -compile({inline, [maybe_log_size/1]}).
 -spec maybe_log_size(RawType :: proper_types:raw_type()) -> proper_types:type().
+-ifdef(SHOULD_LOG_SIZE).
 maybe_log_size(RawType) ->
-    case ?SHOULD_LOG_SIZE of
-        false ->
-            proper_types:cook_outer(RawType);
-        true ->
-            ?SIZED(
-                Size,
-                begin
-                    io:format(user, "Size = ~p~n", [Size]),
-                    RawType
-                end
-            )
-    end.
+    ?SIZED(
+        Size,
+        begin
+            io:format(user, "Size = ~p~n", [Size]),
+            RawType
+        end
+    ).
+-else.
+maybe_log_size(RawType) ->
+    proper_types:cook_outer(RawType).
+-endif.
