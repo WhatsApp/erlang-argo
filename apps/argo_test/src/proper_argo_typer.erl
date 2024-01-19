@@ -22,8 +22,14 @@
 -include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_graphql.hrl").
+-include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
+%% Context API
+-export([
+    derive_wire_type_context/4,
+    value_context/5
+]).
 %% Argo Typer API
 -export([
     derive_wire_type/0,
@@ -34,6 +40,73 @@
     value/2,
     value/4
 ]).
+
+%% Types
+-type derive_wire_type_context() :: #{
+    service_document := argo_graphql_service_document:t(),
+    executable_document := argo_graphql_executable_document:t(),
+    operation_name := none | {some, argo_types:name()},
+    wire_type := argo_wire_type:t()
+}.
+-type value_context() :: #{
+    service_document := argo_graphql_service_document:t(),
+    executable_document := argo_graphql_executable_document:t(),
+    operation_name := none | {some, argo_types:name()},
+    wire_type := argo_wire_type:t(),
+    value := argo_value:t()
+}.
+
+-export_type([
+    derive_wire_type_context/0,
+    value_context/0
+]).
+
+%%%=============================================================================
+%%% Context API functions
+%%%=============================================================================
+
+-spec derive_wire_type_context(ServiceDocument, ExecutableDocument, OptionOperationName, WireType) ->
+    DeriveWireTypeContext
+when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    OptionOperationName :: none | {some, argo_types:name()},
+    WireType :: argo_wire_type:t(),
+    DeriveWireTypeContext :: derive_wire_type_context().
+derive_wire_type_context(
+    ServiceDocument = #argo_graphql_service_document{},
+    ExecutableDocument = #argo_graphql_executable_document{},
+    OptionOperationName,
+    WireType = #argo_wire_type{}
+) when ?is_option_binary(OptionOperationName) ->
+    #{
+        service_document => ServiceDocument,
+        executable_document => ExecutableDocument,
+        operation_name => OptionOperationName,
+        wire_type => WireType
+    }.
+
+-spec value_context(ServiceDocument, ExecutableDocument, OptionOperationName, WireType, Value) -> ValueContext when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    OptionOperationName :: none | {some, argo_types:name()},
+    WireType :: argo_wire_type:t(),
+    Value :: argo_value:t(),
+    ValueContext :: value_context().
+value_context(
+    ServiceDocument = #argo_graphql_service_document{},
+    ExecutableDocument = #argo_graphql_executable_document{},
+    OptionOperationName,
+    WireType = #argo_wire_type{},
+    Value = #argo_value{}
+) when ?is_option_binary(OptionOperationName) ->
+    #{
+        service_document => ServiceDocument,
+        executable_document => ExecutableDocument,
+        operation_name => OptionOperationName,
+        wire_type => WireType,
+        value => Value
+    }.
 
 %%%=============================================================================
 %%% GraphQL ExecutableDocument API functions
@@ -62,7 +135,7 @@ derive_wire_type(
     ServiceDocument = #argo_graphql_service_document{}, ExecutableDocument = #argo_graphql_executable_document{}
 ) ->
     {OptionOperationName, WireType} = argo_typer:derive_wire_type(ServiceDocument, ExecutableDocument, none),
-    exactly({ServiceDocument, ExecutableDocument, OptionOperationName, WireType}).
+    exactly(derive_wire_type_context(ServiceDocument, ExecutableDocument, OptionOperationName, WireType)).
 
 -spec value() -> proper_types:type().
 value() ->
@@ -84,7 +157,12 @@ value(ServiceDocument = #argo_graphql_service_document{}) ->
     ServiceDocument :: argo_graphql_service_document:t(), ExecutableDocument :: argo_graphql_executable_document:t().
 value(ServiceDocument1 = #argo_graphql_service_document{}, ExecutableDocument1 = #argo_graphql_executable_document{}) ->
     ?LET(
-        {ServiceDocument2, ExecutableDocument2, OptionOperationName, WireType},
+        #{
+            service_document := ServiceDocument2,
+            executable_document := ExecutableDocument2,
+            operation_name := OptionOperationName,
+            wire_type := WireType
+        },
         derive_wire_type(ServiceDocument1, ExecutableDocument1),
         value(ServiceDocument2, ExecutableDocument2, OptionOperationName, WireType)
     ).
@@ -104,7 +182,7 @@ value(
     ?LET(
         Value,
         proper_argo:value(WireType),
-        exactly({ServiceDocument, ExecutableDocument, OptionOperationName, WireType, Value})
+        exactly(value_context(ServiceDocument, ExecutableDocument, OptionOperationName, WireType, Value))
     ).
 
 %%%-----------------------------------------------------------------------------

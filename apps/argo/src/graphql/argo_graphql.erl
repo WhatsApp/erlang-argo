@@ -90,17 +90,7 @@ format(Type) when ?is_record(Type) ->
 
 -spec format_with_lines(dynamic()) -> unicode:unicode_binary().
 format_with_lines(Type) when ?is_record(Type) ->
-    Binary = format(Type),
-    Lines = binary:split(Binary, <<$\n>>, [global]),
-    Width = byte_size(erlang:iolist_to_binary(io_lib:format("~w", [length(Lines)]))),
-    argo_types:unicode_binary(
-        lists:map(
-            fun({Row, Line}) ->
-                io_lib:format("~*w: ~ts~n", [Width, Row, Line])
-            end,
-            lists:enumerate(Lines)
-        )
-    ).
+    argo_types:format_with_lines(format(Type)).
 
 -spec xform(TypeIn, AccIn, Fun) -> {TypeOut, AccOut} when
     TypeIn :: dynamic(),

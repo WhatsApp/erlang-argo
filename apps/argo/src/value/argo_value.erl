@@ -26,9 +26,12 @@
     display/1,
     display/2,
     format/1,
+    format_with_lines/1,
     from_json/2,
+    from_json/3,
     from_reader/2,
     to_json/1,
+    to_json/2,
     to_writer/1,
     to_writer/2
 ]).
@@ -56,7 +59,8 @@
     is_path/1,
     is_record/1,
     is_scalar/1,
-    to_wire_type/1
+    to_wire_type/1,
+    xform/3
 ]).
 
 -type inner() ::
@@ -71,9 +75,18 @@
 
 -type t() :: #argo_value{}.
 
+-type xform_action() :: cont | skip.
+-type xform_result(TypeOut, AccOut) :: xform_action() | {xform_action(), AccOut} | {xform_action(), TypeOut, AccOut}.
+-type xform_func(Type, Acc) :: xform_func(Type, Acc, Type, Acc).
+-type xform_func(TypeIn, AccIn, TypeOut, AccOut) :: fun((TypeIn, AccIn) -> xform_result(TypeOut, AccOut)).
+
 -export_type([
     inner/0,
-    t/0
+    t/0,
+    xform_action/0,
+    xform_result/2,
+    xform_func/2,
+    xform_func/4
 ]).
 
 %%%=============================================================================
@@ -102,10 +115,25 @@ format(Value = #argo_value{}) ->
             Output
     end.
 
+-spec format_with_lines(Value) -> unicode:unicode_binary() when Value :: t().
+format_with_lines(Value = #argo_value{}) ->
+    argo_types:format_with_lines(format(Value)).
+
 -spec from_json(WireType, JsonValue) -> Value when
     WireType :: argo_wire_type:t(), JsonValue :: argo_json:json_value(), Value :: t().
 from_json(WireType = #argo_wire_type{}, JsonValue) ->
     JsonValueDecoder1 = argo_json_value_decoder:new(),
+    {JsonValueDecoder2, Value} = argo_json_value_decoder:decode_wire_type(JsonValueDecoder1, WireType, JsonValue),
+    _ = JsonValueDecoder2,
+    Value.
+
+-spec from_json(WireType, JsonValue, BytesDecoder) -> Value when
+    WireType :: argo_wire_type:t(),
+    JsonValue :: argo_json:json_value(),
+    BytesDecoder :: argo_json_value_decoder:bytes_decoder(),
+    Value :: t().
+from_json(WireType = #argo_wire_type{}, JsonValue, BytesDecoder) when is_function(BytesDecoder, 2) ->
+    JsonValueDecoder1 = argo_json_value_decoder:new(BytesDecoder),
     {JsonValueDecoder2, Value} = argo_json_value_decoder:decode_wire_type(JsonValueDecoder1, WireType, JsonValue),
     _ = JsonValueDecoder2,
     Value.
@@ -121,6 +149,14 @@ from_reader(WireType = #argo_wire_type{}, Reader1) when is_binary(Reader1) ->
 -spec to_json(Value) -> JsonValue when Value :: t(), JsonValue :: argo_json:json_value().
 to_json(Value = #argo_value{}) ->
     JsonValueEncoder1 = argo_json_value_encoder:new(),
+    {JsonValueEncoder2, JsonValue} = argo_json_value_encoder:encode_value(JsonValueEncoder1, Value),
+    _ = JsonValueEncoder2,
+    JsonValue.
+
+-spec to_json(Value, BytesEncoder) -> JsonValue when
+    Value :: t(), BytesEncoder :: argo_json_value_encoder:bytes_encoder(), JsonValue :: argo_json:json_value().
+to_json(Value = #argo_value{}, BytesEncoder) when is_function(BytesEncoder, 2) ->
+    JsonValueEncoder1 = argo_json_value_encoder:new(BytesEncoder),
     {JsonValueEncoder2, JsonValue} = argo_json_value_encoder:encode_value(JsonValueEncoder1, Value),
     _ = JsonValueEncoder2,
     JsonValue.
@@ -241,3 +277,179 @@ to_wire_type(#argo_value{inner = RecordValue = #argo_record_value{}}) ->
 to_wire_type(#argo_value{inner = ScalarValue = #argo_scalar_value{}}) ->
     ScalarWireType = argo_scalar_value:to_scalar_wire_type(ScalarValue),
     argo_wire_type:scalar(ScalarWireType).
+
+-spec xform(TypeIn, AccIn, Fun) -> {TypeOut, AccOut} when
+    TypeIn :: dynamic(),
+    AccIn :: dynamic(),
+    Fun :: xform_func(TypeIn, AccIn, TypeOut, AccOut),
+    TypeOut :: dynamic(),
+    AccOut :: dynamic().
+xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
+    case xform_normalize(T1, Acc1, Fun(T1, Acc1)) of
+        {cont, T2, Acc2} ->
+            case T2 of
+                #argo_array_value{items = Items1} ->
+                    {Items2, Acc3} = lists:foldl(
+                        fun(Item1, {Items1_Acc1, Acc2_Acc1}) ->
+                            {Item2, Acc2_Acc2} = xform(Item1, Acc2_Acc1, Fun),
+                            Items1_Acc2 = [Item2 | Items1_Acc1],
+                            {Items1_Acc2, Acc2_Acc2}
+                        end,
+                        {[], Acc2},
+                        Items1
+                    ),
+                    T3 = T2#argo_array_value{items = lists:reverse(Items2)},
+                    {T3, Acc3};
+                #argo_block_value{value = ScalarValue1} ->
+                    {ScalarValue2, Acc3} = xform(ScalarValue1, Acc2, Fun),
+                    T3 = T2#argo_block_value{value = ScalarValue2},
+                    {T3, Acc3};
+                #argo_desc_value{inner = {object, DescObject1}} ->
+                    {DescObject2, Acc3} = argo_index_map:foldl(
+                        fun(_Index, DescKey, DescValue1, {DescObject1_Acc1, Acc2_Acc1}) ->
+                            {DescValue2, Acc2_Acc2} = xform(DescValue1, Acc2_Acc1, Fun),
+                            DescObject1_Acc2 = argo_index_map:put(DescKey, DescValue2, DescObject1_Acc1),
+                            {DescObject1_Acc2, Acc2_Acc2}
+                        end,
+                        {argo_index_map:new(), Acc2},
+                        DescObject1
+                    ),
+                    T3 = T2#argo_desc_value{inner = {object, DescObject2}},
+                    {T3, Acc3};
+                #argo_desc_value{inner = {list, DescList1}} ->
+                    {DescList2, Acc3} = lists:foldl(
+                        fun(DescValue1, {DescList1_Acc1, Acc2_Acc1}) ->
+                            {DescValue2, Acc2_Acc2} = xform(DescValue1, Acc2_Acc1, Fun),
+                            DescList1_Acc2 = [DescValue2 | DescList1_Acc1],
+                            {DescList1_Acc2, Acc2_Acc2}
+                        end,
+                        {[], Acc2},
+                        DescList1
+                    ),
+                    T3 = T2#argo_desc_value{inner = {list, DescList2}},
+                    {T3, Acc3};
+                #argo_desc_value{inner = null} ->
+                    {T2, Acc2};
+                #argo_desc_value{inner = {L, _}} when
+                    L =:= 'boolean' orelse L =:= 'string' orelse L =:= 'bytes' orelse L =:= 'int' orelse L =:= 'float'
+                ->
+                    {T2, Acc2};
+                #argo_error_value{location = OptionLocation1, path = OptionPath1, extensions = OptionExtensions1} ->
+                    {OptionLocation2, Acc3} =
+                        case OptionLocation1 of
+                            none ->
+                                {OptionLocation1, Acc2};
+                            {some, LocationList1} ->
+                                A2_1 = Acc2,
+                                {LocationList2, A2_2} = lists:foldl(
+                                    fun(Location1, {LocationList1_Acc1, A2_1_Acc1}) ->
+                                        {Location2, A2_1_Acc2} = xform(Location1, A2_1_Acc1, Fun),
+                                        LocationList1_Acc2 = [Location2 | LocationList1_Acc1],
+                                        {LocationList1_Acc2, A2_1_Acc2}
+                                    end,
+                                    {[], A2_1},
+                                    LocationList1
+                                ),
+                                LocationList3 = lists:reverse(LocationList2),
+                                {{some, LocationList3}, A2_2}
+                        end,
+                    {OptionPath2, Acc4} =
+                        case OptionPath1 of
+                            none ->
+                                {OptionPath1, Acc3};
+                            {some, Path1} ->
+                                A3_1 = Acc3,
+                                {Path2, A3_2} = xform(Path1, A3_1, Fun),
+                                {{some, Path2}, A3_2}
+                        end,
+                    {OptionExtensions2, Acc5} =
+                        case OptionExtensions1 of
+                            none ->
+                                {OptionExtensions1, Acc4};
+                            {some, Extensions1} ->
+                                A4_1 = Acc4,
+                                {Extensions2, A4_2} = argo_index_map:foldl(
+                                    fun(_Index, DescKey, DescValue1, {Extensions1_Acc1, A4_1_Acc1}) ->
+                                        {DescValue2, A4_1_Acc2} = xform(DescValue1, A4_1_Acc1, Fun),
+                                        Extensions1_Acc2 = argo_index_map:put(DescKey, DescValue2, Extensions1_Acc1),
+                                        {Extensions1_Acc2, A4_1_Acc2}
+                                    end,
+                                    {argo_index_map:new(), A4_1},
+                                    Extensions1
+                                ),
+                                {{some, Extensions2}, A4_2}
+                        end,
+                    T3 = T2#argo_error_value{
+                        location = OptionLocation2, path = OptionPath2, extensions = OptionExtensions2
+                    },
+                    {T3, Acc5};
+                #argo_nullable_value{inner = null} ->
+                    {T2, Acc2};
+                #argo_nullable_value{inner = {non_null, Value1}} ->
+                    {Value2, Acc3} = xform(Value1, Acc2, Fun),
+                    T3 = T2#argo_nullable_value{inner = {non_null, Value2}},
+                    {T3, Acc3};
+                #argo_nullable_value{inner = {field_errors, FieldErrorList1}} ->
+                    {FieldErrorList2, Acc3} = lists:foldl(
+                        fun(ErrorValue1, {FieldErrorList1_Acc1, Acc2_Acc1}) ->
+                            {ErrorValue2, Acc2_Acc2} = xform(ErrorValue1, Acc2_Acc1, Fun),
+                            FieldErrorList1_Acc2 = [ErrorValue2 | FieldErrorList1_Acc1],
+                            {FieldErrorList1_Acc2, Acc2_Acc2}
+                        end,
+                        {[], Acc2},
+                        FieldErrorList1
+                    ),
+                    FieldErrorList3 = lists:reverse(FieldErrorList2),
+                    T3 = T2#argo_nullable_value{inner = {field_errors, FieldErrorList3}},
+                    {T3, Acc3};
+                #argo_path_value{} ->
+                    {T2, Acc2};
+                #argo_location_value{} ->
+                    {T2, Acc2};
+                #argo_record_value{fields = Fields1} ->
+                    {Fields2, Acc3} = argo_index_map:foldl(
+                        fun(_Index, FieldName, FieldValue1, {Fields1_Acc1, Acc2_Acc1}) ->
+                            {FieldValue2, Acc2_Acc2} = xform(FieldValue1, Acc2_Acc1, Fun),
+                            Fields1_Acc2 = argo_index_map:put(FieldName, FieldValue2, Fields1_Acc1),
+                            {Fields1_Acc2, Acc2_Acc2}
+                        end,
+                        {argo_index_map:new(), Acc2},
+                        Fields1
+                    ),
+                    T3 = T2#argo_record_value{fields = Fields2},
+                    {T3, Acc3};
+                #argo_field_value{inner = {optional, none}} ->
+                    {T2, Acc2};
+                #argo_field_value{inner = {optional, {some, Value1}}} ->
+                    {Value2, Acc3} = xform(Value1, Acc2, Fun),
+                    T3 = T2#argo_field_value{inner = {optional, {some, Value2}}},
+                    {T3, Acc3};
+                #argo_field_value{inner = {required, Value1}} ->
+                    {Value2, Acc3} = xform(Value1, Acc2, Fun),
+                    T3 = T2#argo_field_value{inner = {required, Value2}},
+                    {T3, Acc3};
+                #argo_scalar_value{} ->
+                    {T2, Acc2};
+                #argo_value{inner = Inner1} ->
+                    {Inner2, Acc3} = xform(Inner1, Acc2, Fun),
+                    T3 = T2#argo_value{inner = Inner2},
+                    {T3, Acc3}
+            end;
+        {skip, T2, Acc2} ->
+            {T2, Acc2}
+    end.
+
+%% @private
+-spec xform_normalize(TypeIn, AccIn, Result) -> {Action, TypeOut, AccOut} when
+    TypeIn :: dynamic(),
+    AccIn :: dynamic(),
+    Result :: xform_result(TypeOut, AccOut),
+    Action :: xform_action(),
+    TypeOut :: dynamic(),
+    AccOut :: dynamic().
+xform_normalize(TypeIn, AccIn, Action) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeIn, AccIn};
+xform_normalize(TypeIn, _AccIn, {Action, AccOut}) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeIn, AccOut};
+xform_normalize(_TypeIn, _AccIn, {Action, TypeOut, AccOut}) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeOut, AccOut}.

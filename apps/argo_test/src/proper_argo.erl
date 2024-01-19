@@ -28,6 +28,7 @@
 -export([
     bytes/0,
     fixed/1,
+    maybe_json_safe_float/0,
     name/0,
     name/1,
     name_continue/0,
@@ -60,7 +61,10 @@
     scalar_value/0,
     scalar_value/1,
     value/0,
-    value/1
+    value/1,
+    value_json_safe/0,
+    value_json_safe/1,
+    value_make_json_safe/1
 ]).
 
 %% Wire Type API
@@ -79,6 +83,9 @@
     wire_type/0
 ]).
 
+%% Macros
+-define(JSON_SAFE, 'proper_argo_json_safe').
+
 %%%=============================================================================
 %%% Primitive API functions
 %%%=============================================================================
@@ -90,6 +97,17 @@ bytes() ->
 -spec fixed(Length :: non_neg_integer()) -> proper_types:type().
 fixed(Length) when is_integer(Length) andalso Length >= 0 ->
     proper_types:binary(Length).
+
+-spec maybe_json_safe_float() -> proper_types:type().
+maybe_json_safe_float() ->
+    ?LET(Float, float(), begin
+        case parameter(?JSON_SAFE, false) of
+            false ->
+                Float;
+            true ->
+                shrink_float_for_jsone(Float)
+        end
+    end).
 
 -spec name() -> proper_types:type().
 name() ->
@@ -217,7 +235,7 @@ desc_value() ->
         ?LET(V, string_utf8(), argo_desc_value:string(V)),
         ?LET(V, bytes(), argo_desc_value:bytes(V)),
         ?LET(V, varint(), argo_desc_value:int(V)),
-        ?LET(V, float(), argo_desc_value:float(V))
+        ?LET(V, maybe_json_safe_float(), argo_desc_value:float(V))
     ]).
 
 %% @private
@@ -366,7 +384,7 @@ scalar_value(#argo_scalar_wire_type{inner = bytes}) ->
 scalar_value(#argo_scalar_wire_type{inner = #argo_fixed_wire_type{length = Length}}) ->
     ?LET(Value, fixed(Length), argo_scalar_value:fixed(Value));
 scalar_value(#argo_scalar_wire_type{inner = float64}) ->
-    ?LET(Value, float(), argo_scalar_value:float64(Value));
+    ?LET(Value, maybe_json_safe_float(), argo_scalar_value:float64(Value));
 scalar_value(#argo_scalar_wire_type{inner = string}) ->
     ?LET(Value, string_utf8(), argo_scalar_value:string(Value));
 scalar_value(#argo_scalar_wire_type{inner = varint}) ->
@@ -393,6 +411,38 @@ value(#argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}) ->
     ?LET(Value, record_value(RecordWireType), argo_value:record(Value));
 value(#argo_wire_type{inner = ScalarWireType = #argo_scalar_wire_type{}}) ->
     ?LET(Value, scalar_value(ScalarWireType), argo_value:scalar(Value)).
+
+-spec value_json_safe() -> proper_types:type().
+value_json_safe() ->
+    ?LET(WireType, wire_type(), value_json_safe(WireType)).
+
+-spec value_json_safe(WireType :: argo_wire_type:t()) -> proper_types:type().
+value_json_safe(WireType = #argo_wire_type{}) ->
+    with_parameter(?JSON_SAFE, true, value(WireType)).
+
+-spec value_make_json_safe(Value) -> Value when Value :: argo_value:t().
+value_make_json_safe(Value1 = #argo_value{}) ->
+    {Value2, ok} = argo_value:xform(Value1, ok, fun value_make_json_safe/2),
+    Value2.
+
+%% @private
+-spec value_make_json_safe(dynamic(), ok) -> dynamic().
+value_make_json_safe(ScalarValue1 = #argo_scalar_value{inner = {float64, Float64}}, Acc = ok) ->
+    ShrunkFloat64 = shrink_float_for_jsone(Float64),
+    ScalarValue2 = ScalarValue1#argo_scalar_value{inner = {float64, ShrunkFloat64}},
+    {cont, ScalarValue2, Acc};
+value_make_json_safe(DescValue1 = #argo_desc_value{inner = {float, Float}}, Acc = ok) ->
+    ShrunkFloat = shrink_float_for_jsone(Float),
+    DescValue2 = DescValue1#argo_desc_value{inner = {float, ShrunkFloat}},
+    {cont, DescValue2, Acc};
+value_make_json_safe(_, ok) ->
+    cont.
+
+% jsone doesn't handle accurate roundtrip for high precision floats
+%% @private
+-spec shrink_float_for_jsone(float()) -> float().
+shrink_float_for_jsone(Float) when is_float(Float) ->
+    list_to_float(float_to_list(Float, [{scientific, 5}])).
 
 %%%=============================================================================
 %%% Wire Type API functions

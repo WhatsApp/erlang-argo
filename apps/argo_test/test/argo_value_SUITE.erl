@@ -55,7 +55,7 @@ groups() ->
     [
         {value, [parallel], [
             prop_roundtrip_encoder_and_decoder,
-            % prop_roundtrip_json_encoder_and_json_decoder,
+            prop_roundtrip_json_encoder_and_json_decoder,
             prop_to_wire_type
         ]}
     ].
@@ -113,7 +113,7 @@ prop_roundtrip_json_encoder_and_json_decoder(Config) ->
         Config,
         [
             verbose,
-            {max_shrinks, 100},
+            {max_shrinks, 10},
             {numtests, 100}
         ]
     ).

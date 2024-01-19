@@ -20,6 +20,7 @@
 
 -include_lib("argo_test/include/proper_argo_test.hrl").
 -include_lib("argo/include/argo_value.hrl").
+-include_lib("argo/include/argo_wire_type.hrl").
 
 %% Helpers
 -export([
@@ -63,11 +64,50 @@ prop_roundtrip_encoder_and_decoder(_Config) ->
 prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
     ?FORALL(
         {WireType, Value},
-        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value(WireType)}),
+        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_json_safe(WireType)}),
         begin
-            JsonEncoded = jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value))),
-            JsonDecoded = argo_value:from_json(WireType, argo_types:dynamic_cast(jsone:decode(JsonEncoded))),
-            ?EQUALS(JsonEncoded, jsone:encode(argo_types:dynamic_cast(argo_value:to_json(JsonDecoded))))
+            % Header1 = argo_header:new(),
+            % {Header2, _} = argo_header:set_self_describing_errors(Header1, false),
+            JsonEncoded1 = json_encode(Value),
+            JsonDecoded1 = json_decode(WireType, JsonEncoded1),
+            JsonEncoded2 = json_encode(JsonDecoded1),
+            % Encoded = argo_value:to_writer(Value, Header2),
+            ExpectedValue = Value,
+            ActualValue = JsonDecoded1,
+            ExpectedJson = JsonEncoded1,
+            ActualJson = JsonEncoded2,
+            % PercentageSmaller = trunc(math:ceil((byte_size(Encoded) / byte_size(JsonEncoded1)) * 100)),
+            % PercentageSmaller = byte_size(Encoded) / byte_size(JsonEncoded1),
+            % SmallerOrLarger =
+            %     case byte_size(Encoded) < byte_size(JsonEncoded1) of
+            %         true ->
+            %             smaller;
+            %         false ->
+            %             larger
+            %     end,
+            ?WHENFAIL(
+                begin
+                    io:format(
+                        "FAILURE: Expected (JSON) does not match Actual (JSON)~n"
+                        "Expected (Value):~n~0tp~n"
+                        "Actual (Value):~n~0tp~n"
+                        "Expected (String):~n~ts~n"
+                        "Actual (String):~n~ts~n"
+                        "Expected (JSON):~n~ts~n"
+                        "Actual (JSON):~n~ts~n",
+                        [
+                            ExpectedValue,
+                            ActualValue,
+                            argo_value:format_with_lines(ExpectedValue),
+                            argo_value:format_with_lines(ActualValue),
+                            json_encode_pretty(ExpectedValue),
+                            json_encode_pretty(ActualValue)
+                        ]
+                    )
+                end,
+                ExpectedJson =:= ActualJson
+                % aggregate([SmallerOrLarger], ExpectedJson =:= ActualJson)
+            )
         end
     ).
 
@@ -85,3 +125,38 @@ prop_to_wire_type(_Config) ->
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
+
+%% @private
+-spec json_decode(WireType, JsonEncoded) -> Value when
+    WireType :: argo_wire_type:t(), JsonEncoded :: binary(), Value :: argo_value:t().
+json_decode(WireType = #argo_wire_type{}, JsonEncoded) when is_binary(JsonEncoded) ->
+    json_decode(WireType, JsonEncoded, []).
+
+%% @private
+-spec json_decode(WireType, JsonEncoded, DecodeOptions) -> Value when
+    WireType :: argo_wire_type:t(),
+    JsonEncoded :: binary(),
+    DecodeOptions :: [jsone:decode_option()],
+    Value :: argo_value:t().
+json_decode(WireType = #argo_wire_type{}, JsonEncoded, DecodeOptions) when
+    is_binary(JsonEncoded) andalso is_list(DecodeOptions)
+->
+    argo_value:from_json(
+        WireType, argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple} | DecodeOptions]))
+    ).
+
+%% @private
+-spec json_encode(Value) -> JsonEncoded when Value :: argo_value:t(), JsonEncoded :: binary().
+json_encode(Value = #argo_value{}) ->
+    json_encode(Value, []).
+
+%% @private
+-spec json_encode(Value, EncodeOptions) -> JsonEncoded when
+    Value :: argo_value:t(), EncodeOptions :: [jsone:encode_option()], JsonEncoded :: binary().
+json_encode(Value, EncodeOptions) when is_list(EncodeOptions) ->
+    jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value)), [{float_format, [short]} | EncodeOptions]).
+
+%% @private
+-spec json_encode_pretty(Value) -> JsonEncoded when Value :: argo_value:t(), JsonEncoded :: unicode:unicode_binary().
+json_encode_pretty(Value = #argo_value{}) ->
+    argo_types:format_with_lines(json_encode(Value, [{indent, 2}])).

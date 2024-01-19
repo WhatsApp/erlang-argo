@@ -25,17 +25,28 @@
 %% API
 -export([
     new/0,
-    encode_value/2
+    new/1,
+    encode_value/2,
+    base64_bytes_encoder/2,
+    base64url_bytes_encoder/2
 ]).
 
 %% Types
+-type bytes_type() :: bytes | {fixed, non_neg_integer()} | desc.
+-type bytes_encoder() :: fun((bytes_type(), binary()) -> argo_json:json_value()).
 -type t() :: #argo_json_value_encoder{}.
 
 -export_type([
+    bytes_encoder/0,
     t/0
 ]).
 
 %% Macros
+-define(is_bytes_type(X),
+    (X =:= 'bytes' orelse X =:= 'desc' orelse
+        (is_tuple(X) andalso tuple_size(X) =:= 2 andalso element(1, X) =:= 'fixed' andalso is_integer(element(2, X)) andalso
+            element(2, X) >= 0))
+).
 -define(is_json_object(X), (is_map((X)) orelse is_record((X), argo_index_map))).
 
 %%%=============================================================================
@@ -44,8 +55,15 @@
 
 -spec new() -> JsonValueEncoder when JsonValueEncoder :: t().
 new() ->
+    new(fun ?MODULE:base64url_bytes_encoder/2).
+
+-spec new(BytesEncoder) -> JsonValueEncoder when BytesEncoder :: bytes_encoder(), JsonValueEncoder :: t().
+new(BytesEncoder) when is_function(BytesEncoder, 2) ->
     #argo_json_value_encoder{
-        current_path = argo_path_value:new(), field_errors = argo_index_map:new(), response_errors = []
+        current_path = argo_path_value:new(),
+        field_errors = argo_index_map:new(),
+        response_errors = [],
+        bytes_encoder = BytesEncoder
     }.
 
 -spec encode_value(JsonValueEncoder, Value) -> {JsonValueEncoder, JsonValue} when
@@ -70,6 +88,36 @@ encode_value(JsonValueEncoder1 = #argo_json_value_encoder{}, Value = #argo_value
             encode_path_value(JsonValueEncoder1, PathValue)
     end.
 
+-spec base64_encode(BytesValue) -> JsonString when BytesValue :: binary(), JsonString :: argo_json:json_string().
+base64_encode(BytesValue) when is_binary(BytesValue) ->
+    base64:encode(BytesValue, #{padding => false, mode => standard}).
+
+-spec base64_bytes_encoder(BytesType, BytesValue) -> JsonValue when
+    BytesType :: bytes_type(), BytesValue :: binary(), JsonValue :: argo_json:json_value().
+base64_bytes_encoder(desc, BytesValue) when is_binary(BytesValue) ->
+    <<"$B64$", (base64_encode(BytesValue))/bytes>>;
+base64_bytes_encoder(BytesType, BytesValue) when ?is_bytes_type(BytesType) andalso is_binary(BytesValue) ->
+    base64_encode(BytesValue).
+
+-spec base64url_encode(BytesValue) -> JsonString when BytesValue :: binary(), JsonString :: argo_json:json_string().
+base64url_encode(BytesValue) when is_binary(BytesValue) ->
+    base64:encode(BytesValue, #{padding => false, mode => urlsafe}).
+
+-spec base64url_bytes_encoder(BytesType, BytesValue) -> JsonValue when
+    BytesType :: bytes_type(), BytesValue :: binary(), JsonValue :: argo_json:json_value().
+base64url_bytes_encoder(desc, BytesValue) when is_binary(BytesValue) ->
+    <<"$U64$", (base64url_encode(BytesValue))/bytes>>;
+base64url_bytes_encoder(BytesType, BytesValue) when ?is_bytes_type(BytesType) andalso is_binary(BytesValue) ->
+    base64url_encode(BytesValue).
+
+-spec encode_bytes(JsonValueEncoder, BytesType, BytesValue) -> {JsonValueEncoder, JsonValue} when
+    JsonValueEncoder :: t(), BytesType :: bytes_type(), BytesValue :: binary(), JsonValue :: argo_json:json_value().
+encode_bytes(JsonValueEncoder1 = #argo_json_value_encoder{bytes_encoder = BytesEncoder}, BytesType, BytesValue) when
+    ?is_bytes_type(BytesType) andalso is_binary(BytesValue)
+->
+    JsonValue = BytesEncoder(BytesType, BytesValue),
+    {JsonValueEncoder1, JsonValue}.
+
 -spec encode_scalar_value(JsonValueEncoder, ScalarValue) -> {JsonValueEncoder, JsonValue} when
     JsonValueEncoder :: t(), ScalarValue :: argo_scalar_value:t(), JsonValue :: argo_json:json_value().
 encode_scalar_value(JsonValueEncoder1 = #argo_json_value_encoder{}, ScalarValue = #argo_scalar_value{}) ->
@@ -82,10 +130,10 @@ encode_scalar_value(JsonValueEncoder1 = #argo_json_value_encoder{}, ScalarValue 
             {JsonValueEncoder1, JsonValue};
         {float64, JsonValue} when is_float(JsonValue) ->
             {JsonValueEncoder1, JsonValue};
-        {bytes, JsonValue} when is_binary(JsonValue) ->
-            {JsonValueEncoder1, JsonValue};
-        {fixed, JsonValue} when is_binary(JsonValue) ->
-            {JsonValueEncoder1, JsonValue}
+        {bytes, BytesValue} when is_binary(BytesValue) ->
+            encode_bytes(JsonValueEncoder1, bytes, BytesValue);
+        {fixed, FixedValue} when is_binary(FixedValue) ->
+            encode_bytes(JsonValueEncoder1, {fixed, byte_size(FixedValue)}, FixedValue)
     end.
 
 -spec encode_block_value(JsonValueEncoder, BlockValue) -> {JsonValueEncoder, JsonValue} when
@@ -184,8 +232,7 @@ encode_desc_value(JsonValueEncoder1 = #argo_json_value_encoder{}, DescValue = #a
             JsonValue = argo_json:string(V),
             {JsonValueEncoder1, JsonValue};
         {bytes, V} when is_binary(V) ->
-            JsonValue = argo_json:string(V),
-            {JsonValueEncoder1, JsonValue};
+            encode_bytes(JsonValueEncoder1, desc, V);
         {int, V} when ?is_i64(V) ->
             JsonValue = argo_json:number(V),
             {JsonValueEncoder1, JsonValue};
@@ -227,7 +274,7 @@ encode_error_value(JsonValueEncoder1 = #argo_json_value_encoder{}, ErrorValue = 
     {JsonValueEncoder4, JsonObject5} =
         case ErrorValue#argo_error_value.extensions of
             none ->
-                {JsonValueEncoder3, JsonObject3};
+                {JsonValueEncoder3, JsonObject4};
             {some, Extensions} when ?is_json_object(Extensions) ->
                 Enc3_1 = JsonValueEncoder3,
                 {Enc3_2, JsonExtensions} = encode_desc_value(Enc3_1, argo_desc_value:object(Extensions)),

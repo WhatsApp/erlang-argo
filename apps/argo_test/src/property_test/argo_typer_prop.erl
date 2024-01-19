@@ -49,12 +49,23 @@ report_not_equal(A, B) ->
 -spec prop_roundtrip(ct_suite:ct_config()) -> proper:test().
 prop_roundtrip(_Config) ->
     ?FORALL(
-        {{ServiceDocument, ExecutableDocument, OptionOperationName, WireType, Value}, Header},
+        {
+            #{
+                service_document := ServiceDocument,
+                executable_document := ExecutableDocument,
+                operation_name := OptionOperationName,
+                wire_type := WireType,
+                value := Value
+            },
+            Header
+        },
         maybe_log_size({proper_argo_typer:value(), proper_argo:header()}),
         begin
             Encoded = argo_value:to_writer(Value, Header),
             {<<>>, Decoded} = argo_value:from_reader(WireType, Encoded),
             ToWireType = argo_value:to_wire_type(Value),
+            JsonEncoded = jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value))),
+            PercentageSmaller = trunc(math:ceil((byte_size(Encoded) / byte_size(JsonEncoded)) * 100)),
             ?WHENFAIL(
                 begin
                     io:format(
@@ -85,6 +96,7 @@ prop_roundtrip(_Config) ->
                 end,
                 conjunction([
                     {encoder_and_decoder, ?EQUALS(Value, Decoded)},
+                    {json_size_uncompressed, collect(PercentageSmaller, ?LAZY(true))},
                     {to_wire_type, ?EQUALS(WireType, ToWireType)}
                 ])
             )

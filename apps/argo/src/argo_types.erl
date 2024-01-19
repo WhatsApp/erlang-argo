@@ -20,6 +20,7 @@
 %% API
 -export([
     dynamic_cast/1,
+    format_with_lines/1,
     unicode_binary/1,
     unicode_length/1,
     unicode_string/1
@@ -83,6 +84,20 @@
 -compile({inline, [dynamic_cast/1]}).
 -spec dynamic_cast(term()) -> dynamic().
 dynamic_cast(X) -> X.
+
+-spec format_with_lines(unicode:chardata()) -> unicode:unicode_binary().
+format_with_lines(Chardata) when is_binary(Chardata) orelse is_list(Chardata) ->
+    Binary = unicode_binary(Chardata),
+    Lines = binary:split(Binary, <<$\n>>, [global]),
+    Width = byte_size(erlang:iolist_to_binary(io_lib:format("~w", [length(Lines)]))),
+    unicode_binary(
+        lists:map(
+            fun({Row, Line}) ->
+                io_lib:format("~*w: ~ts~n", [Width, Row, Line])
+            end,
+            lists:enumerate(Lines)
+        )
+    ).
 
 -spec unicode_binary(unicode:chardata()) -> unicode:unicode_binary().
 unicode_binary(Chardata) when is_binary(Chardata) orelse is_list(Chardata) ->

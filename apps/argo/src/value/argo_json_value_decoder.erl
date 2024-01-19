@@ -17,12 +17,6 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--compile(
-    {inline, [
-        error_with_info/3
-    ]}
-).
-
 -include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_value.hrl").
@@ -31,7 +25,10 @@
 %% API
 -export([
     new/0,
-    decode_wire_type/3
+    new/1,
+    decode_wire_type/3,
+    base64_bytes_decoder/2,
+    base64url_bytes_decoder/2
 ]).
 
 %% Errors API
@@ -40,13 +37,26 @@
 ]).
 
 %% Types
+-type bytes_hint() :: bytes | error | string.
+-type bytes_type() :: bytes | {fixed, non_neg_integer()} | desc.
+-type bytes_decoder() :: fun(
+    (bytes_type(), argo_json:json_value()) -> {bytes_hint(), binary() | unicode:unicode_binary()}
+).
 -type t() :: #argo_json_value_decoder{}.
 
 -export_type([
+    bytes_hint/0,
+    bytes_type/0,
+    bytes_decoder/0,
     t/0
 ]).
 
 %% Macros
+-define(is_bytes_type(X),
+    (X =:= 'bytes' orelse X =:= 'desc' orelse
+        (is_tuple(X) andalso tuple_size(X) =:= 2 andalso element(1, X) =:= 'fixed' andalso is_integer(element(2, X)) andalso
+            element(2, X) >= 0))
+).
 -define(is_json_object(X),
     (is_map((X)) orelse is_record((X), argo_index_map) orelse
         (is_tuple((X)) andalso tuple_size((X)) =:= 1 andalso is_list(element(1, (X)))))
@@ -58,8 +68,15 @@
 
 -spec new() -> JsonValueDecoder when JsonValueDecoder :: t().
 new() ->
+    new(fun ?MODULE:base64url_bytes_decoder/2).
+
+-spec new(BytesDecoder) -> JsonValueDecoder when BytesDecoder :: bytes_decoder(), JsonValueDecoder :: t().
+new(BytesDecoder) when is_function(BytesDecoder, 2) ->
     #argo_json_value_decoder{
-        current_path = argo_path_value:new(), field_errors = argo_index_map:new(), response_errors = []
+        current_path = argo_path_value:new(),
+        field_errors = argo_index_map:new(),
+        response_errors = [],
+        bytes_decoder = BytesDecoder
     }.
 
 -spec decode_wire_type(JsonValueDecoder, WireType, JsonValue) -> {JsonValueDecoder, Value} when
@@ -105,6 +122,82 @@ decode_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, WireType = #arg
             {JsonValueDecoder2, Value}
     end.
 
+-spec base64_try_decode(JsonValue) -> {ok, BytesValue} | error when
+    JsonValue :: argo_json:json_value(), BytesValue :: binary().
+base64_try_decode(JsonValue) when is_binary(JsonValue) ->
+    try base64:decode(JsonValue, #{padding => false, mode => standard}) of
+        BytesValue when is_binary(BytesValue) ->
+            {ok, BytesValue}
+    catch
+        _:_ ->
+            error
+    end.
+
+-spec base64_bytes_decoder(BytesType, JsonValue) -> BytesValue when
+    BytesType :: bytes_type(), JsonValue :: argo_json:json_value(), BytesValue :: binary() | unicode:unicode_binary().
+base64_bytes_decoder(desc, JsonValue) when is_binary(JsonValue) ->
+    case JsonValue of
+        <<"$B64$", Rest/bytes>> ->
+            case base64_try_decode(Rest) of
+                {ok, BytesValue} ->
+                    {bytes, BytesValue};
+                error ->
+                    {string, argo_types:unicode_binary(JsonValue)}
+            end;
+        _ ->
+            {string, argo_types:unicode_binary(JsonValue)}
+    end;
+base64_bytes_decoder(BytesType, JsonValue) when ?is_bytes_type(BytesType) andalso is_binary(JsonValue) ->
+    case base64_try_decode(JsonValue) of
+        {ok, BytesValue} ->
+            {bytes, BytesValue};
+        error ->
+            {error, argo_types:dynamic_cast(JsonValue)}
+    end.
+
+-spec base64url_try_decode(JsonValue) -> {ok, BytesValue} | error when
+    JsonValue :: argo_json:json_value(), BytesValue :: binary().
+base64url_try_decode(JsonValue) when is_binary(JsonValue) ->
+    try base64:decode(JsonValue, #{padding => false, mode => urlsafe}) of
+        BytesValue when is_binary(BytesValue) ->
+            {ok, BytesValue}
+    catch
+        _:_ ->
+            error
+    end.
+
+-spec base64url_bytes_decoder(BytesType, JsonValue) -> BytesValue when
+    BytesType :: bytes_type(), JsonValue :: argo_json:json_value(), BytesValue :: binary() | unicode:unicode_binary().
+base64url_bytes_decoder(desc, JsonValue) when is_binary(JsonValue) ->
+    case JsonValue of
+        <<"$U64$", Rest/bytes>> ->
+            case base64url_try_decode(Rest) of
+                {ok, BytesValue} ->
+                    {bytes, BytesValue};
+                error ->
+                    {string, argo_types:unicode_binary(JsonValue)}
+            end;
+        _ ->
+            {string, argo_types:unicode_binary(JsonValue)}
+    end;
+base64url_bytes_decoder(BytesType, JsonValue) when ?is_bytes_type(BytesType) andalso is_binary(JsonValue) ->
+    case base64url_try_decode(JsonValue) of
+        {ok, BytesValue} ->
+            {bytes, BytesValue};
+        error ->
+            {error, argo_types:dynamic_cast(JsonValue)}
+    end.
+
+-spec decode_bytes(JsonValueDecoder, BytesType, JsonValue) -> {JsonValueDecoder, BytesHint, BytesValue} when
+    JsonValueDecoder :: t(),
+    BytesType :: bytes_type(),
+    JsonValue :: argo_json:json_value(),
+    BytesHint :: bytes_hint(),
+    BytesValue :: binary().
+decode_bytes(JsonValueDecoder1 = #argo_json_value_decoder{bytes_decoder = BytesDecoder}, BytesType, JsonValue) ->
+    {BytesHint, BytesValue} = BytesDecoder(BytesType, JsonValue),
+    {JsonValueDecoder1, BytesHint, BytesValue}.
+
 -spec decode_scalar_wire_type(JsonValueDecoder, ScalarWireType, JsonValue) -> {JsonValueDecoder, ScalarValue} when
     JsonValueDecoder :: t(),
     ScalarWireType :: argo_scalar_wire_type:t(),
@@ -142,20 +235,28 @@ decode_scalar_wire_type(
             error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
                 3 => {mismatch, expected_float, JsonValue}
             });
-        bytes when is_binary(JsonValue) ->
-            ScalarValue = argo_scalar_value:bytes(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
         bytes ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, expected_string, JsonValue}
-            });
-        #argo_fixed_wire_type{length = Length} when is_binary(JsonValue) andalso byte_size(JsonValue) =:= Length ->
-            ScalarValue = argo_scalar_value:fixed(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
+            case decode_bytes(JsonValueDecoder1, bytes, JsonValue) of
+                {JsonValueDecoder2, bytes, BytesValue} when is_binary(BytesValue) ->
+                    ScalarValue = argo_scalar_value:bytes(BytesValue),
+                    {JsonValueDecoder2, ScalarValue};
+                {_JsonValueDecoder2, _BadBytesHint, _BadBytesValue} ->
+                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+                        3 => {mismatch, expected_bytes, JsonValue}
+                    })
+            end;
         #argo_fixed_wire_type{length = Length} ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, {expected_fixed, Length}, JsonValue}
-            })
+            case decode_bytes(JsonValueDecoder1, {fixed, Length}, JsonValue) of
+                {JsonValueDecoder2, bytes, FixedValue} when
+                    is_binary(FixedValue) andalso byte_size(FixedValue) =:= Length
+                ->
+                    ScalarValue = argo_scalar_value:fixed(FixedValue),
+                    {JsonValueDecoder2, ScalarValue};
+                {_JsonValueDecoder2, _BadBytesHint, _BadFixedValue} ->
+                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+                        3 => {mismatch, {expected_fixed, Length}, JsonValue}
+                    })
+            end
     end.
 
 -spec decode_block_wire_type(JsonValueDecoder, BlockWireType, JsonValue) -> {JsonValueDecoder, BlockValue} when
@@ -305,8 +406,15 @@ decode_desc_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue)
             DescValue = argo_desc_value:float(JsonValue),
             {JsonValueDecoder1, DescValue};
         _ when is_binary(JsonValue) ->
-            DescValue = argo_desc_value:string(JsonValue),
-            {JsonValueDecoder1, DescValue};
+            {JsonValueDecoder2, BytesHint, BytesValue} = decode_bytes(JsonValueDecoder1, desc, JsonValue),
+            DescValue =
+                case BytesHint of
+                    bytes ->
+                        argo_desc_value:bytes(BytesValue);
+                    string ->
+                        argo_desc_value:string(BytesValue)
+                end,
+            {JsonValueDecoder2, DescValue};
         _ when is_list(JsonValue) ->
             {JsonValueDecoder2, Items} = lists:foldl(
                 fun(JsonVal, {JsonValueDecoderAcc1, Items1}) ->
@@ -458,6 +566,7 @@ decode_path_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue)
 %%%=============================================================================
 
 %% @private
+-compile({inline, [error_with_info/3]}).
 -spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
 error_with_info(Reason, Args, Cause) ->
     erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).
@@ -475,6 +584,8 @@ format_error_description(_Key, expected_array) ->
     "expected JSON array";
 format_error_description(_Key, expected_boolean) ->
     "expected JSON boolean";
+format_error_description(_Key, expected_bytes) ->
+    "expected JSON bytes";
 format_error_description(_Key, {expected_fixed, Length}) ->
     io_lib:format("expected JSON string of fixed-length ~w", [Length]);
 format_error_description(_Key, expected_float) ->
