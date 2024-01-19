@@ -1,0 +1,17 @@
+schema {
+  query: Query
+}
+
+interface Child {
+  optional: Child
+  required: Child!
+}
+
+type Object implements Child {
+  optional: Child
+  required: Child!
+}
+
+type Query {
+  root: Child
+}

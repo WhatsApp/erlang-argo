@@ -400,21 +400,33 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                                         true ->
                                             {true, none}
                                     end;
-                                _FragmentSpread = #argo_graphql_fragment_spread{name = FragmentName} ->
+                                FragmentSpread = #argo_graphql_fragment_spread{name = FragmentName} ->
+                                    FragmentSpreadOmittable = maybe_omit_selection(
+                                        FragmentSpread#argo_graphql_fragment_spread.directives
+                                    ),
                                     FragmentDefinition = argo_graphql_executable_document:get_fragment_definition(
                                         ExecutableDocument, FragmentName
                                     ),
-                                    {false, {some, FragmentDefinition#argo_graphql_fragment_definition.type_condition}};
+                                    {FragmentSpreadOmittable,
+                                        {some, FragmentDefinition#argo_graphql_fragment_definition.type_condition}};
                                 InlineFragment = #argo_graphql_inline_fragment{} ->
-                                    {false, InlineFragment#argo_graphql_inline_fragment.type_condition}
+                                    InlineFragmentOmittable = maybe_omit_selection(
+                                        InlineFragment#argo_graphql_inline_fragment.directives
+                                    ),
+                                    {InlineFragmentOmittable,
+                                        InlineFragment#argo_graphql_inline_fragment.type_condition}
                             end,
                         Omittable2 =
-                            case OptionTypeCondition of
-                                none ->
-                                    Omittable1;
-                                {some, TypeCondition} ->
-                                    TypeCondition =/= SelectionTypeDefinition#argo_graphql_type_definition.name
-                            end,
+                            Omittable1 orelse
+                                (case OptionTypeCondition of
+                                    none ->
+                                        Omittable1;
+                                    {some, TypeCondition} ->
+                                        TypeCondition =/= SelectionTypeDefinition#argo_graphql_type_definition.name
+                                end),
+                        Omittable3 =
+                            Omittable2 orelse
+                                maybe_omit_selection(Selected#selected_field_node.field#argo_graphql_field.directives),
                         FieldName = Selected#selected_field_node.field#argo_graphql_field.name,
                         FieldDefinition = argo_graphql_type_definition:get_field_definition(
                             SelectionTypeDefinition, FieldName, ServiceDocument
@@ -425,7 +437,7 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                             case length(FieldSelectionSet#argo_graphql_selection_set.selections) of
                                 0 ->
                                     WireType = graphql_type_to_wire_type(ServiceDocument, FieldType),
-                                    argo_field_wire_type:new(FieldAlias, WireType, Omittable2);
+                                    argo_field_wire_type:new(FieldAlias, WireType, Omittable3);
                                 _ ->
                                     FieldTypeName = argo_graphql_type:get_type_name(FieldType),
                                     FieldTypeDefinition = argo_graphql_service_document:get_type_definition(
@@ -437,7 +449,7 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                                             ServiceDocument, ExecutableDocument, FieldTypeDefinition, FieldSelectionSet
                                         )
                                     ),
-                                    argo_field_wire_type:new(FieldAlias, WireType, Omittable2)
+                                    argo_field_wire_type:new(FieldAlias, WireType, Omittable3)
                             end,
                         RecordWireType1_Acc1_Acc2 =
                             case argo_record_wire_type:find(RecordWireType1_Acc1_Acc1, FieldAlias) of
