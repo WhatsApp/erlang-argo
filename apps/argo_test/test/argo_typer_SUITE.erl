@@ -193,20 +193,22 @@ test_inline_fragment_omittable(Config) ->
     ),
     Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
     Expected =
-        <<"{\n"
-        "  data: {\n"
-        "    root: {\n"
-        "      __typename: STRING<String>\n"
-        "      includeInlineAlways: STRING<String>\n"
-        "      skipInlineNever: STRING<String>\n"
-        "      includeInlineVariable?: STRING<String>\n"
-        "      skipInlineVariable?: STRING<String>\n"
-        "      typeConditionInlineMatch: STRING<String>\n"
-        "      typeConditionInlineNoMatch?: STRING<String>\n"
-        "    }?\n"
-        "  }\n"
-        "  errors?: ERROR[]?\n"
-        "}">>,
+        <<
+            "{\n"
+            "  data: {\n"
+            "    root: {\n"
+            "      __typename: STRING<String>\n"
+            "      includeInlineAlways: STRING<String>\n"
+            "      skipInlineNever: STRING<String>\n"
+            "      includeInlineVariable?: STRING<String>\n"
+            "      skipInlineVariable?: STRING<String>\n"
+            "      typeConditionInlineMatch: STRING<String>\n"
+            "      typeConditionInlineNoMatch?: STRING<String>\n"
+            "    }?\n"
+            "  }\n"
+            "  errors?: ERROR[]?\n"
+            "}"
+        >>,
     case Actual =:= Expected of
         false ->
             ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
