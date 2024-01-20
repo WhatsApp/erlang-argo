@@ -37,9 +37,9 @@ jobs:
         if: ${{ matrix.lint }}
         run: make eqwalizer
 
-      # - name: (Erlang) Dialyzer
-      #   if: ${{ matrix.lint }}
-      #   run: rebar3 dialyzer
+      - name: (Erlang) Dialyzer
+        if: ${{ matrix.lint }}
+        run: rebar3 dialyzer
 
       - name: (Erlang) Xref
         if: ${{ matrix.lint }}

@@ -25,10 +25,8 @@
 %% API
 -export([
     new/0,
-    new/1,
-    decode_wire_type/3,
-    base64_bytes_decoder/2,
-    base64url_bytes_decoder/2
+    new/2,
+    decode_wire_type/3
 ]).
 
 %% Errors API
@@ -37,26 +35,13 @@
 ]).
 
 %% Types
--type bytes_hint() :: bytes | error | string.
--type bytes_type() :: bytes | {fixed, non_neg_integer()} | desc.
--type bytes_decoder() :: fun(
-    (bytes_type(), argo_json:json_value()) -> {bytes_hint(), binary() | unicode:unicode_binary()}
-).
 -type t() :: #argo_json_value_decoder{}.
 
 -export_type([
-    bytes_hint/0,
-    bytes_type/0,
-    bytes_decoder/0,
     t/0
 ]).
 
 %% Macros
--define(is_bytes_type(X),
-    (X =:= 'bytes' orelse X =:= 'desc' orelse
-        (is_tuple(X) andalso tuple_size(X) =:= 2 andalso element(1, X) =:= 'fixed' andalso is_integer(element(2, X)) andalso
-            element(2, X) >= 0))
-).
 -define(is_json_object(X),
     (is_map((X)) orelse is_record((X), argo_index_map) orelse
         (is_tuple((X)) andalso tuple_size((X)) =:= 1 andalso is_list(element(1, (X)))))
@@ -68,15 +53,19 @@
 
 -spec new() -> JsonValueDecoder when JsonValueDecoder :: t().
 new() ->
-    new(fun ?MODULE:base64url_bytes_decoder/2).
+    new(argo_json_scalar_decoder_base64, #{}).
 
--spec new(BytesDecoder) -> JsonValueDecoder when BytesDecoder :: bytes_decoder(), JsonValueDecoder :: t().
-new(BytesDecoder) when is_function(BytesDecoder, 2) ->
+-spec new(JsonScalarDecoderModule, JsonScalarDecoderOptions) -> JsonValueDecoder when
+    JsonScalarDecoderModule :: module(),
+    JsonScalarDecoderOptions :: argo_json_scalar_decoder:options(),
+    JsonValueDecoder :: t().
+new(JsonScalarDecoderModule, JsonScalarDecoderOptions) when is_atom(JsonScalarDecoderModule) ->
+    JsonScalarDecoder = JsonScalarDecoderModule:init(JsonScalarDecoderOptions),
     #argo_json_value_decoder{
         current_path = argo_path_value:new(),
         field_errors = argo_index_map:new(),
         response_errors = [],
-        bytes_decoder = BytesDecoder
+        scalar_decoder = {JsonScalarDecoderModule, JsonScalarDecoder}
     }.
 
 -spec decode_wire_type(JsonValueDecoder, WireType, JsonValue) -> {JsonValueDecoder, Value} when
@@ -122,142 +111,120 @@ decode_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, WireType = #arg
             {JsonValueDecoder2, Value}
     end.
 
--spec base64_try_decode(JsonValue) -> {ok, BytesValue} | error when
-    JsonValue :: argo_json:json_value(), BytesValue :: binary().
-base64_try_decode(JsonValue) when is_binary(JsonValue) ->
-    try base64:decode(JsonValue, #{padding => false, mode => standard}) of
-        BytesValue when is_binary(BytesValue) ->
-            {ok, BytesValue}
-    catch
-        _:_ ->
-            error
-    end.
-
--spec base64_bytes_decoder(BytesType, JsonValue) -> BytesValue when
-    BytesType :: bytes_type(), JsonValue :: argo_json:json_value(), BytesValue :: binary() | unicode:unicode_binary().
-base64_bytes_decoder(desc, JsonValue) when is_binary(JsonValue) ->
-    case JsonValue of
-        <<"$B64$", Rest/bytes>> ->
-            case base64_try_decode(Rest) of
-                {ok, BytesValue} ->
-                    {bytes, BytesValue};
-                error ->
-                    {string, argo_types:unicode_binary(JsonValue)}
-            end;
-        _ ->
-            {string, argo_types:unicode_binary(JsonValue)}
-    end;
-base64_bytes_decoder(BytesType, JsonValue) when ?is_bytes_type(BytesType) andalso is_binary(JsonValue) ->
-    case base64_try_decode(JsonValue) of
-        {ok, BytesValue} ->
-            {bytes, BytesValue};
-        error ->
-            {error, argo_types:dynamic_cast(JsonValue)}
-    end.
-
--spec base64url_try_decode(JsonValue) -> {ok, BytesValue} | error when
-    JsonValue :: argo_json:json_value(), BytesValue :: binary().
-base64url_try_decode(JsonValue) when is_binary(JsonValue) ->
-    try base64:decode(JsonValue, #{padding => false, mode => urlsafe}) of
-        BytesValue when is_binary(BytesValue) ->
-            {ok, BytesValue}
-    catch
-        _:_ ->
-            error
-    end.
-
--spec base64url_bytes_decoder(BytesType, JsonValue) -> BytesValue when
-    BytesType :: bytes_type(), JsonValue :: argo_json:json_value(), BytesValue :: binary() | unicode:unicode_binary().
-base64url_bytes_decoder(desc, JsonValue) when is_binary(JsonValue) ->
-    case JsonValue of
-        <<"$U64$", Rest/bytes>> ->
-            case base64url_try_decode(Rest) of
-                {ok, BytesValue} ->
-                    {bytes, BytesValue};
-                error ->
-                    {string, argo_types:unicode_binary(JsonValue)}
-            end;
-        _ ->
-            {string, argo_types:unicode_binary(JsonValue)}
-    end;
-base64url_bytes_decoder(BytesType, JsonValue) when ?is_bytes_type(BytesType) andalso is_binary(JsonValue) ->
-    case base64url_try_decode(JsonValue) of
-        {ok, BytesValue} ->
-            {bytes, BytesValue};
-        error ->
-            {error, argo_types:dynamic_cast(JsonValue)}
-    end.
-
--spec decode_bytes(JsonValueDecoder, BytesType, JsonValue) -> {JsonValueDecoder, BytesHint, BytesValue} when
-    JsonValueDecoder :: t(),
-    BytesType :: bytes_type(),
-    JsonValue :: argo_json:json_value(),
-    BytesHint :: bytes_hint(),
-    BytesValue :: binary().
-decode_bytes(JsonValueDecoder1 = #argo_json_value_decoder{bytes_decoder = BytesDecoder}, BytesType, JsonValue) ->
-    {BytesHint, BytesValue} = BytesDecoder(BytesType, JsonValue),
-    {JsonValueDecoder1, BytesHint, BytesValue}.
-
 -spec decode_scalar_wire_type(JsonValueDecoder, ScalarWireType, JsonValue) -> {JsonValueDecoder, ScalarValue} when
     JsonValueDecoder :: t(),
     ScalarWireType :: argo_scalar_wire_type:t(),
     JsonValue :: argo_json:json_value(),
     ScalarValue :: argo_scalar_value:t().
 decode_scalar_wire_type(
-    JsonValueDecoder1 = #argo_json_value_decoder{}, ScalarWireType = #argo_scalar_wire_type{}, JsonValue
+    JsonValueDecoder1 = #argo_json_value_decoder{scalar_decoder = {JsonScalarDecoderModule, JsonScalarDecoder1}},
+    ScalarWireType = #argo_scalar_wire_type{},
+    JsonValue
 ) ->
-    case ScalarWireType#argo_scalar_wire_type.inner of
-        string when is_binary(JsonValue) ->
-            ScalarValue = argo_scalar_value:string(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
-        string ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, expected_string, JsonValue}
-            });
-        boolean when is_boolean(JsonValue) ->
-            ScalarValue = argo_scalar_value:boolean(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
-        boolean ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, expected_boolean, JsonValue}
-            });
-        varint when ?is_i64(JsonValue) ->
-            ScalarValue = argo_scalar_value:varint(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
-        varint ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, expected_integer, JsonValue}
-            });
-        float64 when is_float(JsonValue) ->
-            ScalarValue = argo_scalar_value:float64(JsonValue),
-            {JsonValueDecoder1, ScalarValue};
-        float64 ->
-            error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                3 => {mismatch, expected_float, JsonValue}
-            });
-        bytes ->
-            case decode_bytes(JsonValueDecoder1, bytes, JsonValue) of
-                {JsonValueDecoder2, bytes, BytesValue} when is_binary(BytesValue) ->
-                    ScalarValue = argo_scalar_value:bytes(BytesValue),
-                    {JsonValueDecoder2, ScalarValue};
-                {_JsonValueDecoder2, _BadBytesHint, _BadBytesValue} ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_bytes, JsonValue}
-                    })
-            end;
-        #argo_fixed_wire_type{length = Length} ->
-            case decode_bytes(JsonValueDecoder1, {fixed, Length}, JsonValue) of
-                {JsonValueDecoder2, bytes, FixedValue} when
-                    is_binary(FixedValue) andalso byte_size(FixedValue) =:= Length
-                ->
-                    ScalarValue = argo_scalar_value:fixed(FixedValue),
-                    {JsonValueDecoder2, ScalarValue};
-                {_JsonValueDecoder2, _BadBytesHint, _BadFixedValue} ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, {expected_fixed, Length}, JsonValue}
-                    })
-            end
+    ScalarHint =
+        case ScalarWireType#argo_scalar_wire_type.inner of
+            #argo_fixed_wire_type{length = FixedLength} ->
+                {fixed, FixedLength};
+            ScalarWireTypeInner when is_atom(ScalarWireTypeInner) ->
+                ScalarWireTypeInner
+        end,
+    case JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue) of
+        {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) andalso ScalarHint =:= string ->
+            ScalarValue = argo_scalar_value:string(StringValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
+        {JsonScalarDecoder2, {boolean, BooleanValue}} when is_boolean(BooleanValue) andalso ScalarHint =:= boolean ->
+            ScalarValue = argo_scalar_value:boolean(BooleanValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
+        {JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso ScalarHint =:= varint ->
+            ScalarValue = argo_scalar_value:varint(VarintValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
+        {JsonScalarDecoder2, {float64, Float64Value}} when is_float(Float64Value) andalso ScalarHint =:= float64 ->
+            ScalarValue = argo_scalar_value:float64(Float64Value),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
+        {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso ScalarHint =:= bytes ->
+            ScalarValue = argo_scalar_value:bytes(BytesValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
+        {JsonScalarDecoder2, {fixed, FixedValue}} when
+            is_binary(FixedValue) andalso element(1, ScalarHint) =:= fixed andalso
+                element(2, ScalarHint) =:= byte_size(FixedValue)
+        ->
+            ScalarValue = argo_scalar_value:fixed(FixedValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue}
     end.
+% JsonScalarDecoderResult =
+%     case ScalarHint of
+%         string ->
+%             ;
+%         boolean ->
+%             JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue);
+%         varint ->
+%             JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue);
+%         float64 ->
+%             JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue);
+%         bytes ->
+%             JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue);
+%          ->
+%             JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, {fixed, FixedLength}, JsonValue)
+%     end,
+% case JsonScalarDecoderResult of
+%     {JsonScalarDecoder2, } ->
+%     error ->
+%         % ScalarValue = argo_scalar_value:string(JsonValue),
+%         % {JsonValueDecoder1, ScalarValue};
+%     % string ->
+%     %     error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%     %         3 => {mismatch, expected_string, JsonValue}
+%     %     });
+%     % boolean when is_boolean(JsonValue) ->
+%     %     ScalarValue = argo_scalar_value:boolean(JsonValue),
+%     %     {JsonValueDecoder1, ScalarValue};
+%     % boolean ->
+%     %     error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%     %         3 => {mismatch, expected_boolean, JsonValue}
+%     %     });
+%     varint when ?is_i64(JsonValue) ->
+%         ScalarValue = argo_scalar_value:varint(JsonValue),
+%         {JsonValueDecoder1, ScalarValue};
+%     % varint ->
+%     %     error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%     %         3 => {mismatch, expected_integer, JsonValue}
+%     %     });
+%     float64 when is_float(JsonValue) ->
+%         ScalarValue = argo_scalar_value:float64(JsonValue),
+%         {JsonValueDecoder1, ScalarValue};
+%     % float64 ->
+%     %     error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%     %         3 => {mismatch, expected_float, JsonValue}
+%     %     });
+%     bytes ->
+%         case decode_bytes(JsonValueDecoder1, bytes, JsonValue) of
+%             {JsonValueDecoder2, bytes, BytesValue} when is_binary(BytesValue) ->
+%                 ScalarValue = argo_scalar_value:bytes(BytesValue),
+%                 {JsonValueDecoder2, ScalarValue};
+%             {_JsonValueDecoder2, _BadBytesHint, _BadBytesValue} ->
+%                 error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%                     3 => {mismatch, expected_bytes, JsonValue}
+%                 })
+%         end;
+%     #argo_fixed_wire_type{length = Length} ->
+%         case decode_bytes(JsonValueDecoder1, {fixed, Length}, JsonValue) of
+%             {JsonValueDecoder2, bytes, FixedValue} when
+%                 is_binary(FixedValue) andalso byte_size(FixedValue) =:= Length
+%             ->
+%                 ScalarValue = argo_scalar_value:fixed(FixedValue),
+%                 {JsonValueDecoder2, ScalarValue};
+%             {_JsonValueDecoder2, _BadBytesHint, _BadFixedValue} ->
+%                 error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
+%                     3 => {mismatch, {expected_fixed, Length}, JsonValue}
+%                 })
+%         end
+% end.
 
 -spec decode_block_wire_type(JsonValueDecoder, BlockWireType, JsonValue) -> {JsonValueDecoder, BlockValue} when
     JsonValueDecoder :: t(),
@@ -265,13 +232,54 @@ decode_scalar_wire_type(
     JsonValue :: argo_json:json_value(),
     BlockValue :: argo_block_value:t().
 decode_block_wire_type(
-    JsonValueDecoder1 = #argo_json_value_decoder{}, BlockWireType = #argo_block_wire_type{}, JsonValue
+    JsonValueDecoder1 = #argo_json_value_decoder{scalar_decoder = {JsonScalarDecoderModule, JsonScalarDecoder1}},
+    BlockWireType = #argo_block_wire_type{key = BlockKey},
+    JsonValue
 ) ->
-    {JsonValueDecoder2, ScalarValue} = decode_scalar_wire_type(
-        JsonValueDecoder1, BlockWireType#argo_block_wire_type.'of', JsonValue
-    ),
-    BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
-    {JsonValueDecoder2, BlockValue}.
+    BlockScalarHint =
+        case BlockWireType#argo_block_wire_type.'of'#argo_scalar_wire_type.inner of
+            #argo_fixed_wire_type{length = FixedLength} ->
+                {fixed, FixedLength};
+            ScalarWireTypeInner when is_atom(ScalarWireTypeInner) ->
+                ScalarWireTypeInner
+        end,
+    case JsonScalarDecoderModule:decode_block_scalar(JsonScalarDecoder1, BlockKey, BlockScalarHint, JsonValue) of
+        {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) andalso BlockScalarHint =:= string ->
+            ScalarValue = argo_scalar_value:string(StringValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {JsonScalarDecoder2, {boolean, BooleanValue}} when
+            is_boolean(BooleanValue) andalso BlockScalarHint =:= boolean
+        ->
+            ScalarValue = argo_scalar_value:boolean(BooleanValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso BlockScalarHint =:= varint ->
+            ScalarValue = argo_scalar_value:varint(VarintValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {JsonScalarDecoder2, {float64, Float64Value}} when is_float(Float64Value) andalso BlockScalarHint =:= float64 ->
+            ScalarValue = argo_scalar_value:float64(Float64Value),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso BlockScalarHint =:= bytes ->
+            ScalarValue = argo_scalar_value:bytes(BytesValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {JsonScalarDecoder2, {fixed, FixedValue}} when
+            is_binary(FixedValue) andalso element(1, BlockScalarHint) =:= fixed andalso
+                element(2, BlockScalarHint) =:= byte_size(FixedValue)
+        ->
+            ScalarValue = argo_scalar_value:fixed(FixedValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue}
+    end.
 
 -spec decode_nullable_wire_type(JsonValueDecoder, NullableWireType, JsonValue) -> {JsonValueDecoder, NullableValue} when
     JsonValueDecoder :: t(),
@@ -335,7 +343,7 @@ decode_record_wire_type(
                 3 => {mismatch, expected_object, JsonValue}
             });
         true ->
-            JsonObject = dynamic_cast(JsonValue),
+            JsonObject = argo_types:dynamic_cast(JsonValue),
             {JsonValueDecoder2, RecordValue} = argo_index_map:foldl(
                 fun(_Index, _FieldName, FieldWireType, {JsonValueDecoderAcc1, RecordValueAcc1}) ->
                     {JsonValueDecoderAcc2, FieldValue} = decode_field_wire_type(
@@ -388,45 +396,40 @@ decode_field_wire_type(
 
 -spec decode_desc_wire_type(JsonValueDecoder, JsonValue) -> {JsonValueDecoder, DescValue} when
     JsonValueDecoder :: t(), JsonValue :: argo_json:json_value(), DescValue :: argo_desc_value:t().
-decode_desc_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue) ->
-    case JsonValue of
-        null ->
-            DescValue = argo_desc_value:null(),
-            {JsonValueDecoder1, DescValue};
-        false ->
-            DescValue = argo_desc_value:boolean(false),
-            {JsonValueDecoder1, DescValue};
-        true ->
-            DescValue = argo_desc_value:boolean(true),
-            {JsonValueDecoder1, DescValue};
-        _ when ?is_i64(JsonValue) ->
-            DescValue = argo_desc_value:int(JsonValue),
-            {JsonValueDecoder1, DescValue};
-        _ when is_float(JsonValue) ->
-            DescValue = argo_desc_value:float(JsonValue),
-            {JsonValueDecoder1, DescValue};
-        _ when is_binary(JsonValue) ->
-            {JsonValueDecoder2, BytesHint, BytesValue} = decode_bytes(JsonValueDecoder1, desc, JsonValue),
-            DescValue =
-                case BytesHint of
-                    bytes ->
-                        argo_desc_value:bytes(BytesValue);
-                    string ->
-                        argo_desc_value:string(BytesValue)
-                end,
-            {JsonValueDecoder2, DescValue};
-        _ when is_list(JsonValue) ->
+decode_desc_wire_type(
+    JsonValueDecoder1 = #argo_json_value_decoder{scalar_decoder = {JsonScalarDecoderModule, JsonScalarDecoder1}},
+    JsonValue
+) ->
+    DescHint =
+        case JsonValue of
+            null ->
+                null;
+            _ when is_boolean(JsonValue) ->
+                boolean;
+            _ when ?is_i64(JsonValue) ->
+                int;
+            _ when is_float(JsonValue) ->
+                float;
+            _ when is_binary(JsonValue) ->
+                string;
+            _ when is_list(JsonValue) ->
+                list;
+            _ when ?is_json_object(JsonValue) ->
+                object
+        end,
+    case DescHint of
+        list ->
             {JsonValueDecoder2, Items} = lists:foldl(
                 fun(JsonVal, {JsonValueDecoderAcc1, Items1}) ->
                     {JsonValueDecoderAcc2, Item} = decode_desc_wire_type(JsonValueDecoderAcc1, JsonVal),
                     {JsonValueDecoderAcc2, [Item | Items1]}
                 end,
                 {JsonValueDecoder1, []},
-                JsonValue
+                argo_types:dynamic_cast(JsonValue)
             ),
             DescValue = argo_desc_value:list(lists:reverse(Items)),
             {JsonValueDecoder2, DescValue};
-        _ when ?is_json_object(JsonValue) ->
+        object ->
             {JsonValueDecoder2, Object1} = argo_json:object_fold(
                 fun(JsonKey, JsonVal, {JsonValueDecoderAcc1, ObjectAcc1}) when is_binary(JsonKey) ->
                     {JsonValueDecoderAcc2, Val} = decode_desc_wire_type(JsonValueDecoderAcc1, JsonVal),
@@ -434,10 +437,37 @@ decode_desc_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue)
                     {JsonValueDecoderAcc2, ObjectAcc2}
                 end,
                 {JsonValueDecoder1, argo_index_map:new()},
-                JsonValue
+                argo_types:dynamic_cast(JsonValue)
             ),
             DescValue = argo_desc_value:object(Object1),
-            {JsonValueDecoder2, DescValue}
+            {JsonValueDecoder2, DescValue};
+        _ ->
+            case JsonScalarDecoderModule:decode_desc_scalar(JsonScalarDecoder1, DescHint, JsonValue) of
+                {JsonScalarDecoder2, null} ->
+                    DescValue = argo_desc_value:null(),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue};
+                {JsonScalarDecoder2, {boolean, BooleanValue}} when is_boolean(BooleanValue) ->
+                    DescValue = argo_desc_value:boolean(BooleanValue),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue};
+                {JsonScalarDecoder2, {int, IntValue}} when ?is_i64(IntValue) ->
+                    DescValue = argo_desc_value:int(IntValue),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue};
+                {JsonScalarDecoder2, {float, FloatValue}} when is_float(FloatValue) ->
+                    DescValue = argo_desc_value:float(FloatValue),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue};
+                {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) ->
+                    DescValue = argo_desc_value:bytes(BytesValue),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue};
+                {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) ->
+                    DescValue = argo_desc_value:string(StringValue),
+                    JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+                    {JsonValueDecoder2, DescValue}
+            end
     end.
 
 -spec decode_error_wire_type(JsonValueDecoder, JsonValue) -> {JsonValueDecoder, ErrorValue} when
@@ -607,7 +637,19 @@ format_error_description(_Key, Value) ->
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
 
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.
+-compile({inline, [maybe_update_json_scalar_decoder/2]}).
+-spec maybe_update_json_scalar_decoder(JsonValueDecoder, JsonScalarDecoder) -> JsonValueDecoder when
+    JsonValueDecoder :: t(), JsonScalarDecoder :: argo_json_scalar_decoder:t().
+maybe_update_json_scalar_decoder(
+    JsonValueDecoder1 = #argo_json_value_decoder{scalar_decoder = {_JsonScalarDecoderModule, JsonScalarDecoder1}},
+    JsonScalarDecoder1
+) ->
+    JsonValueDecoder1;
+maybe_update_json_scalar_decoder(
+    JsonValueDecoder1 = #argo_json_value_decoder{scalar_decoder = {JsonScalarDecoderModule, _JsonScalarDecoder1}},
+    JsonScalarDecoder2
+) ->
+    JsonValueDecoder2 = JsonValueDecoder1#argo_json_value_decoder{
+        scalar_decoder = {JsonScalarDecoderModule, JsonScalarDecoder2}
+    },
+    JsonValueDecoder2.

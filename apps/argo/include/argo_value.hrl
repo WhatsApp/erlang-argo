@@ -47,14 +47,14 @@
     current_path :: argo_path_value:t(),
     field_errors :: argo_index_map:t(argo_path_value:t(), argo_error_value:t()),
     response_errors :: [argo_error_value:t()],
-    bytes_decoder :: argo_json_value_decoder:bytes_decoder()
+    scalar_decoder :: {module(), argo_json_scalar_decoder:t()}
 }).
 
 -record(argo_json_value_encoder, {
     current_path :: argo_path_value:t(),
     field_errors :: argo_index_map:t(argo_path_value:t(), argo_error_value:t()),
     response_errors :: [argo_error_value:t()],
-    bytes_encoder :: argo_json_value_encoder:bytes_encoder()
+    scalar_encoder :: {module(), argo_json_scalar_encoder:t()}
 }).
 
 -record(argo_location_value, {

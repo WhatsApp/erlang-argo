@@ -23,6 +23,7 @@
 
 %% API
 -export([
+    from_tokens/1,
     parse/2
 ]).
 %% argo_graphql_display callbacks
@@ -44,6 +45,12 @@
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
+
+-compile({inline, [from_tokens/1]}).
+-spec from_tokens(Tokens) -> {ok, LanguageDocument} | {error, Reason} when
+    Tokens :: dynamic(), LanguageDocument :: t(), Reason :: dynamic().
+from_tokens(Tokens) ->
+    argo_types:dynamic_cast(argo_graphql_language_parser:parse(Tokens)).
 
 -spec parse(Context, Location) -> Document when Context :: context(), Location :: erl_anno:location(), Document :: t().
 parse(_Context = #{definitions := Definitions = [#argo_graphql_language_definition{} | _]}, Location) ->

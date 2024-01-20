@@ -41,7 +41,10 @@
     write_string/3,
     write_varint/2
 ]).
-
+%% Internal API
+-export([
+    length_sanity_check/1
+]).
 %% Errors API
 -export([
     format_error/2

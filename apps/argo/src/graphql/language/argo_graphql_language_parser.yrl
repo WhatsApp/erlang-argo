@@ -445,6 +445,7 @@ Erlang code.
 
 % Line-Level Utilities
 
+-dialyzer({nowarn_function, extract_location/1}).
 extract_location({_Token, {Line, Column}}) ->
   erl_anno:new({Line, Column});
 extract_location({_Token, {Line, Column}, _Value}) ->
@@ -457,12 +458,14 @@ extract_location([Record | _]) when is_tuple(Record) ->
 
 % Value-level Utilities
 
-extract_atom({Value, _Loc}) ->
+extract_atom({Value, _Loc}) when is_atom(Value) ->
   Value;
 extract_atom({executable_directive_location, _Loc, Value}) ->
   argo_graphql_language_executable_directive_location:name_from_string(Value);
 extract_atom({type_system_directive_location, _Loc, Value}) ->
-  argo_graphql_language_type_system_directive_location:name_from_string(Value).
+  argo_graphql_language_type_system_directive_location:name_from_string(Value);
+extract_atom({Token, Loc, Value}) ->
+  return_error(Loc, lists:flatten(io_lib:format("extract_atom/1 not supported for Token=~0tp, Value=~0tp", [Token, Value]))).
 
 extract_binary(Value) when is_binary(Value) ->
   Value;

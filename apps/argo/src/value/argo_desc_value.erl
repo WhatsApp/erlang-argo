@@ -55,15 +55,19 @@
 -type desc_bytes() :: binary().
 -type desc_int() :: argo_types:i64().
 -type desc_float() :: float().
--type inner() ::
+-type inner_nested() ::
+    {object, desc_object()}
+    | {list, desc_list()}.
+-type inner_scalar() ::
     desc_null()
     | {boolean, desc_boolean()}
-    | {object, desc_object()}
-    | {list, desc_list()}
     | {string, desc_string()}
     | {bytes, desc_bytes()}
     | {int, desc_int()}
     | {float, desc_float()}.
+-type inner() ::
+    inner_nested()
+    | inner_scalar().
 
 -type t() :: #argo_desc_value{}.
 
@@ -76,6 +80,8 @@
     desc_bytes/0,
     desc_int/0,
     desc_float/0,
+    inner_nested/0,
+    inner_scalar/0,
     inner/0,
     t/0
 ]).

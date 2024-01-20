@@ -56,7 +56,7 @@ prop_roundtrip_formatter_and_parser(_Config) ->
             String = argo_types:unicode_string(Expected),
             case argo_graphql_language_scanner:string(String) of
                 {ok, Tokens, _} ->
-                    case argo_graphql_language_parser:parse(Tokens) of
+                    case argo_graphql_language_document:from_tokens(Tokens) of
                         {ok, ParsedDocument} ->
                             Actual = argo_graphql:format(ParsedDocument),
                             ?WHENFAIL(

@@ -28,10 +28,10 @@
     format/1,
     format_with_lines/1,
     from_json/2,
-    from_json/3,
+    from_json/4,
     from_reader/2,
     to_json/1,
-    to_json/2,
+    to_json/3,
     to_writer/1,
     to_writer/2
 ]).
@@ -127,13 +127,16 @@ from_json(WireType = #argo_wire_type{}, JsonValue) ->
     _ = JsonValueDecoder2,
     Value.
 
--spec from_json(WireType, JsonValue, BytesDecoder) -> Value when
+-spec from_json(WireType, JsonValue, JsonScalarDecoderModule, JsonScalarDecoderOptions) -> Value when
     WireType :: argo_wire_type:t(),
     JsonValue :: argo_json:json_value(),
-    BytesDecoder :: argo_json_value_decoder:bytes_decoder(),
+    JsonScalarDecoderModule :: module(),
+    JsonScalarDecoderOptions :: argo_json_scalar_decoder:options(),
     Value :: t().
-from_json(WireType = #argo_wire_type{}, JsonValue, BytesDecoder) when is_function(BytesDecoder, 2) ->
-    JsonValueDecoder1 = argo_json_value_decoder:new(BytesDecoder),
+from_json(WireType = #argo_wire_type{}, JsonValue, JsonScalarDecoderModule, JsonScalarDecoderOptions) when
+    is_atom(JsonScalarDecoderModule)
+->
+    JsonValueDecoder1 = argo_json_value_decoder:new(JsonScalarDecoderModule, JsonScalarDecoderOptions),
     {JsonValueDecoder2, Value} = argo_json_value_decoder:decode_wire_type(JsonValueDecoder1, WireType, JsonValue),
     _ = JsonValueDecoder2,
     Value.
@@ -153,10 +156,15 @@ to_json(Value = #argo_value{}) ->
     _ = JsonValueEncoder2,
     JsonValue.
 
--spec to_json(Value, BytesEncoder) -> JsonValue when
-    Value :: t(), BytesEncoder :: argo_json_value_encoder:bytes_encoder(), JsonValue :: argo_json:json_value().
-to_json(Value = #argo_value{}, BytesEncoder) when is_function(BytesEncoder, 2) ->
-    JsonValueEncoder1 = argo_json_value_encoder:new(BytesEncoder),
+-spec to_json(Value, JsonScalarEncoderModule, JsonScalarEncoderOptions) -> JsonValue when
+    Value :: t(),
+    JsonScalarEncoderModule :: module(),
+    JsonScalarEncoderOptions :: argo_json_scalar_encoder:options(),
+    JsonValue :: argo_json:json_value().
+to_json(Value = #argo_value{}, JsonScalarEncoderModule, JsonScalarEncoderOptions) when
+    is_atom(JsonScalarEncoderModule)
+->
+    JsonValueEncoder1 = argo_json_value_encoder:new(JsonScalarEncoderModule, JsonScalarEncoderOptions),
     {JsonValueEncoder2, JsonValue} = argo_json_value_encoder:encode_value(JsonValueEncoder1, Value),
     _ = JsonValueEncoder2,
     JsonValue.

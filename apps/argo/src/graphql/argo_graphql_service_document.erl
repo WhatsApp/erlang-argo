@@ -107,7 +107,7 @@ from_string(Input) ->
     String = argo_types:unicode_string(Input),
     case argo_graphql_language_scanner:string(String) of
         {ok, Tokens, _EndLoc} ->
-            case argo_graphql_language_parser:parse(Tokens) of
+            case argo_graphql_language_document:from_tokens(Tokens) of
                 {ok, LanguageDocument = #argo_graphql_language_document{}} ->
                     from_language(LanguageDocument);
                 {error, ParserError} ->
@@ -1045,3 +1045,7 @@ format_error_description(_Key, schema_not_defined) ->
     "SchemaExtension is not allowed if SchemaDefinition has not already been defined (ServiceDocument requires SchemaDefinition before SchemaExtension)";
 format_error_description(_Key, Value) ->
     Value.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
