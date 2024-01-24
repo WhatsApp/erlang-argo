@@ -102,7 +102,7 @@ new(Header = #argo_header{}, BlockWireType = #argo_block_wire_type{'of' = Of, de
                                     {some, Block} when is_binary(Block) ->
                                         #argo_dedupe_block_decoder{
                                             header = Header,
-                                            references = dynamic_cast(array:new(0, fixed)),
+                                            references = argo_types:dynamic_cast(array:new(0, fixed)),
                                             values = argo_block_reader:new(Block)
                                         };
                                     none ->
@@ -441,8 +441,3 @@ format_error_description(_Key, Value) ->
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.

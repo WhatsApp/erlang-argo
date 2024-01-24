@@ -29,6 +29,8 @@
     bytes/0,
     fixed/1,
     maybe_json_safe_float/0,
+    maybe_root_wire_type/0,
+    maybe_root_wire_type/2,
     name/0,
     name/1,
     name_continue/0,
@@ -85,6 +87,8 @@
 
 %% Macros
 -define(JSON_SAFE, 'proper_argo_json_safe').
+-define(ROOT_SAFE, 'proper_argo_root_safe').
+-define(ROOT_WIRE_TYPE, 'proper_argo_root_wire_type').
 
 %%%=============================================================================
 %%% Primitive API functions
@@ -108,6 +112,24 @@ maybe_json_safe_float() ->
                 shrink_float_for_jsone(Float)
         end
     end).
+
+-spec maybe_root_wire_type() -> proper_types:type().
+maybe_root_wire_type() ->
+    ?LAZY(parameter(?ROOT_WIRE_TYPE, none)).
+
+-spec maybe_root_wire_type(WireType, RawType) -> proper_types:type() when
+    RawType :: proper_types:raw_type(), WireType :: argo_wire_type:t().
+maybe_root_wire_type(WireType = #argo_wire_type{}, RawType) ->
+    ?LET(
+        OptionRootWireType,
+        maybe_root_wire_type(),
+        case OptionRootWireType of
+            none ->
+                with_parameter(?ROOT_WIRE_TYPE, {some, WireType}, RawType);
+            {some, _RootWireType} ->
+                RawType
+        end
+    ).
 
 -spec name() -> proper_types:type().
 name() ->
@@ -342,20 +364,54 @@ nullable_value(NullableWireType = #argo_nullable_wire_type{}) ->
 
 -spec path_value() -> proper_types:type().
 path_value() ->
-    ?SIZED(Length, path_value(Length)).
+    ?LET(
+        OptionRootWireType,
+        maybe_root_wire_type(),
+        case OptionRootWireType of
+            none ->
+                exactly(argo_path_value:new());
+            {some, RootWireType} ->
+                PossibleSegmentLists = argo_wire_type:fold_path_values(
+                    fun(PathValue = #argo_path_value{}, Acc) ->
+                        [argo_path_value:to_list(PathValue) | Acc]
+                    end,
+                    [[]],
+                    RootWireType
+                ),
+                ?LET(SegmentList, oneof(PossibleSegmentLists), path_value(SegmentList))
+        end
+    ).
 
 %% @private
--spec path_value(Length :: non_neg_integer()) -> proper_types:type().
-path_value(Length) when is_integer(Length) andalso Length >= 0 ->
-    ?LET(SegmentsList, vector(Length, path_value_segment()), argo_path_value:from_list(SegmentsList)).
+-spec path_value(SegmentListTemplate) -> proper_types:type() when SegmentListTemplate :: argo_path_value:segment_list().
+path_value(SegmentListTemplate) when is_list(SegmentListTemplate) ->
+    SegmentListGen = ?LAZY([
+        case Segment of
+            0 ->
+                usize();
+            _ when is_binary(Segment) ->
+                exactly(Segment)
+        end
+     || Segment <- SegmentListTemplate
+    ]),
+    ?LET(SegmentList, SegmentListGen, argo_path_value:from_list(SegmentList)).
 
-%% @private
--spec path_value_segment() -> proper_types:type().
-path_value_segment() ->
-    oneof([
-        name(),
-        usize()
-    ]).
+% -spec path_value() -> proper_types:type().
+% path_value() ->
+%     ?SIZED(Length, path_value(Length)).
+
+% %% @private
+% -spec path_value(Length :: non_neg_integer()) -> proper_types:type().
+% path_value(Length) when is_integer(Length) andalso Length >= 0 ->
+%     ?LET(SegmentsList, vector(Length, path_value_segment()), argo_path_value:from_list(SegmentsList)).
+
+% %% @private
+% -spec path_value_segment() -> proper_types:type().
+% path_value_segment() ->
+%     oneof([
+%         name(),
+%         usize()
+%     ]).
 
 -spec record_value() -> proper_types:type().
 record_value() ->
@@ -407,8 +463,8 @@ value(#argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}) ->
     ?LET(Value, nullable_value(NullableWireType), argo_value:nullable(Value));
 value(#argo_wire_type{inner = _PathWireType = #argo_path_wire_type{}}) ->
     ?LET(Value, path_value(), argo_value:path(Value));
-value(#argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}) ->
-    ?LET(Value, record_value(RecordWireType), argo_value:record(Value));
+value(WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}) ->
+    maybe_root_wire_type(WireType, ?LET(Value, record_value(RecordWireType), argo_value:record(Value)));
 value(#argo_wire_type{inner = ScalarWireType = #argo_scalar_wire_type{}}) ->
     ?LET(Value, scalar_value(ScalarWireType), argo_value:scalar(Value)).
 
@@ -540,18 +596,36 @@ scalar_wire_type() ->
 
 -spec wire_type() -> proper_types:type().
 wire_type() ->
+    InnerGen =
+        ?LAZY(
+            case parameter(?ROOT_SAFE, false) of
+                false ->
+                    ?LET(
+                        {IsNullable, RecordWireType},
+                        {boolean(), with_parameter(?ROOT_SAFE, true, record_wire_type())},
+                        case IsNullable of
+                            false ->
+                                RecordWireType;
+                            true ->
+                                argo_nullable_wire_type:new(argo_wire_type:record(RecordWireType))
+                        end
+                    );
+                true ->
+                    oneof([
+                        path_wire_type(),
+                        scalar_wire_type(),
+                        block_wire_type(),
+                        desc_wire_type(),
+                        error_wire_type(),
+                        nullable_wire_type(),
+                        array_wire_type(),
+                        record_wire_type()
+                    ])
+            end
+        ),
     ?LET(
         InnerWireType,
-        oneof([
-            path_wire_type(),
-            scalar_wire_type(),
-            block_wire_type(),
-            desc_wire_type(),
-            error_wire_type(),
-            nullable_wire_type(),
-            array_wire_type(),
-            record_wire_type()
-        ]),
+        InnerGen,
         case InnerWireType of
             #argo_array_wire_type{} -> argo_wire_type:array(InnerWireType);
             #argo_block_wire_type{} -> argo_wire_type:block(InnerWireType);

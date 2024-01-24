@@ -271,7 +271,7 @@ last(IndexMap = #argo_index_map{entries = Entries}) ->
 new() ->
     #argo_index_map{
         indices = maps:new(),
-        entries = dynamic_cast(array:new(0, fixed))
+        entries = argo_types:dynamic_cast(array:new(0, fixed))
     }.
 
 -spec next(Iterator) -> none | {Index, Key, Value, NextIterator} when
@@ -383,7 +383,7 @@ take_full(Key, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entries
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = dynamic_cast(Entries3)},
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = argo_types:dynamic_cast(Entries3)},
             {{Index, Key, Value}, IndexMap2};
         error ->
             error
@@ -402,7 +402,7 @@ take_index(Index, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entr
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = dynamic_cast(Entries3)},
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = argo_types:dynamic_cast(Entries3)},
             {{Key, Value}, IndexMap2};
         false ->
             error
@@ -474,11 +474,6 @@ collect_values(_Index, {_Key, Value}, Values) ->
     Index :: index(), Key :: key(), Value :: value(), Values :: [Value].
 collect_values(_Index, _Key, Value, Values) ->
     [Value | Values].
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.
 
 %% @private
 -spec foldl_iterator(Iterator, Function, AccIn) -> AccOut when

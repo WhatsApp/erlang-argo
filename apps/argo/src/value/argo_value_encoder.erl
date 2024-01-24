@@ -23,12 +23,18 @@
 -include_lib("argo/include/argo_label.hrl").
 -include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_value.hrl").
+-include_lib("argo/include/argo_wire_type.hrl").
 
 %% API
 -export([
     new/1,
     to_writer/1,
-    encode_value/2
+    encode_value/2,
+    encode_value/3
+]).
+%% Errors API
+-export([
+    format_error/2
 ]).
 
 %% Types
@@ -44,13 +50,29 @@
 
 -spec new(Header) -> ValueEncoder when Header :: argo_header:t(), ValueEncoder :: t().
 new(Header = #argo_header{}) ->
-    #argo_value_encoder{message = argo_message_encoder:new(Header)}.
+    #argo_value_encoder{message = argo_message_encoder:new(Header), wire_type = undefined}.
 
 -spec to_writer(ValueEncoder) -> Writer when ValueEncoder :: t(), Writer :: binary().
 to_writer(#argo_value_encoder{message = MessageEncoder}) ->
     argo_message_encoder:to_writer(MessageEncoder).
 
 -spec encode_value(ValueEncoder, Value) -> ValueEncoder when ValueEncoder :: t(), Value :: argo_value:t().
+encode_value(ValueEncoder1 = #argo_value_encoder{wire_type = undefined}, Value = #argo_value{}) ->
+    case Value#argo_value.inner of
+        RecordValue = #argo_record_value{} ->
+            case argo_record_value:find(RecordValue, <<"data">>) of
+                {ok,
+                    _FieldValue = #argo_field_value{
+                        wire_type = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}
+                    }} ->
+                    encode_value(ValueEncoder1, Value, {some, DataWireType});
+                error ->
+                    RootWireType = argo_value:to_wire_type(Value),
+                    encode_value(ValueEncoder1, Value, {some, RootWireType})
+            end;
+        _ ->
+            encode_value(ValueEncoder1, Value, none)
+    end;
 encode_value(ValueEncoder1 = #argo_value_encoder{}, Value = #argo_value{}) ->
     case Value#argo_value.inner of
         ScalarValue = #argo_scalar_value{} -> encode_scalar_value(ValueEncoder1, ScalarValue);
@@ -62,6 +84,16 @@ encode_value(ValueEncoder1 = #argo_value_encoder{}, Value = #argo_value{}) ->
         ErrorValue = #argo_error_value{} -> encode_error_value(ValueEncoder1, ErrorValue);
         PathValue = #argo_path_value{} -> encode_path_value(ValueEncoder1, PathValue)
     end.
+
+-spec encode_value(ValueEncoder, Value, OptionWireType) -> ValueEncoder when
+    ValueEncoder :: t(), Value :: argo_value:t(), OptionWireType :: argo_types:option(argo_wire_type:t()).
+encode_value(ValueEncoder1 = #argo_value_encoder{wire_type = undefined}, Value = #argo_value{}, OptionWireType) when
+    ?is_option_record(OptionWireType, argo_wire_type)
+->
+    ValueEncoder2 = ValueEncoder1#argo_value_encoder{wire_type = OptionWireType},
+    ValueEncoder3 = encode_value(ValueEncoder2, Value),
+    ValueEncoder4 = ValueEncoder3#argo_value_encoder{wire_type = undefined},
+    ValueEncoder4.
 
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
@@ -116,10 +148,26 @@ encode_nullable_value(
             ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
             ValueEncoder3 = encode_value(ValueEncoder2, Value),
             ValueEncoder3;
-        {field_errors, _} ->
-            MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, error, IsLabeled),
-            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
-            ValueEncoder2
+        {field_errors, FieldErrors} when is_list(FieldErrors) ->
+            case argo_header:out_of_band_field_errors(MessageEncoder1#argo_message_encoder.header) of
+                false ->
+                    FieldErrorsLength = length(FieldErrors),
+                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, error, IsLabeled),
+                    MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, FieldErrorsLength),
+                    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
+                    ValueEncoder3 = lists:foldl(
+                        fun(ErrorValue = #argo_error_value{}, ValueEncoderAcc) ->
+                            encode_error_value(ValueEncoderAcc, ErrorValue)
+                        end,
+                        ValueEncoder2,
+                        FieldErrors
+                    ),
+                    ValueEncoder3;
+                true ->
+                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, error, IsLabeled),
+                    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
+                    ValueEncoder2
+            end
     end.
 
 %% @private
@@ -343,29 +391,33 @@ encode_error_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1
 %% @private
 -spec encode_path_value(ValueEncoder, PathValue) -> ValueEncoder when
     ValueEncoder :: t(), PathValue :: argo_path_value:t().
-encode_path_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, PathValue = #argo_path_value{}) ->
+encode_path_value(
+    ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1, wire_type = OptionWireType},
+    PathValue = #argo_path_value{}
+) ->
     case argo_header:self_describing(MessageEncoder1#argo_message_encoder.header) of
         false ->
-            MessageEncoder2 = argo_message_encoder:write_core_length(MessageEncoder1, argo_path_value:size(PathValue)),
-            MessageEncoder3 = argo_path_value:foldl(
-                PathValue,
-                MessageEncoder2,
-                fun(PathSegment, MessageEncoderAcc1) ->
-                    case PathSegment of
-                        {field_name, Name} when is_binary(Name) andalso byte_size(Name) > 0 ->
-                            MessageEncoderAcc2 = argo_message_encoder:encode_block_string(MessageEncoderAcc1, Name),
-                            MessageEncoderAcc2;
-                        {list_index, Index} when ?is_usize(Index) ->
-                            MessageEncoderAcc2 = argo_message_encoder:write_core_label(
-                                MessageEncoderAcc1, ?ARGO_LABEL_MARKER_NON_NULL
+            case OptionWireType of
+                none ->
+                    error_with_info(badarg, [ValueEncoder1, PathValue], #{1 => path_value_not_supported});
+                {some, WireType = #argo_wire_type{}} ->
+                    WirePath = argo_path_value:to_wire_path(PathValue, WireType),
+                    MessageEncoder2 = argo_message_encoder:write_core_length(
+                        MessageEncoder1, argo_wire_path:size(WirePath)
+                    ),
+                    MessageEncoder3 = argo_wire_path:foldl(
+                        WirePath,
+                        MessageEncoder2,
+                        fun(WirePathSegment, MessageEncoderAcc1) when ?is_usize(WirePathSegment) ->
+                            MessageEncoderAcc2 = argo_message_encoder:encode_block_varint(
+                                MessageEncoderAcc1, WirePathSegment
                             ),
-                            MessageEncoderAcc3 = argo_message_encoder:encode_block_varint(MessageEncoderAcc2, Index),
-                            MessageEncoderAcc3
-                    end
-                end
-            ),
-            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
-            ValueEncoder2;
+                            MessageEncoderAcc2
+                        end
+                    ),
+                    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
+                    ValueEncoder2
+            end;
         true ->
             encode_self_describing_path_value(ValueEncoder1, PathValue)
     end.
@@ -549,3 +601,27 @@ encode_self_describing_path_value(
     ),
     ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder4},
     ValueEncoder2.
+
+%%%=============================================================================
+%%% Errors API functions
+%%%=============================================================================
+
+%% @private
+-compile({inline, [error_with_info/3]}).
+-spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
+error_with_info(Reason, Args, Cause) ->
+    erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).
+
+-spec format_error(dynamic(), dynamic()) -> dynamic().
+format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
+    ErrorInfo = proplists:get_value(error_info, Info, #{}),
+    ErrorDescription1 = maps:get(cause, ErrorInfo),
+    ErrorDescription2 = maps:map(fun format_error_description/2, ErrorDescription1),
+    ErrorDescription2.
+
+%% @private
+-spec format_error_description(dynamic(), dynamic()) -> dynamic().
+format_error_description(_Key, path_value_not_supported) ->
+    "PathValue is not supported (root value must be a RecordValue, preferably with a \"data\" field)";
+format_error_description(_Key, Value) ->
+    Value.

@@ -18,6 +18,7 @@
 -oncall("whatsapp_clr").
 
 -include_lib("argo/include/argo_header.hrl").
+-include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% Codec API
@@ -44,6 +45,7 @@
 
 %% Instance API
 -export([
+    fold_path_values/3,
     is_array/1,
     is_block/1,
     is_desc/1,
@@ -156,6 +158,15 @@ scalar(ScalarWireType = #argo_scalar_wire_type{}) ->
 %%% Instance API functions
 %%%=============================================================================
 
+-spec fold_path_values(Function, AccIn, WireType) -> AccOut when
+    Function :: fun((PathValue, AccIn) -> AccOut),
+    AccIn :: dynamic(),
+    WireType :: argo_wire_type:t(),
+    PathValue :: argo_path_value:t(),
+    AccOut :: dynamic().
+fold_path_values(Function, Init, WireType = #argo_wire_type{}) when is_function(Function, 2) ->
+    fold_path_values(WireType, Function, Init, argo_path_value:new()).
+
 -spec is_array(WireType) -> boolean() when WireType :: t().
 is_array(#argo_wire_type{inner = #argo_array_wire_type{}}) -> true;
 is_array(#argo_wire_type{}) -> false.
@@ -199,3 +210,48 @@ is_record(#argo_wire_type{}) -> false.
 -spec is_scalar(WireType) -> boolean() when WireType :: t().
 is_scalar(#argo_wire_type{inner = #argo_scalar_wire_type{}}) -> true;
 is_scalar(#argo_wire_type{}) -> false.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec fold_path_values(WireType, Function, AccIn, PathValue) -> AccOut when
+    Function :: fun((PathValue, AccIn) -> AccOut),
+    AccIn :: dynamic(),
+    WireType :: argo_wire_type:t(),
+    PathValue :: argo_path_value:t(),
+    AccOut :: dynamic().
+fold_path_values(WireType = #argo_wire_type{}, Function, Acc1, PathValue1 = #argo_path_value{}) when
+    is_function(Function, 2)
+->
+    case WireType#argo_wire_type.inner of
+        #argo_array_wire_type{'of' = Of} ->
+            PathValue2 = argo_path_value:push_list_index(PathValue1, 0),
+            Acc2 = Function(PathValue2, Acc1),
+            fold_path_values(Of, Function, Acc2, PathValue2);
+        #argo_block_wire_type{} ->
+            Acc1;
+        #argo_desc_wire_type{} ->
+            Acc1;
+        #argo_error_wire_type{} ->
+            Acc1;
+        #argo_nullable_wire_type{'of' = Of} ->
+            fold_path_values(Of, Function, Acc1, PathValue1);
+        #argo_path_wire_type{} ->
+            Acc1;
+        #argo_record_wire_type{fields = Fields} ->
+            Acc2 = argo_index_map:foldl(
+                fun(_Index, FieldName, #argo_field_wire_type{'of' = Of}, Acc1_Acc1) ->
+                    PathValue2 = argo_path_value:push_field_name(PathValue1, FieldName),
+                    Acc1_Acc2 = Function(PathValue2, Acc1_Acc1),
+                    Acc1_Acc3 = fold_path_values(Of, Function, Acc1_Acc2, PathValue2),
+                    Acc1_Acc3
+                end,
+                Acc1,
+                Fields
+            ),
+            Acc2;
+        #argo_scalar_wire_type{} ->
+            Acc1
+    end.

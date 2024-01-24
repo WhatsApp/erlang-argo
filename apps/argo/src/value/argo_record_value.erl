@@ -17,11 +17,18 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_value.hrl").
 
-%% API
+%% New API
 -export([
-    new/0,
+    new/0
+]).
+%% Instance API
+-export([
+    find/2,
+    find_index/2,
+    find_index_of/2,
     insert/2,
     present_fields_count/1,
     to_record_wire_type/1
@@ -35,12 +42,41 @@
 ]).
 
 %%%=============================================================================
-%%% API functions
+%%% New API functions
 %%%=============================================================================
 
 -spec new() -> RecordValue when RecordValue :: t().
 new() ->
     #argo_record_value{fields = argo_index_map:new()}.
+
+%%%=============================================================================
+%%% Instance API functions
+%%%=============================================================================
+
+-spec find(RecordValue, Name) -> {ok, FieldValue} | error when
+    RecordValue :: t(), Name :: argo_types:name(), FieldValue :: argo_field_value:t().
+find(#argo_record_value{fields = Fields}, Name) when is_binary(Name) ->
+    argo_index_map:find(Name, Fields).
+
+-spec find_index(RecordValue, Index) -> {ok, FieldValue} | error when
+    RecordValue :: t(), Index :: argo_index_map:index(), FieldValue :: argo_field_value:t().
+find_index(#argo_record_value{fields = Fields}, Index) when ?is_u64(Index) ->
+    case argo_index_map:find_index(Index, Fields) of
+        {ok, {_Name, FieldValue}} ->
+            {ok, FieldValue};
+        error ->
+            error
+    end.
+
+-spec find_index_of(RecordValue, Name) -> {ok, Index, FieldValue} | error when
+    RecordValue :: t(), Name :: argo_types:name(), Index :: argo_index_map:index(), FieldValue :: argo_field_value:t().
+find_index_of(#argo_record_value{fields = Fields}, Name) when is_binary(Name) ->
+    case argo_index_map:find_full(Name, Fields) of
+        {ok, {Index, Name, FieldValue}} ->
+            {ok, Index, FieldValue};
+        error ->
+            error
+    end.
 
 -spec insert(RecordValue, FieldValue) -> RecordValue when RecordValue :: t(), FieldValue :: argo_field_value:t().
 insert(RecordValue0 = #argo_record_value{fields = Fields0}, FieldValue = #argo_field_value{}) ->

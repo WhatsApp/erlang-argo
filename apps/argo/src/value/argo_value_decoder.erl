@@ -35,9 +35,9 @@
 -export([
     new/1,
     from_reader/1,
-    decode_wire_type/2
+    decode_wire_type/2,
+    decode_wire_type/3
 ]).
-
 %% Errors API
 -export([
     format_error/2
@@ -56,7 +56,7 @@
 
 -spec new(MessageDecoder) -> ValueDecoder when MessageDecoder :: argo_message_decoder:t(), ValueDecoder :: t().
 new(MessageDecoder = #argo_message_decoder{}) ->
-    #argo_value_decoder{message = MessageDecoder}.
+    #argo_value_decoder{message = MessageDecoder, wire_type = undefined}.
 
 -spec from_reader(Reader) -> {Reader, ValueDecoder} when Reader :: binary(), ValueDecoder :: t().
 from_reader(Reader1) ->
@@ -66,6 +66,19 @@ from_reader(Reader1) ->
 
 -spec decode_wire_type(ValueDecoder, WireType) -> {ValueDecoder, Value} when
     ValueDecoder :: t(), WireType :: argo_wire_type:t(), Value :: argo_value:t().
+decode_wire_type(ValueDecoder1 = #argo_value_decoder{wire_type = undefined}, WireType = #argo_wire_type{}) ->
+    case WireType#argo_wire_type.inner of
+        RecordWireType = #argo_record_wire_type{} ->
+            case argo_record_wire_type:find(RecordWireType, <<"data">>) of
+                {ok, _FieldWireType = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}} ->
+                    decode_wire_type(ValueDecoder1, WireType, {some, DataWireType});
+                error ->
+                    RootWireType = WireType,
+                    decode_wire_type(ValueDecoder1, WireType, {some, RootWireType})
+            end;
+        _ ->
+            decode_wire_type(ValueDecoder1, WireType, none)
+    end;
 decode_wire_type(ValueDecoder1 = #argo_value_decoder{}, WireType = #argo_wire_type{}) ->
     case WireType#argo_wire_type.inner of
         ScalarWireType = #argo_scalar_wire_type{} ->
@@ -101,6 +114,19 @@ decode_wire_type(ValueDecoder1 = #argo_value_decoder{}, WireType = #argo_wire_ty
             Value = argo_value:path(PathValue),
             {ValueDecoder2, Value}
     end.
+
+-spec decode_wire_type(ValueDecoder, WireType, OptionWireType) -> {ValueDecoder, Value} when
+    ValueDecoder :: t(),
+    WireType :: argo_wire_type:t(),
+    OptionWireType :: argo_types:option(argo_wire_type:t()),
+    Value :: argo_value:t().
+decode_wire_type(
+    ValueDecoder1 = #argo_value_decoder{wire_type = undefined}, WireType = #argo_wire_type{}, OptionWireType
+) when ?is_option_record(OptionWireType, argo_wire_type) ->
+    ValueDecoder2 = ValueDecoder1#argo_value_decoder{wire_type = OptionWireType},
+    {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, WireType),
+    ValueDecoder4 = ValueDecoder3#argo_value_decoder{wire_type = undefined},
+    {ValueDecoder4, Value}.
 
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
@@ -261,10 +287,10 @@ decode_field_wire_type(
             case OmittableType of
                 absent ->
                     FieldValue = argo_field_value:optional(FieldWireType, none),
-                    ValueDecoder2 = #argo_value_decoder{message = MessageDecoder2},
+                    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
                     {ValueDecoder2, FieldValue};
                 non_null ->
-                    ValueDecoder2 = #argo_value_decoder{message = MessageDecoder2},
+                    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
                     {ValueDecoder3, Value} = decode_wire_type(
                         ValueDecoder2, FieldWireType#argo_field_wire_type.'of'
                     ),
@@ -440,37 +466,37 @@ decode_error_wire_type_location(ValueDecoder1 = #argo_value_decoder{message = Me
 %% @private
 -spec decode_path_wire_type(ValueDecoder) -> {ValueDecoder, PathValue} when
     ValueDecoder :: t(), PathValue :: argo_path_value:t().
-decode_path_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}) ->
+decode_path_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1, wire_type = OptionWireType}) ->
     case argo_header:self_describing(MessageDecoder1#argo_message_decoder.header) of
         false ->
-            {MessageDecoder2, Length} = argo_message_decoder:read_core_length(MessageDecoder1),
-            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-            {ValueDecoder3, PathValue} = decode_path_wire_type_segments(ValueDecoder2, Length, argo_path_value:new()),
-            {ValueDecoder3, PathValue};
+            case OptionWireType of
+                none ->
+                    error_with_info(badarg, [ValueDecoder1], #{1 => path_wire_type_not_supported});
+                {some, WireType} ->
+                    {MessageDecoder2, Length} = argo_message_decoder:read_core_length(MessageDecoder1),
+                    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+                    {ValueDecoder3, WirePath} = decode_path_wire_type_segments(
+                        ValueDecoder2, Length, argo_wire_path:new()
+                    ),
+                    PathValue = argo_wire_path:to_path_value(WirePath, WireType),
+                    {ValueDecoder3, PathValue}
+            end;
         true ->
             decode_self_describing_path_wire_type(ValueDecoder1)
     end.
 
 %% @private
--spec decode_path_wire_type_segments(ValueDecoder, Length, PathValue) -> {ValueDecoder, PathValue} when
-    ValueDecoder :: t(), Length :: non_neg_integer(), PathValue :: argo_path_value:t().
-decode_path_wire_type_segments(ValueDecoder1 = #argo_value_decoder{}, 0, PathValue1) ->
-    {ValueDecoder1, PathValue1};
-decode_path_wire_type_segments(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, Length, PathValue1) when
+-spec decode_path_wire_type_segments(ValueDecoder, Length, WirePath) -> {ValueDecoder, WirePath} when
+    ValueDecoder :: t(), Length :: non_neg_integer(), WirePath :: argo_wire_path:t().
+decode_path_wire_type_segments(ValueDecoder1 = #argo_value_decoder{}, 0, WirePath1) ->
+    {ValueDecoder1, WirePath1};
+decode_path_wire_type_segments(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, Length, WirePath1) when
     is_integer(Length) andalso Length > 0
 ->
-    case argo_message_decoder:read_core_label(MessageDecoder1) of
-        {MessageDecoder2, ?ARGO_LABEL_MARKER_NON_NULL} ->
-            {MessageDecoder3, Index} = argo_message_decoder:decode_block_varint(MessageDecoder2),
-            PathValue2 = argo_path_value:push_list_index(PathValue1, Index),
-            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
-            decode_path_wire_type_segments(ValueDecoder2, Length - 1, PathValue2);
-        {_MessageDecoder2Unused, _LabelUnused} ->
-            {MessageDecoder2, Name} = argo_message_decoder:decode_block_string(MessageDecoder1),
-            PathValue2 = argo_path_value:push_field_name(PathValue1, Name),
-            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-            decode_path_wire_type_segments(ValueDecoder2, Length - 1, PathValue2)
-    end.
+    {MessageDecoder2, Segment} = argo_message_decoder:decode_block_varint(MessageDecoder1),
+    WirePath2 = argo_wire_path:push(WirePath1, Segment),
+    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+    decode_path_wire_type_segments(ValueDecoder2, Length - 1, WirePath2).
 
 %% @private
 -spec decode_self_describing_error_wire_type(ValueDecoder) -> {ValueDecoder, ErrorValue} when
@@ -893,6 +919,8 @@ format_error_description(_Key, {invalid_varint_label, Actual}) ->
     io_lib:format("invalid VARINT label, expected ~w, but was ~w", [?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT, Actual]);
 format_error_description(_Key, {missing_required_field, FieldName}) ->
     io_lib:format("missing required FIELD encountered: ~0tp", [FieldName]);
+format_error_description(_Key, path_wire_type_not_supported) ->
+    "PathWireType is not supported (root type must be a RecordWireType, preferably with a \"data\" field)";
 format_error_description(_Key, {unknown_field, FieldName}) ->
     io_lib:format("unknown FIELD encountered: ~0tp", [FieldName]);
 format_error_description(_Key, Value) ->

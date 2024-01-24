@@ -40,6 +40,7 @@
 -type label() :: i64().
 -type length() :: usize().
 -type name() :: unicode:unicode_binary().
+-type option(T) :: none | {some, T}.
 -type u8() :: 16#00..16#FF.
 -type u16() :: 16#0000..16#FFFF.
 -type u32() :: 16#00000000..16#FFFFFFFF.
@@ -57,6 +58,7 @@
     label/0,
     length/0,
     name/0,
+    option/1,
     u8/0,
     u16/0,
     u32/0,

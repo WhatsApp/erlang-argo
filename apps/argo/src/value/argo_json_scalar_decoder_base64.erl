@@ -66,73 +66,84 @@ init(Options) when is_map(Options) ->
     #argo_json_scalar_decoder_base64{mode = Mode}.
 
 -spec decode_block_scalar(JsonScalarDecoder, BlockKey, BlockScalarHint, JsonValue) ->
-    {JsonScalarDecoder, BlockScalar} | error
+    {ok, JsonScalarDecoder, BlockScalar} | {error, ErrorReason}
 when
     JsonScalarDecoder :: t(),
     BlockKey :: argo_types:name(),
     BlockScalarHint :: argo_json_scalar_decoder:scalar_hint(),
     JsonValue :: argo_json:json_value(),
-    BlockScalar :: argo_scalar_value:inner().
+    BlockScalar :: argo_scalar_value:inner(),
+    ErrorReason :: argo_json_scalar_decoder:error_reason().
 decode_block_scalar(JsonScalarDecoder = #argo_json_scalar_decoder_base64{}, BlockKey, BlockScalarHint, JsonValue) when
     is_binary(BlockKey)
 ->
     decode_scalar(JsonScalarDecoder, BlockScalarHint, JsonValue).
 
--spec decode_desc_scalar(JsonScalarDecoder, DescHint, JsonValue) -> {JsonScalarDecoder, DescScalar} | error when
+-spec decode_desc_scalar(JsonScalarDecoder, DescHint, JsonValue) ->
+    {ok, JsonScalarDecoder, DescScalar} | {error, ErrorReason}
+when
     JsonScalarDecoder :: t(),
     DescHint :: argo_json_scalar_decoder:desc_hint(),
     JsonValue :: argo_json:json_value(),
-    DescScalar :: argo_desc_value:inner_scalar().
+    DescScalar :: argo_desc_value:inner_scalar(),
+    ErrorReason :: argo_json_scalar_decoder:error_reason().
 decode_desc_scalar(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{}, DescHint, JsonValue) ->
     case DescHint of
         null when JsonValue =:= null ->
-            {JsonScalarDecoder1, DescHint};
+            {ok, JsonScalarDecoder1, null};
         boolean when is_boolean(JsonValue) ->
-            {JsonScalarDecoder1, {DescHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {boolean, JsonValue}};
         string when is_binary(JsonValue) ->
             maybe_decode_desc_string(JsonScalarDecoder1, JsonValue);
         bytes when is_binary(JsonValue) ->
             case decode_bytes(JsonScalarDecoder1, JsonValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    error
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                DecodeBytesError = {error, _Reason} ->
+                    DecodeBytesError
             end;
         int when ?is_i64(JsonValue) ->
-            {JsonScalarDecoder1, {DescHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {int, JsonValue}};
         float when is_float(JsonValue) ->
-            {JsonScalarDecoder1, {DescHint, JsonValue}}
+            {ok, JsonScalarDecoder1, {float, JsonValue}};
+        _ ->
+            {error, type_mismatch}
     end.
 
--spec decode_scalar(JsonScalarDecoder, ScalarHint, JsonValue) -> {JsonScalarDecoder, Scalar} | error when
+-spec decode_scalar(JsonScalarDecoder, ScalarHint, JsonValue) ->
+    {ok, JsonScalarDecoder, Scalar} | {error, ErrorReason}
+when
     JsonScalarDecoder :: t(),
     ScalarHint :: argo_json_scalar_decoder:scalar_hint(),
     JsonValue :: argo_json:json_value(),
-    Scalar :: argo_scalar_value:inner().
+    Scalar :: argo_scalar_value:inner(),
+    ErrorReason :: argo_json_scalar_decoder:error_reason().
 decode_scalar(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{}, ScalarHint, JsonValue) ->
     case ScalarHint of
         string when is_binary(JsonValue) ->
-            {JsonScalarDecoder1, {ScalarHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {string, JsonValue}};
         boolean when is_boolean(JsonValue) ->
-            {JsonScalarDecoder1, {ScalarHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {boolean, JsonValue}};
         varint when ?is_i64(JsonValue) ->
-            {JsonScalarDecoder1, {ScalarHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {varint, JsonValue}};
         float64 when is_float(JsonValue) ->
-            {JsonScalarDecoder1, {ScalarHint, JsonValue}};
+            {ok, JsonScalarDecoder1, {float64, JsonValue}};
         bytes when is_binary(JsonValue) ->
             case decode_bytes(JsonScalarDecoder1, JsonValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    error
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                DecodeBytesError = {error, _Reason} ->
+                    DecodeBytesError
             end;
         {fixed, FixedLength} when ?is_usize(FixedLength) andalso is_binary(JsonValue) ->
             case decode_bytes(JsonScalarDecoder1, JsonValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {fixed, BytesValue}};
-                error ->
-                    error
-            end
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {fixed, BytesValue}};
+                DecodeBytesError = {error, _Reason} ->
+                    DecodeBytesError
+            end;
+        _ ->
+            {error, type_mismatch}
     end.
 
 %%%=============================================================================
@@ -164,20 +175,23 @@ format_error_description(_Key, Value) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
--spec decode_bytes(JsonScalarDecoder, JsonValue) -> {JsonScalarDecoder, BytesValue} | error when
-    JsonScalarDecoder :: t(), JsonValue :: argo_json:json_value(), BytesValue :: binary().
+-spec decode_bytes(JsonScalarDecoder, JsonValue) -> {ok, JsonScalarDecoder, BytesValue} | {error, ErrorReason} when
+    JsonScalarDecoder :: t(),
+    JsonValue :: argo_json:json_value(),
+    BytesValue :: binary(),
+    ErrorReason :: argo_json_scalar_decoder:error_reason().
 decode_bytes(JsonScalarDecoder = #argo_json_scalar_decoder_base64{mode = mixed}, JsonValue) when is_binary(JsonValue) ->
     try base64:decode(argo_types:dynamic_cast(JsonValue), #{padding => false, mode => urlsafe}) of
         BytesValue ->
-            {JsonScalarDecoder, BytesValue}
+            {ok, JsonScalarDecoder, BytesValue}
     catch
         _:_ ->
             try base64:decode(argo_types:dynamic_cast(JsonValue), #{padding => false, mode => standard}) of
                 BytesValue ->
-                    {JsonScalarDecoder, BytesValue}
+                    {ok, JsonScalarDecoder, BytesValue}
             catch
                 _:_ ->
-                    error
+                    {error, invalid}
             end
     end;
 decode_bytes(JsonScalarDecoder = #argo_json_scalar_decoder_base64{mode = Mode}, JsonValue) when
@@ -185,14 +199,14 @@ decode_bytes(JsonScalarDecoder = #argo_json_scalar_decoder_base64{mode = Mode}, 
 ->
     try base64:decode(argo_types:dynamic_cast(JsonValue), #{padding => false, mode => Mode}) of
         BytesValue ->
-            {JsonScalarDecoder, BytesValue}
+            {ok, JsonScalarDecoder, BytesValue}
     catch
         _:_ ->
-            error
+            {error, invalid}
     end.
 
 %% @private
--spec maybe_decode_desc_string(JsonScalarDecoder, JsonValue) -> {JsonScalarDecoder, DescScalar} when
+-spec maybe_decode_desc_string(JsonScalarDecoder, JsonValue) -> {ok, JsonScalarDecoder, DescScalar} when
     JsonScalarDecoder :: t(), JsonValue :: argo_json:json_value(), DescScalar :: argo_desc_value:inner_scalar().
 maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{mode = mixed}, JsonValue) when
     is_binary(JsonValue)
@@ -200,20 +214,20 @@ maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{m
     case JsonValue of
         <<"$B64$", StringValue/bytes>> ->
             case decode_bytes(JsonScalarDecoder1, StringValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                {error, _} ->
+                    {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
             end;
         <<"$U64$", StringValue/bytes>> ->
             case decode_bytes(JsonScalarDecoder1, StringValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                {error, _} ->
+                    {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
             end;
         _ ->
-            {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+            {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
     end;
 maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{mode = standard}, JsonValue) when
     is_binary(JsonValue)
@@ -221,13 +235,13 @@ maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{m
     case JsonValue of
         <<"$B64$", StringValue/bytes>> ->
             case decode_bytes(JsonScalarDecoder1, StringValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                {error, _} ->
+                    {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
             end;
         _ ->
-            {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+            {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
     end;
 maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{mode = urlsafe}, JsonValue) when
     is_binary(JsonValue)
@@ -235,11 +249,11 @@ maybe_decode_desc_string(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{m
     case JsonValue of
         <<"$U64$", StringValue/bytes>> ->
             case decode_bytes(JsonScalarDecoder1, StringValue) of
-                {JsonScalarDecoder2, BytesValue} ->
-                    {JsonScalarDecoder2, {bytes, BytesValue}};
-                error ->
-                    {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+                {ok, JsonScalarDecoder2, BytesValue} ->
+                    {ok, JsonScalarDecoder2, {bytes, BytesValue}};
+                {error, _} ->
+                    {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
             end;
         _ ->
-            {JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
+            {ok, JsonScalarDecoder1, {string, argo_types:unicode_binary(JsonValue)}}
     end.

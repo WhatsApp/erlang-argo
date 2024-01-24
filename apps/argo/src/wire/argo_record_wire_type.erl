@@ -17,6 +17,7 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
@@ -28,8 +29,9 @@
 %% Instance API
 -export([
     find/2,
+    find_index/2,
+    find_index_of/2,
     insert/2
-    % insert/4
 ]).
 
 %% Types
@@ -61,13 +63,32 @@ new(Fields = #argo_index_map{}) ->
 find(#argo_record_wire_type{fields = Fields}, Name) when is_binary(Name) ->
     argo_index_map:find(Name, Fields).
 
+-spec find_index(RecordWireType, Index) -> {ok, FieldWireType} | error when
+    RecordWireType :: t(), Index :: argo_index_map:index(), FieldWireType :: argo_field_wire_type:t().
+find_index(#argo_record_wire_type{fields = Fields}, Index) when ?is_u64(Index) ->
+    case argo_index_map:find_index(Index, Fields) of
+        {ok, {_Name, FieldWireType}} ->
+            {ok, FieldWireType};
+        error ->
+            error
+    end.
+
+-spec find_index_of(RecordWireType, Name) -> {ok, Index, FieldWireType} | error when
+    RecordWireType :: t(),
+    Name :: argo_types:name(),
+    Index :: argo_index_map:index(),
+    FieldWireType :: argo_field_wire_type:t().
+find_index_of(#argo_record_wire_type{fields = Fields}, Name) when is_binary(Name) ->
+    case argo_index_map:find_full(Name, Fields) of
+        {ok, {Index, Name, FieldWireType}} ->
+            {ok, Index, FieldWireType};
+        error ->
+            error
+    end.
+
 -spec insert(RecordWireType, FieldWireType) -> RecordWireType when
     RecordWireType :: t(), FieldWireType :: argo_field_wire_type:t().
 insert(RecordWireType0 = #argo_record_wire_type{fields = Fields0}, FieldWireType = #argo_field_wire_type{name = Name}) ->
     Fields1 = argo_index_map:put(Name, FieldWireType, Fields0),
     RecordWireType1 = RecordWireType0#argo_record_wire_type{fields = Fields1},
     RecordWireType1.
-
-% insert(RecordWireType = #argo_record_wire_type{}, Name, Of = #argo_wire_type{}, Omittable) when is_binary(Name) andalso is_boolean(Omittable) ->
-%     FieldWireType = argo_field_wire_type:new(Name, Of, Omittable),
-%     insert(RecordWireType, FieldWireType).

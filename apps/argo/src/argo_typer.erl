@@ -24,7 +24,9 @@
 %% API
 -export([
     derive_wire_type/3,
-    graphql_type_to_wire_type/2
+    graphql_type_to_wire_type/2,
+    path_to_wire_path/2,
+    wire_path_to_path/2
 ]).
 %% Errors API
 -export([
@@ -52,6 +54,7 @@ derive_wire_type(
     ExecutableDocument = #argo_graphql_executable_document{},
     OptionOperationName1
 ) when ?is_option_binary(OptionOperationName1) ->
+    % "data" Field
     {OptionOperationName2, OperationDefinition} = argo_graphql_executable_document:get_operation_definition(
         ExecutableDocument, OptionOperationName1
     ),
@@ -62,18 +65,22 @@ derive_wire_type(
         DataTypeDefinition,
         OperationDefinition#argo_graphql_operation_definition.selection_set
     ),
-    DataFieldWireType = argo_field_wire_type:new(<<"data">>, DataWireType, false),
-    ErrorsFieldWireType = argo_field_wire_type:new(
-        <<"errors">>,
-        argo_wire_type:nullable(
-            argo_nullable_wire_type:new(argo_wire_type:array(argo_array_wire_type:new(argo_wire_type:error())))
-        ),
-        true
-    ),
+    NullableDataWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(DataWireType)),
+    DataFieldWireType = argo_field_wire_type:new(<<"data">>, NullableDataWireType, false),
+    % "errors" Field
+    ErrorsWireType = argo_wire_type:array(argo_array_wire_type:new(argo_wire_type:error())),
+    NullableErrorsWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(ErrorsWireType)),
+    ErrorsFieldWireType = argo_field_wire_type:new(<<"errors">>, NullableErrorsWireType, true),
+    % "extensions" Field
+    ExtensionsWireType = argo_wire_type:desc(),
+    NullableExtensionsWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(ExtensionsWireType)),
+    ExtensionsFieldWireType = argo_field_wire_type:new(<<"extensions">>, NullableExtensionsWireType, true),
+    % Response Type
     RecordWireType1 = argo_record_wire_type:new(),
     RecordWireType2 = argo_record_wire_type:insert(RecordWireType1, DataFieldWireType),
     RecordWireType3 = argo_record_wire_type:insert(RecordWireType2, ErrorsFieldWireType),
-    WireType = argo_wire_type:record(RecordWireType3),
+    RecordWireType4 = argo_record_wire_type:insert(RecordWireType3, ExtensionsFieldWireType),
+    WireType = argo_wire_type:record(RecordWireType4),
     {OptionOperationName2, WireType}.
 
 -spec graphql_type_to_wire_type(ServiceDocument, Type) -> WireType when
@@ -143,6 +150,80 @@ graphql_type_to_wire_type(ServiceDocument = #argo_graphql_service_document{}, Ty
         end,
     WireType2.
 
+-spec path_to_wire_path(WireType, Path) -> WirePath when
+    WireType :: argo_wire_type:t(), Path :: argo_path_value:segment_list(), WirePath :: argo_wire_path:segment_list().
+path_to_wire_path(_WireType = #argo_wire_type{}, []) ->
+    [];
+path_to_wire_path(#argo_wire_type{inner = #argo_array_wire_type{'of' = Of}}, [ArrayIndex | Path]) when
+    ?is_usize(ArrayIndex) andalso is_list(Path)
+->
+    [ArrayIndex | path_to_wire_path(Of, Path)];
+path_to_wire_path(#argo_wire_type{inner = #argo_nullable_wire_type{'of' = Of}}, Path) when is_list(Path) ->
+    path_to_wire_path(Of, Path);
+path_to_wire_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}, [FieldName | Path]) when
+    is_binary(FieldName) andalso is_list(Path)
+->
+    case argo_record_wire_type:find_index_of(RecordWireType, FieldName) of
+        {ok, FieldIndex, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = Of}} ->
+            [FieldIndex | path_to_wire_path(Of, Path)];
+        error ->
+            error_with_info(badarg, [WireType, [FieldName | Path]], #{2 => {missing_field_name, FieldName}})
+    end;
+path_to_wire_path(WireType = #argo_wire_type{}, Path = [Segment | SegmentList]) when is_list(SegmentList) ->
+    case WireType#argo_wire_type.inner of
+        #argo_array_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_list_index, Segment}});
+        #argo_block_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_wire_type, block}});
+        #argo_desc_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_wire_type, desc}});
+        #argo_error_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_wire_type, error}});
+        #argo_path_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_wire_type, path}});
+        #argo_record_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_field_name, Segment}});
+        #argo_scalar_wire_type{} ->
+            error_with_info(badarg, [WireType, Path], #{2 => {invalid_wire_type, scalar}})
+    end.
+
+-spec wire_path_to_path(WireType, WirePath) -> Path when
+    WireType :: argo_wire_type:t(), WirePath :: argo_wire_path:segment_list(), Path :: argo_path_value:segment_list().
+wire_path_to_path(_WireType = #argo_wire_type{}, []) ->
+    [];
+wire_path_to_path(#argo_wire_type{inner = #argo_array_wire_type{'of' = Of}}, [ArrayIndex | WirePath]) when
+    ?is_usize(ArrayIndex) andalso is_list(WirePath)
+->
+    [ArrayIndex | wire_path_to_path(Of, WirePath)];
+wire_path_to_path(#argo_wire_type{inner = #argo_nullable_wire_type{'of' = Of}}, WirePath) when is_list(WirePath) ->
+    wire_path_to_path(Of, WirePath);
+wire_path_to_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}, [FieldIndex | WirePath]) when
+    ?is_usize(FieldIndex) andalso is_list(WirePath)
+->
+    case argo_record_wire_type:find_index(RecordWireType, FieldIndex) of
+        {ok, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = Of}} ->
+            [FieldName | wire_path_to_path(Of, WirePath)];
+        error ->
+            error_with_info(badarg, [WireType, [FieldIndex | WirePath]], #{2 => {missing_field_index, FieldIndex}})
+    end;
+wire_path_to_path(WireType = #argo_wire_type{}, WirePath = [Segment | SegmentList]) when is_list(SegmentList) ->
+    case WireType#argo_wire_type.inner of
+        #argo_array_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_list_index, Segment}});
+        #argo_block_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_wire_type, block}});
+        #argo_desc_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_wire_type, desc}});
+        #argo_error_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_wire_type, error}});
+        #argo_path_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_wire_type, path}});
+        #argo_record_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_field_index, Segment}});
+        #argo_scalar_wire_type{} ->
+            error_with_info(badarg, [WireType, WirePath], #{2 => {invalid_wire_type, scalar}})
+    end.
+
 %%%=============================================================================
 %%% Errors API functions
 %%%=============================================================================
@@ -170,6 +251,18 @@ format_error_description(_Key, {deduplicate_not_supported, TypeName}) ->
     io_lib:format("directive @ArgoDeduplicate(deduplicate: true) is not supported for scalar type: ~0tp", [TypeName]);
 format_error_description(_Key, {field_selection_type_shape_mismatch, #{field_alias := FieldAlias}}) ->
     io_lib:format("field selection type shape mismatch for alias: ~0tp", [FieldAlias]);
+format_error_description(_Key, {invalid_field_index, Arg}) ->
+    io_lib:format("invalid field index (expected usize integer): ~0tp", [Arg]);
+format_error_description(_Key, {invalid_field_name, Arg}) ->
+    io_lib:format("invalid field name (expected unicode binary): ~0tp", [Arg]);
+format_error_description(_Key, {invalid_list_index, Arg}) ->
+    io_lib:format("invalid list index (expected usize integer): ~0tp", [Arg]);
+format_error_description(_Key, {invalid_wire_type, ActualType}) ->
+    io_lib:format("invalid wire type for wire path conversion: ~0tp", [ActualType]);
+format_error_description(_Key, {missing_field_index, FieldIndex}) ->
+    io_lib:format("field index missing: ~0tp", [FieldIndex]);
+format_error_description(_Key, {missing_field_name, FieldName}) ->
+    io_lib:format("field name missing: ~0tp", [FieldName]);
 format_error_description(_Key, {unsupported_graphql_type, TypeName}) ->
     io_lib:format("unsupported GraphQL type: ~0tp", [TypeName]);
 format_error_description(_Key, Value) ->

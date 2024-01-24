@@ -127,8 +127,9 @@ test_field_omittable(Config) ->
             "      skipNever: STRING<String>\n"
             "      skipVariable?: STRING<String>\n"
             "    }?\n"
-            "  }\n"
+            "  }?\n"
             "  errors?: ERROR[]?\n"
+            "  extensions?: DESC?\n"
             "}"
         >>,
     case Actual =:= Expected of
@@ -174,8 +175,9 @@ test_fragment_spread_omittable(Config) ->
             "        skipNever?: STRING<String>\n"
             "      }\n"
             "    }?\n"
-            "  }\n"
+            "  }?\n"
             "  errors?: ERROR[]?\n"
+            "  extensions?: DESC?\n"
             "}"
         >>,
     case Actual =:= Expected of
@@ -205,8 +207,9 @@ test_inline_fragment_omittable(Config) ->
             "      typeConditionInlineMatch: STRING<String>\n"
             "      typeConditionInlineNoMatch?: STRING<String>\n"
             "    }?\n"
-            "  }\n"
+            "  }?\n"
             "  errors?: ERROR[]?\n"
+            "  extensions?: DESC?\n"
             "}"
         >>,
     case Actual =:= Expected of

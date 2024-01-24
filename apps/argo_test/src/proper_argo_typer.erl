@@ -177,11 +177,12 @@ value(
     ServiceDocument = #argo_graphql_service_document{},
     ExecutableDocument = #argo_graphql_executable_document{},
     OptionOperationName,
-    WireType = #argo_wire_type{}
+    WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}
 ) when ?is_option_binary(OptionOperationName) ->
+    {ok, #argo_field_wire_type{'of' = DataWireType}} = argo_record_wire_type:find(RecordWireType, <<"data">>),
     ?LET(
         Value,
-        proper_argo:value(WireType),
+        proper_argo:maybe_root_wire_type(DataWireType, proper_argo:value(WireType)),
         exactly(value_context(ServiceDocument, ExecutableDocument, OptionOperationName, WireType, Value))
     ).
 

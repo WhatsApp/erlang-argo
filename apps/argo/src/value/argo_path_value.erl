@@ -19,6 +19,7 @@
 
 -include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_value.hrl").
+-include_lib("argo/include/argo_wire_type.hrl").
 
 %% API
 -export([
@@ -30,17 +31,18 @@
     push_field_name/2,
     push_list_index/2,
     size/1,
-    to_list/1
+    to_list/1,
+    to_wire_path/2
 ]).
 
 %% Types
 -type segment() :: {field_name, argo_types:name()} | {list_index, non_neg_integer()}.
--type segments_list() :: [argo_types:name() | non_neg_integer()].
+-type segment_list() :: [argo_types:name() | non_neg_integer()].
 -type t() :: #argo_path_value{}.
 
 -export_type([
     segment/0,
-    segments_list/0,
+    segment_list/0,
     t/0
 ]).
 
@@ -80,13 +82,13 @@ foldr(#argo_path_value{segments = Segments}, Init, Function) when is_function(Fu
         Segments
     ).
 
--spec from_list(SegmentsList) -> PathValue when SegmentsList :: segments_list(), PathValue :: t().
-from_list(SegmentsList) when is_list(SegmentsList) ->
-    lists:foldl(fun from_list/2, new(), SegmentsList).
+-spec from_list(SegmentList) -> PathValue when SegmentList :: segment_list(), PathValue :: t().
+from_list(SegmentList) when is_list(SegmentList) ->
+    lists:foldl(fun from_list/2, new(), SegmentList).
 
 -spec new() -> PathValue when PathValue :: t().
 new() ->
-    #argo_path_value{segments = dynamic_cast(array:new(0, fixed))}.
+    #argo_path_value{segments = argo_types:dynamic_cast(array:new(0, fixed))}.
 
 -spec pop(PathValue) -> {PathValue, none | {some, Segment}} when PathValue :: t(), Segment :: segment().
 pop(PathValue0 = #argo_path_value{segments = Segments0}) ->
@@ -114,18 +116,21 @@ push_list_index(PathValue0 = #argo_path_value{}, Index) when ?is_usize(Index) ->
 size(#argo_path_value{segments = Segments}) ->
     array:size(Segments).
 
--spec to_list(PathValue) -> SegmentsList when PathValue :: t(), SegmentsList :: segments_list().
+-spec to_list(PathValue) -> SegmentList when PathValue :: t(), SegmentList :: segment_list().
 to_list(#argo_path_value{segments = Segments}) ->
     array:foldr(fun to_list/3, [], Segments).
+
+-spec to_wire_path(PathValue, WireType) -> WirePath when
+    PathValue :: t(), WireType :: argo_wire_type:t(), WirePath :: argo_wire_path:t().
+to_wire_path(PathValue = #argo_path_value{}, WireType = #argo_wire_type{}) ->
+    PathValueSegmentList = to_list(PathValue),
+    WirePathSegmentList = argo_typer:path_to_wire_path(WireType, PathValueSegmentList),
+    WirePath = argo_wire_path:from_list(WirePathSegmentList),
+    WirePath.
 
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
-
-%% @private
--compile({inline, [dynamic_cast/1]}).
--spec dynamic_cast(term()) -> dynamic().
-dynamic_cast(X) -> X.
 
 %% @private
 -spec from_list(NameOrIndex, Acc) -> Acc when NameOrIndex :: argo_types:name() | non_neg_integer(), Acc :: t().
@@ -144,7 +149,7 @@ push(PathValue0 = #argo_path_value{segments = Segments0}, Segment) ->
     PathValue1.
 
 %% @private
--spec to_list(Index, Segment, Acc) -> Acc when Index :: non_neg_integer(), Segment :: segment(), Acc :: segments_list().
+-spec to_list(Index, Segment, Acc) -> Acc when Index :: non_neg_integer(), Segment :: segment(), Acc :: segment_list().
 to_list(_Index, {field_name, Name}, Acc) ->
     [Name | Acc];
 to_list(_Index, {list_index, Index}, Acc) ->

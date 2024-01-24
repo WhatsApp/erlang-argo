@@ -84,11 +84,13 @@
 }).
 
 -record(argo_value_decoder, {
-    message :: argo_message_decoder:t()
+    message :: argo_message_decoder:t(),
+    wire_type :: undefined | argo_types:option(argo_wire_type:t())
 }).
 
 -record(argo_value_encoder, {
-    message :: argo_message_encoder:t()
+    message :: argo_message_encoder:t(),
+    wire_type :: undefined | argo_types:option(argo_wire_type:t())
 }).
 
 -endif.

@@ -55,6 +55,10 @@
     inner :: argo_scalar_wire_type:inner()
 }).
 
+-record(argo_wire_path, {
+    segments :: array:array(argo_wire_path:segment())
+}).
+
 -record(argo_wire_type, {
     inner :: argo_wire_type:inner()
 }).

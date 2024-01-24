@@ -129,61 +129,40 @@ decode_scalar_wire_type(
                 ScalarWireTypeInner
         end,
     case JsonScalarDecoderModule:decode_scalar(JsonScalarDecoder1, ScalarHint, JsonValue) of
-        {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) andalso ScalarHint =:= string ->
+        {ok, JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) andalso ScalarHint =:= string ->
             ScalarValue = argo_scalar_value:string(StringValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {JsonScalarDecoder2, {boolean, BooleanValue}} when is_boolean(BooleanValue) andalso ScalarHint =:= boolean ->
+        {ok, JsonScalarDecoder2, {boolean, BooleanValue}} when
+            is_boolean(BooleanValue) andalso ScalarHint =:= boolean
+        ->
             ScalarValue = argo_scalar_value:boolean(BooleanValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso ScalarHint =:= varint ->
+        {ok, JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso ScalarHint =:= varint ->
             ScalarValue = argo_scalar_value:varint(VarintValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {JsonScalarDecoder2, {float64, Float64Value}} when is_float(Float64Value) andalso ScalarHint =:= float64 ->
+        {ok, JsonScalarDecoder2, {float64, Float64Value}} when is_float(Float64Value) andalso ScalarHint =:= float64 ->
             ScalarValue = argo_scalar_value:float64(Float64Value),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso ScalarHint =:= bytes ->
+        {ok, JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso ScalarHint =:= bytes ->
             ScalarValue = argo_scalar_value:bytes(BytesValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {JsonScalarDecoder2, {fixed, FixedValue}} when
+        {ok, JsonScalarDecoder2, {fixed, FixedValue}} when
             is_binary(FixedValue) andalso element(1, ScalarHint) =:= fixed andalso
                 element(2, ScalarHint) =:= byte_size(FixedValue)
         ->
             ScalarValue = argo_scalar_value:fixed(FixedValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
-        {_JsonScalarDecoder2, Scalar} ->
-            case ScalarHint of
-                string ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_string, Scalar}
-                    });
-                boolean ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_boolean, Scalar}
-                    });
-                varint ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_integer, Scalar}
-                    });
-                float64 ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_float, Scalar}
-                    });
-                bytes ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, expected_bytes, Scalar}
-                    });
-                {fixed, Length} ->
-                    error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
-                        3 => {mismatch, {expected_fixed, Length}, Scalar}
-                    })
-            end;
-        error ->
+        {ok, _JsonScalarDecoder2, Scalar} ->
+            error_scalar_type_mismatch([JsonValueDecoder1, ScalarWireType, JsonValue], ScalarHint, Scalar);
+        {error, type_mismatch} ->
+            error_scalar_type_mismatch([JsonValueDecoder1, ScalarWireType, JsonValue], ScalarHint, {json, JsonValue});
+        {error, _} ->
             error_with_info(badarg, [JsonValueDecoder1, ScalarWireType, JsonValue], #{
                 3 => {failed_to_decode_scalar, JsonValue}
             })
@@ -207,34 +186,38 @@ decode_block_wire_type(
                 ScalarWireTypeInner
         end,
     case JsonScalarDecoderModule:decode_block_scalar(JsonScalarDecoder1, BlockKey, BlockScalarHint, JsonValue) of
-        {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) andalso BlockScalarHint =:= string ->
+        {ok, JsonScalarDecoder2, {string, StringValue}} when
+            is_binary(StringValue) andalso BlockScalarHint =:= string
+        ->
             ScalarValue = argo_scalar_value:string(StringValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {JsonScalarDecoder2, {boolean, BooleanValue}} when
+        {ok, JsonScalarDecoder2, {boolean, BooleanValue}} when
             is_boolean(BooleanValue) andalso BlockScalarHint =:= boolean
         ->
             ScalarValue = argo_scalar_value:boolean(BooleanValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso BlockScalarHint =:= varint ->
+        {ok, JsonScalarDecoder2, {varint, VarintValue}} when ?is_i64(VarintValue) andalso BlockScalarHint =:= varint ->
             ScalarValue = argo_scalar_value:varint(VarintValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {JsonScalarDecoder2, {float64, Float64Value}} when is_float(Float64Value) andalso BlockScalarHint =:= float64 ->
+        {ok, JsonScalarDecoder2, {float64, Float64Value}} when
+            is_float(Float64Value) andalso BlockScalarHint =:= float64
+        ->
             ScalarValue = argo_scalar_value:float64(Float64Value),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso BlockScalarHint =:= bytes ->
+        {ok, JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) andalso BlockScalarHint =:= bytes ->
             ScalarValue = argo_scalar_value:bytes(BytesValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {JsonScalarDecoder2, {fixed, FixedValue}} when
+        {ok, JsonScalarDecoder2, {fixed, FixedValue}} when
             is_binary(FixedValue) andalso element(1, BlockScalarHint) =:= fixed andalso
                 element(2, BlockScalarHint) =:= byte_size(FixedValue)
         ->
@@ -242,34 +225,13 @@ decode_block_wire_type(
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
-        {_JsonScalarDecoder2, BlockScalar} ->
-            case BlockScalarHint of
-                string ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, expected_string, BlockScalar}
-                    });
-                boolean ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, expected_boolean, BlockScalar}
-                    });
-                varint ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, expected_integer, BlockScalar}
-                    });
-                float64 ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, expected_float, BlockScalar}
-                    });
-                bytes ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, expected_bytes, BlockScalar}
-                    });
-                {fixed, Length} ->
-                    error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
-                        3 => {mismatch, {expected_fixed, Length}, BlockScalar}
-                    })
-            end;
-        error ->
+        {ok, _JsonScalarDecoder2, BlockScalar} ->
+            error_scalar_type_mismatch([JsonValueDecoder1, BlockWireType, JsonValue], BlockScalarHint, BlockScalar);
+        {error, type_mismatch} ->
+            error_scalar_type_mismatch(
+                [JsonValueDecoder1, BlockWireType, JsonValue], BlockScalarHint, {json, JsonValue}
+            );
+        {error, _} ->
             error_with_info(badarg, [JsonValueDecoder1, BlockWireType, JsonValue], #{
                 3 => {failed_to_decode_scalar, JsonValue}
             })
@@ -437,31 +399,31 @@ decode_desc_wire_type(
             {JsonValueDecoder2, DescValue};
         _ ->
             case JsonScalarDecoderModule:decode_desc_scalar(JsonScalarDecoder1, DescHint, JsonValue) of
-                {JsonScalarDecoder2, null} ->
+                {ok, JsonScalarDecoder2, null} ->
                     DescValue = argo_desc_value:null(),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                {JsonScalarDecoder2, {boolean, BooleanValue}} when is_boolean(BooleanValue) ->
+                {ok, JsonScalarDecoder2, {boolean, BooleanValue}} when is_boolean(BooleanValue) ->
                     DescValue = argo_desc_value:boolean(BooleanValue),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                {JsonScalarDecoder2, {int, IntValue}} when ?is_i64(IntValue) ->
+                {ok, JsonScalarDecoder2, {int, IntValue}} when ?is_i64(IntValue) ->
                     DescValue = argo_desc_value:int(IntValue),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                {JsonScalarDecoder2, {float, FloatValue}} when is_float(FloatValue) ->
+                {ok, JsonScalarDecoder2, {float, FloatValue}} when is_float(FloatValue) ->
                     DescValue = argo_desc_value:float(FloatValue),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                {JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) ->
+                {ok, JsonScalarDecoder2, {bytes, BytesValue}} when is_binary(BytesValue) ->
                     DescValue = argo_desc_value:bytes(BytesValue),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                {JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) ->
+                {ok, JsonScalarDecoder2, {string, StringValue}} when is_binary(StringValue) ->
                     DescValue = argo_desc_value:string(StringValue),
                     JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
                     {JsonValueDecoder2, DescValue};
-                error ->
+                {error, _} ->
                     error_with_info(badarg, [JsonValueDecoder1, JsonValue], #{3 => {failed_to_decode_scalar, JsonValue}})
             end
     end.
@@ -596,6 +558,38 @@ decode_path_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue)
 -spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
 error_with_info(Reason, Args, Cause) ->
     erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).
+
+%% @private
+-compile({inline, [error_scalar_type_mismatch/3]}).
+-spec error_scalar_type_mismatch(Args, ScalarHint, Scalar) -> no_return() when
+    Args :: [dynamic()], ScalarHint :: argo_json_scalar_decoder:scalar_hint(), Scalar :: dynamic().
+error_scalar_type_mismatch(Args, ScalarHint, Scalar) ->
+    case ScalarHint of
+        string ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_string, Scalar}
+            });
+        boolean ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_boolean, Scalar}
+            });
+        varint ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_integer, Scalar}
+            });
+        float64 ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_float, Scalar}
+            });
+        bytes ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_bytes, Scalar}
+            });
+        {fixed, Length} ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, {expected_fixed, Length}, Scalar}
+            })
+    end.
 
 -spec format_error(dynamic(), dynamic()) -> dynamic().
 format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
