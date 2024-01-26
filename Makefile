@@ -107,10 +107,16 @@ endif
 	$(verbose) rm -rf $(ERLFMT_BUILD_DIR)
 
 erlfmt: $(ERLFMT)
-	$(verbose) $(ERLFMT) --verbose --write --require-pragma --print-width=120 'apps/**/{src,include,test}/**/*.{hrl,erl,app.src}' 'apps/**/rebar.config' rebar.config
+	$(verbose) $(ERLFMT) --verbose --write --require-pragma --print-width=120 \
+		'apps/**/{src,include,test}/**/*.{hrl,erl,app.src}' \
+		'apps/**/{rebar.config,rebar.config.script}' \
+		'{rebar.config,rebar.config.script}'
 
 erlfmt-check: $(ERLFMT)
-	$(verbose) $(ERLFMT) --check --require-pragma --print-width=120 'apps/**/{src,include,test}/**/*.{hrl,erl,app.src}' 'apps/**/rebar.config' rebar.config
+	$(verbose) $(ERLFMT) --check --require-pragma --print-width=120 \
+		'apps/**/{src,include,test}/**/*.{hrl,erl,app.src,app.src.script}' \
+		'apps/**/{rebar.config,rebar.config.script}' \
+		'{rebar.config,rebar.config.script}'
 
 distclean-erlfmt:
 	$(gen_verbose) rm -rf $(ERLFMT)

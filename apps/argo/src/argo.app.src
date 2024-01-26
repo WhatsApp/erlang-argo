@@ -7,7 +7,7 @@
 %%% % @format
 {application, argo, [
     {description, "argo: Erlang implementation of Argo for GraphQL"},
-    {vsn, "1.0.1"},
+    {vsn, "1.0.2"},
     {modules, []},
     {registered, []},
     %% NOTE: Remember to sync changes to `applications` to
@@ -34,7 +34,9 @@
         "\\.swp$",
         %% Lexer/Parser files
         "argo_graphql_language_parser\\.erl$",
-        "argo_graphql_language_scanner\\.erl$"
+        "argo_graphql_language_scanner\\.erl$",
+        %% Hex.pm package related
+        "argo\\.app\\.src\\.script$"
     ]},
     {files, [
         "CHANGELOG*",
@@ -43,6 +45,7 @@
         "mix.exs",
         "README*",
         "rebar.config",
+        "rebar.lock",
         "src"
     ]},
     {licenses, ["MIT"]},
