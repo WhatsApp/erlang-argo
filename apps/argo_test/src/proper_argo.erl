@@ -600,16 +600,7 @@ wire_type() ->
         ?LAZY(
             case parameter(?ROOT_SAFE, false) of
                 false ->
-                    ?LET(
-                        {IsNullable, RecordWireType},
-                        {boolean(), with_parameter(?ROOT_SAFE, true, record_wire_type())},
-                        case IsNullable of
-                            false ->
-                                RecordWireType;
-                            true ->
-                                argo_nullable_wire_type:new(argo_wire_type:record(RecordWireType))
-                        end
-                    );
+                    with_parameter(?ROOT_SAFE, true, record_wire_type());
                 true ->
                     oneof([
                         path_wire_type(),
