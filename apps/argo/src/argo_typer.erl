@@ -509,20 +509,27 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                                     {InlineFragmentOmittable,
                                         InlineFragment#argo_graphql_inline_fragment.type_condition}
                             end,
-                        Omittable2 =
-                            Omittable1 orelse
-                                (case OptionTypeCondition of
-                                    none ->
-                                        Omittable1;
-                                    {some, TypeCondition} ->
-                                        TypeCondition =/= SelectionTypeDefinition#argo_graphql_type_definition.name
-                                end),
+                        {Omittable2, TypeConditionDefinition} =
+                            case OptionTypeCondition of
+                                none ->
+                                    {Omittable1, SelectionTypeDefinition};
+                                {some, TypeCondition} ->
+                                    case SelectionTypeDefinition#argo_graphql_type_definition.name of
+                                        TypeCondition ->
+                                            {Omittable1, SelectionTypeDefinition};
+                                        _ ->
+                                            {true,
+                                                argo_graphql_service_document:get_type_definition(
+                                                    ServiceDocument, TypeCondition
+                                                )}
+                                    end
+                            end,
                         Omittable3 =
                             Omittable2 orelse
                                 maybe_omit_selection(Selected#selected_field_node.field#argo_graphql_field.directives),
                         FieldName = Selected#selected_field_node.field#argo_graphql_field.name,
                         FieldDefinition = argo_graphql_type_definition:get_field_definition(
-                            SelectionTypeDefinition, FieldName, ServiceDocument
+                            TypeConditionDefinition, FieldName, ServiceDocument
                         ),
                         FieldSelectionSet = Selected#selected_field_node.field#argo_graphql_field.selection_set,
                         FieldType = FieldDefinition#argo_graphql_field_definition.type,
