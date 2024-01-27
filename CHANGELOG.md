@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3 (????-??-??)
+
+* Enhancements
+  * Add support for JSON encode/decode of `argo_wire_type` and `argo_wire_type_store`.
+* Fixes
+  * Fix `argo_typer` for `interface` based inline fragments (see [msolomon/argo#7](https://github.com/msolomon/argo/issues/7)).
+
 ## 1.0.2 (2024-01-26)
 
 * Fixes

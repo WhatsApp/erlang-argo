@@ -41,6 +41,12 @@
     length :: argo_types:usize()
 }).
 
+-record(argo_json_wire_type_decoder, {}).
+
+-record(argo_json_wire_type_encoder, {
+    strict :: boolean()
+}).
+
 -record(argo_nullable_wire_type, {
     'of' :: argo_wire_type:t()
 }).

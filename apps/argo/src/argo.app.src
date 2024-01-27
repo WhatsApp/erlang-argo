@@ -36,7 +36,9 @@
         "argo_graphql_language_parser\\.erl$",
         "argo_graphql_language_scanner\\.erl$",
         %% Hex.pm package related
-        "argo\\.app\\.src\\.script$"
+        "argo\\.app\\.src\\.script$",
+        %% local development
+        "argo_play\\.erl$"
     ]},
     {files, [
         "CHANGELOG*",

@@ -35,7 +35,9 @@
 %% Test Cases
 -export([
     prop_roundtrip_encoder_and_decoder/0,
-    prop_roundtrip_encoder_and_decoder/1
+    prop_roundtrip_encoder_and_decoder/1,
+    prop_roundtrip_json_encoder_and_json_decoder/0,
+    prop_roundtrip_json_encoder_and_json_decoder/1
 ]).
 
 %%%=============================================================================
@@ -50,7 +52,8 @@ all() ->
 groups() ->
     [
         {wire_type, [parallel], [
-            prop_roundtrip_encoder_and_decoder
+            prop_roundtrip_encoder_and_decoder,
+            prop_roundtrip_json_encoder_and_json_decoder
         ]}
     ].
 
@@ -91,6 +94,24 @@ prop_roundtrip_encoder_and_decoder(Config) ->
             verbose,
             {max_shrinks, 100},
             {numtests, 1000}
+        ]
+    ).
+
+prop_roundtrip_json_encoder_and_json_decoder() ->
+    [
+        {doc, "Property-based test for `argo_wire_type' JSON encoder and JSON decoder."},
+        {timetrap, {seconds, 600}}
+    ].
+
+prop_roundtrip_json_encoder_and_json_decoder(Config) ->
+    argo_proper:quickcheck(
+        argo_wire_type_prop,
+        prop_roundtrip_json_encoder_and_json_decoder,
+        Config,
+        [
+            verbose,
+            {max_shrinks, 10},
+            {numtests, 100}
         ]
     ).
 

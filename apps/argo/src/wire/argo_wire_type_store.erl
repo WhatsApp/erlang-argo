@@ -25,7 +25,9 @@
     display/1,
     display/2,
     format/1,
+    from_json/1,
     from_reader/1,
+    to_json/1,
     to_writer/1,
     to_writer/2
 ]).
@@ -74,12 +76,31 @@ format(WireTypeStore = #argo_wire_type_store{}) ->
             Output
     end.
 
+-spec from_json(JsonValue) -> WireTypeStore when
+    JsonValue :: argo_json:json_value(), WireTypeStore :: t().
+from_json(JsonValue) ->
+    JsonWireTypeDecoder1 = argo_json_wire_type_decoder:new(),
+    {JsonWireTypeDecoder2, WireTypeStore} = argo_json_wire_type_decoder:decode_wire_type_store(
+        JsonWireTypeDecoder1, JsonValue
+    ),
+    _ = JsonWireTypeDecoder2,
+    WireTypeStore.
+
 -spec from_reader(Reader) -> {Reader, WireTypeStore} when Reader :: binary(), WireTypeStore :: t().
 from_reader(Reader1) when is_binary(Reader1) ->
     {Reader2, WireTypeDecoder1} = argo_wire_type_decoder:from_reader(Reader1),
     {WireTypeDecoder2, WireTypeStore} = argo_wire_type_decoder:decode_wire_type_store(WireTypeDecoder1),
     _ = WireTypeDecoder2,
     {Reader2, WireTypeStore}.
+
+-spec to_json(WireTypeStore) -> JsonValue when WireTypeStore :: t(), JsonValue :: argo_json:json_value().
+to_json(WireTypeStore = #argo_wire_type_store{}) ->
+    JsonWireTypeEncoder1 = argo_json_wire_type_encoder:new(#{strict => false}),
+    {JsonWireTypeEncoder2, JsonValue} = argo_json_wire_type_encoder:encode_wire_type_store(
+        JsonWireTypeEncoder1, WireTypeStore
+    ),
+    _ = JsonWireTypeEncoder2,
+    JsonValue.
 
 -spec to_writer(WireTypeStore) -> Writer when WireTypeStore :: t(), Writer :: binary().
 to_writer(WireTypeStore = #argo_wire_type_store{}) ->

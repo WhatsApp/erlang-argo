@@ -27,7 +27,8 @@
 ]).
 %% Properties
 -export([
-    prop_roundtrip_encoder_and_decoder/1
+    prop_roundtrip_encoder_and_decoder/1,
+    prop_roundtrip_json_encoder_and_json_decoder/1
 ]).
 
 %% Macros
@@ -57,6 +58,79 @@ prop_roundtrip_encoder_and_decoder(_Config) ->
         end
     ).
 
+-spec prop_roundtrip_json_encoder_and_json_decoder(ct_suite:ct_config()) -> proper:test().
+prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
+    ?FORALL(
+        WireType,
+        proper_argo:wire_type(),
+        begin
+            JsonEncoded1 = json_encode(WireType),
+            JsonDecoded1 = json_decode(JsonEncoded1),
+            JsonEncoded2 = json_encode(JsonDecoded1),
+            ExpectedWireType = WireType,
+            ActualWireType = JsonDecoded1,
+            ExpectedJson = JsonEncoded1,
+            ActualJson = JsonEncoded2,
+            ?WHENFAIL(
+                begin
+                    io:format(
+                        "FAILURE: Expected (WireType JSON) does not match Actual (WireType JSON)~n"
+                        "Expected (WireType):~n~0tp~n"
+                        "Actual (WireType):~n~0tp~n"
+                        "Expected (String):~n~ts~n"
+                        "Actual (String):~n~ts~n"
+                        "Expected (JSON):~n~ts~n"
+                        "Actual (JSON):~n~ts~n",
+                        [
+                            ExpectedWireType,
+                            ActualWireType,
+                            argo_wire_type:format_with_lines(ExpectedWireType),
+                            argo_wire_type:format_with_lines(ActualWireType),
+                            json_encode_pretty(ExpectedWireType),
+                            json_encode_pretty(ActualWireType)
+                        ]
+                    )
+                end,
+                ExpectedJson =:= ActualJson
+            )
+        end
+    ).
+
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
+
+%% @private
+-spec json_decode(JsonEncoded) -> WireType when
+    JsonEncoded :: binary(), WireType :: argo_wire_type:t().
+json_decode(JsonEncoded) when is_binary(JsonEncoded) ->
+    json_decode(JsonEncoded, []).
+
+%% @private
+-spec json_decode(JsonEncoded, DecodeOptions) -> WireType when
+    JsonEncoded :: binary(),
+    DecodeOptions :: [jsone:decode_option()],
+    WireType :: argo_wire_type:t().
+json_decode(JsonEncoded, DecodeOptions) when
+    is_binary(JsonEncoded) andalso is_list(DecodeOptions)
+->
+    argo_wire_type:from_json(
+        argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple} | DecodeOptions]))
+    ).
+
+%% @private
+-spec json_encode(WireType) -> JsonEncoded when WireType :: argo_wire_type:t(), JsonEncoded :: binary().
+json_encode(WireType = #argo_wire_type{}) ->
+    json_encode(WireType, []).
+
+%% @private
+-spec json_encode(WireType, EncodeOptions) -> JsonEncoded when
+    WireType :: argo_wire_type:t(), EncodeOptions :: [jsone:encode_option()], JsonEncoded :: binary().
+json_encode(WireType, EncodeOptions) when is_list(EncodeOptions) ->
+    jsone:encode(argo_types:dynamic_cast(argo_wire_type:to_json(WireType)), [{float_format, [short]} | EncodeOptions]).
+
+%% @private
+-spec json_encode_pretty(WireType) -> JsonEncoded when
+    WireType :: argo_wire_type:t(), JsonEncoded :: unicode:unicode_binary().
+json_encode_pretty(WireType = #argo_wire_type{}) ->
+    argo_types:format_with_lines(json_encode(WireType, [{indent, 2}])).

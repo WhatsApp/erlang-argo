@@ -41,7 +41,14 @@
     is_string/1,
     is_value/1,
     object_find/2,
-    object_fold/3
+    object_fold/3,
+    object_get/2,
+    object_size/1
+]).
+
+%% Errors API
+-export([
+    format_error/2
 ]).
 
 %% Types
@@ -65,6 +72,13 @@
     json_string/0,
     json_value/0
 ]).
+
+%% Macros
+-define(is_json_object(V),
+    (erlang:is_map(V) orelse
+        (erlang:is_tuple(V) andalso erlang:tuple_size(V) =:= 1 andalso erlang:is_list(erlang:element(1, V))) orelse
+        erlang:is_record(V, argo_index_map))
+).
 
 %%%=============================================================================
 %%% New API functions
@@ -199,3 +213,46 @@ object_fold(Function, Init, IndexMap = #argo_index_map{}) when is_function(Funct
         Init,
         IndexMap
     ).
+
+-spec object_get(Key, JsonObject) -> JsonValue when
+    Key :: json_string(), JsonObject :: json_object(), JsonValue :: json_value().
+object_get(Key, JsonObject) when is_binary(Key) andalso ?is_json_object(JsonObject) ->
+    case object_find(Key, JsonObject) of
+        {ok, Value} ->
+            Value;
+        error ->
+            error_with_info({badkey, Key}, [Key, JsonObject], #{1 => {badkey, Key}})
+    end.
+
+-spec object_size(JsonObject) -> JsonObjectSize when
+    JsonObject :: json_object(), JsonObjectSize :: non_neg_integer().
+object_size(Map) when erlang:is_map(Map) ->
+    maps:size(Map);
+object_size({TupleList}) when erlang:is_list(TupleList) ->
+    length(TupleList);
+object_size(IndexMap = #argo_index_map{}) ->
+    argo_index_map:size(IndexMap).
+
+%%%=============================================================================
+%%% Errors API functions
+%%%=============================================================================
+
+%% @private
+-compile({inline, [error_with_info/3]}).
+-spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
+error_with_info(Reason, Args, Cause) ->
+    erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).
+
+-spec format_error(dynamic(), dynamic()) -> dynamic().
+format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
+    ErrorInfo = proplists:get_value(error_info, Info, #{}),
+    ErrorDescription1 = maps:get(cause, ErrorInfo),
+    ErrorDescription2 = maps:map(fun format_error_description/2, ErrorDescription1),
+    ErrorDescription2.
+
+%% @private
+-spec format_error_description(dynamic(), dynamic()) -> dynamic().
+format_error_description(_Key, {badkey, JsonKey}) ->
+    io_lib:format("not present in JSON Object: ~0tP", [JsonKey, 5]);
+format_error_description(_Key, Value) ->
+    Value.
