@@ -17,9 +17,6 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--include_lib("argo/include/argo_header.hrl").
--include_lib("argo/include/argo_label.hrl").
--include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% API

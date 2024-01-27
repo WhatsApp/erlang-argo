@@ -62,5 +62,6 @@ rebar3.crashdump
 /apps/argo/priv/*.so
 /apps/argo/src/**/argo_graphql_language_parser.erl
 /apps/argo/src/**/argo_graphql_language_scanner.erl
+/elp
 /erlfmt
 /rebar3

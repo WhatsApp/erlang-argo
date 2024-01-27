@@ -1,3 +1,15 @@
+# See https://github.com/msolomon/argo/issues/7
+
+query IncorrectTypeForFieldsInFragment {
+  hero {
+    ... on Human {
+      name
+    }
+  }
+}
+
+# See https://github.com/msolomon/argo/issues/8
+
 query FieldOmittable($include: Boolean = false, $skip: Boolean = true) {
   root {
     includeAlways: __typename @include(if: true)

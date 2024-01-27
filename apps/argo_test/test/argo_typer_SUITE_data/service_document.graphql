@@ -2,9 +2,23 @@ schema {
   query: Query
 }
 
+interface Character {
+  id: ID!
+}
+
 interface Child {
   optional: Child
   required: Child!
+}
+
+type Droid implements Character {
+  id: ID!
+  name: Int!
+}
+
+type Human implements Character {
+  id: ID!
+  name: String!
 }
 
 type Object implements Child {
@@ -13,5 +27,6 @@ type Object implements Child {
 }
 
 type Query {
+  hero: Character
   root: Child
 }

@@ -36,9 +36,10 @@
 -export([
     prop_roundtrip/0,
     prop_roundtrip/1,
-    test_field_omittable/1,
-    test_fragment_spread_omittable/1,
-    test_inline_fragment_omittable/1
+    test_issue_7_incorrect_type_for_fields_in_fragment/1,
+    test_issue_8_field_omittable/1,
+    test_issue_8_fragment_spread_omittable/1,
+    test_issue_8_inline_fragment_omittable/1
 ]).
 
 %%%=============================================================================
@@ -57,9 +58,10 @@ groups() ->
             prop_roundtrip
         ]},
         {static, [parallel], [
-            test_field_omittable,
-            test_fragment_spread_omittable,
-            test_inline_fragment_omittable
+            test_issue_7_incorrect_type_for_fields_in_fragment,
+            test_issue_8_field_omittable,
+            test_issue_8_fragment_spread_omittable,
+            test_issue_8_inline_fragment_omittable
         ]}
     ].
 
@@ -112,7 +114,33 @@ prop_roundtrip(Config) ->
         ]
     ).
 
-test_field_omittable(Config) ->
+test_issue_7_incorrect_type_for_fields_in_fragment(Config) ->
+    ServiceDocument = test_server:lookup_config(service_document, Config),
+    ExecutableDocument = test_server:lookup_config(executable_document, Config),
+    {_, WireType} = argo_typer:derive_wire_type(
+        ServiceDocument, ExecutableDocument, {some, <<"IncorrectTypeForFieldsInFragment">>}
+    ),
+    Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
+    Expected =
+        <<
+            "{\n"
+            "  data: {\n"
+            "    hero: {\n"
+            "      name?: STRING<String>\n"
+            "    }?\n"
+            "  }?\n"
+            "  errors?: ERROR[]?\n"
+            "  extensions?: DESC?\n"
+            "}"
+        >>,
+    case Actual =:= Expected of
+        false ->
+            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
+        true ->
+            ok
+    end.
+
+test_issue_8_field_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
     ExecutableDocument = test_server:lookup_config(executable_document, Config),
     {_, WireType} = argo_typer:derive_wire_type(ServiceDocument, ExecutableDocument, {some, <<"FieldOmittable">>}),
@@ -139,7 +167,7 @@ test_field_omittable(Config) ->
             ok
     end.
 
-test_fragment_spread_omittable(Config) ->
+test_issue_8_fragment_spread_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
     ExecutableDocument = test_server:lookup_config(executable_document, Config),
     {_, WireType} = argo_typer:derive_wire_type(
@@ -187,7 +215,7 @@ test_fragment_spread_omittable(Config) ->
             ok
     end.
 
-test_inline_fragment_omittable(Config) ->
+test_issue_8_inline_fragment_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
     ExecutableDocument = test_server:lookup_config(executable_document, Config),
     {_, WireType} = argo_typer:derive_wire_type(

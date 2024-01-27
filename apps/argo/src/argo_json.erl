@@ -33,6 +33,12 @@
 
 %% Instance API
 -export([
+    as_array/1,
+    as_boolean/1,
+    as_null/1,
+    as_number/1,
+    as_object/1,
+    as_string/1,
     is_array/1,
     is_boolean/1,
     is_null/1,
@@ -135,6 +141,42 @@ value(V = #argo_index_map{}) -> object(V).
 %%%=============================================================================
 %%% Instance API functions
 %%%=============================================================================
+
+-spec as_array(json_value()) -> json_array().
+as_array(JsonArray) when erlang:is_list(JsonArray) ->
+    JsonArray;
+as_array(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_array}).
+
+-spec as_boolean(json_value()) -> json_boolean().
+as_boolean(JsonBoolean) when erlang:is_boolean(JsonBoolean) ->
+    JsonBoolean;
+as_boolean(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_boolean}).
+
+-spec as_null(json_value()) -> json_null().
+as_null(null) ->
+    null;
+as_null(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_null}).
+
+-spec as_number(json_value()) -> json_number().
+as_number(JsonNumber) when erlang:is_number(JsonNumber) ->
+    JsonNumber;
+as_number(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_number}).
+
+-spec as_object(json_value()) -> json_object().
+as_object(JsonObject) when ?is_json_object(JsonObject) ->
+    JsonObject;
+as_object(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_object}).
+
+-spec as_string(json_value()) -> json_string().
+as_string(JsonString) when erlang:is_binary(JsonString) ->
+    JsonString;
+as_string(JsonValue) ->
+    error_with_info(badarg, [JsonValue], #{1 => expected_string}).
 
 -spec is_array(json_value()) -> boolean().
 is_array(V) -> erlang:is_list(V).
@@ -253,6 +295,18 @@ format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
 %% @private
 -spec format_error_description(dynamic(), dynamic()) -> dynamic().
 format_error_description(_Key, {badkey, JsonKey}) ->
-    io_lib:format("not present in JSON Object: ~0tP", [JsonKey, 5]);
+    io_lib:format("not present in JSON object: ~0tP", [JsonKey, 5]);
+format_error_description(_Key, expected_array) ->
+    "expected JSON array";
+format_error_description(_Key, expected_boolean) ->
+    "expected JSON boolean";
+format_error_description(_Key, expected_null) ->
+    "expected JSON null";
+format_error_description(_Key, expected_number) ->
+    "expected JSON number";
+format_error_description(_Key, expected_object) ->
+    "expected JSON object";
+format_error_description(_Key, expected_string) ->
+    "expected JSON string";
 format_error_description(_Key, Value) ->
     Value.
