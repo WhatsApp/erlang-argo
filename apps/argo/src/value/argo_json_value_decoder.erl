@@ -107,7 +107,7 @@ decode_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, WireType = #arg
             {JsonValueDecoder2, Value};
         #argo_extensions_wire_type{} ->
             {JsonValueDecoder2, ExtensionsValue} = decode_extensions_wire_type(JsonValueDecoder1, JsonValue),
-            Value = argo_value:error(ExtensionsValue),
+            Value = argo_value:extensions(ExtensionsValue),
             {JsonValueDecoder2, Value};
         #argo_path_wire_type{} ->
             {JsonValueDecoder2, PathValue} = decode_path_wire_type(JsonValueDecoder1, JsonValue),

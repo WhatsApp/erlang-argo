@@ -109,7 +109,7 @@ decode_wire_type(ValueDecoder1 = #argo_value_decoder{}, WireType = #argo_wire_ty
             {ValueDecoder2, ErrorValue} = decode_error_wire_type(ValueDecoder1),
             Value = argo_value:error(ErrorValue),
             {ValueDecoder2, Value};
-        #argo_extensions_value{} ->
+        #argo_error_wire_type{} ->
             {ValueDecoder2, ExtensionsValue} = decode_extensions_wire_type(ValueDecoder1),
             Value = argo_value:extensions(ExtensionsValue),
             {ValueDecoder2, Value};
