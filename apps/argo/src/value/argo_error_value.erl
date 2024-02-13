@@ -47,11 +47,11 @@
     Message :: argo_desc_value:desc_string(),
     Location :: [argo_location_value:t()],
     Path :: argo_path_value:t(),
-    Extensions :: argo_desc_value:desc_object(),
+    Extensions :: argo_extensions_value:t(),
     ErrorValue :: t().
 new(Message, Location, Path, Extensions) when
     is_binary(Message) andalso ?is_option_list(Location) andalso ?is_option_record(Path, argo_path_value) andalso
-        ?is_option_record(Extensions, argo_index_map)
+        ?is_option_record(Extensions, argo_extensions_value)
 ->
     #argo_error_value{message = Message, location = Location, path = Path, extensions = Extensions}.
 

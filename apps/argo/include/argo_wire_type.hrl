@@ -31,6 +31,8 @@
 
 -record(argo_error_wire_type, {}).
 
+-record(argo_extensions_wire_type, {}).
+
 -record(argo_field_wire_type, {
     name :: argo_types:name(),
     type :: argo_wire_type:t(),

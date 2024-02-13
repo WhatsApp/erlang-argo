@@ -94,6 +94,9 @@ print_wire_type(Printer1 = #argo_wire_type_printer{}, WireType = #argo_wire_type
         #argo_error_wire_type{} ->
             Printer2 = write(Printer1, "ERROR", []),
             Printer2;
+        #argo_extensions_wire_type{} ->
+            Printer2 = write(Printer1, "EXTENSIONS", []),
+            Printer2;
         #argo_path_wire_type{} ->
             Printer2 = write(Printer1, "PATH", []),
             Printer2

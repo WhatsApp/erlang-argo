@@ -69,12 +69,10 @@ derive_wire_type(
     DataFieldWireType = argo_field_wire_type:new(<<"data">>, NullableDataWireType, false),
     % "errors" Field
     ErrorsWireType = argo_wire_type:array(argo_array_wire_type:new(argo_wire_type:error())),
-    NullableErrorsWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(ErrorsWireType)),
-    ErrorsFieldWireType = argo_field_wire_type:new(<<"errors">>, NullableErrorsWireType, true),
+    ErrorsFieldWireType = argo_field_wire_type:new(<<"errors">>, ErrorsWireType, true),
     % "extensions" Field
-    ExtensionsWireType = argo_wire_type:desc(),
-    NullableExtensionsWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(ExtensionsWireType)),
-    ExtensionsFieldWireType = argo_field_wire_type:new(<<"extensions">>, NullableExtensionsWireType, true),
+    ExtensionsWireType = argo_wire_type:extensions(),
+    ExtensionsFieldWireType = argo_field_wire_type:new(<<"extensions">>, ExtensionsWireType, true),
     % Response Type
     RecordWireType1 = argo_record_wire_type:new(),
     RecordWireType2 = argo_record_wire_type:insert(RecordWireType1, DataFieldWireType),
@@ -164,8 +162,8 @@ path_to_wire_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_reco
     is_binary(FieldName) andalso is_list(Path)
 ->
     case argo_record_wire_type:find_index_of(RecordWireType, FieldName) of
-        {ok, FieldIndex, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = Of}} ->
-            [FieldIndex | path_to_wire_path(Of, Path)];
+        {ok, FieldIndex, _FieldWireType = #argo_field_wire_type{name = FieldName, type = Type}} ->
+            [FieldIndex | path_to_wire_path(Type, Path)];
         error ->
             error_with_info(badarg, [WireType, [FieldName | Path]], #{2 => {missing_field_name, FieldName}})
     end;
@@ -201,8 +199,8 @@ wire_path_to_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_reco
     ?is_usize(FieldIndex) andalso is_list(WirePath)
 ->
     case argo_record_wire_type:find_index(RecordWireType, FieldIndex) of
-        {ok, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = Of}} ->
-            [FieldName | wire_path_to_path(Of, WirePath)];
+        {ok, _FieldWireType = #argo_field_wire_type{name = FieldName, type = Type}} ->
+            [FieldName | wire_path_to_path(Type, WirePath)];
         error ->
             error_with_info(badarg, [WireType, [FieldIndex | WirePath]], #{2 => {missing_field_index, FieldIndex}})
     end;
@@ -559,7 +557,7 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                                     error_with_info(
                                         badarg,
                                         [ServiceDocument, SelectionTypeDefinition, SelectionSet],
-                                        {field_selection_type_shape_mismatch, #{field_alias => FieldAlias}}
+                                        #{3 => {field_selection_type_shape_mismatch, #{field_alias => FieldAlias}}}
                                     );
                                 error ->
                                     argo_record_wire_type:insert(RecordWireType1_Acc1_Acc1, FieldWireType)
@@ -579,52 +577,74 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
 %% @private
 -spec always_skip_selection(Directives) -> boolean() when Directives :: argo_graphql_directives:t().
 always_skip_selection(#argo_graphql_directives{directives = Directives}) ->
-    lists:any(
-        fun
-            (#argo_graphql_directive{name = <<"skip">>, arguments = Arguments}) ->
-                case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
-                    {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, true}}}} ->
-                        true;
-                    _ ->
-                        false
-                end;
-            (#argo_graphql_directive{name = <<"include">>, arguments = Arguments}) ->
-                case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
-                    {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, false}}}} ->
-                        true;
-                    _ ->
-                        false
-                end;
-            (#argo_graphql_directive{}) ->
-                false
-        end,
-        Directives
-    ).
+    lists:any(fun always_skip_selection_filter/1, Directives).
+
+%% @private
+-spec always_skip_selection_filter(Directive) -> boolean() when Directive :: argo_graphql_directive:t().
+always_skip_selection_filter(#argo_graphql_directive{name = <<"include">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, false}}}} ->
+            true;
+        _ ->
+            false
+    end;
+always_skip_selection_filter(#argo_graphql_directive{name = <<"skip">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, true}}}} ->
+            true;
+        _ ->
+            false
+    end;
+always_skip_selection_filter(#argo_graphql_directive{}) ->
+    false.
 
 %% @private
 -spec maybe_omit_selection(Directives) -> boolean() when Directives :: argo_graphql_directives:t().
 maybe_omit_selection(#argo_graphql_directives{directives = Directives}) ->
-    lists:any(
-        fun
-            (#argo_graphql_directive{name = <<"skip">>, arguments = Arguments}) ->
-                case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
-                    {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
-                        true;
-                    _ ->
-                        false
-                end;
-            (#argo_graphql_directive{name = <<"include">>, arguments = Arguments}) ->
-                case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
-                    {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
-                        true;
-                    _ ->
-                        false
-                end;
-            (#argo_graphql_directive{}) ->
-                false
-        end,
-        Directives
-    ).
+    lists:any(fun maybe_omit_selection_filter/1, Directives).
+
+%% @private
+-spec maybe_omit_selection_filter(Directive) -> boolean() when Directive :: argo_graphql_directive:t().
+maybe_omit_selection_filter(#argo_graphql_directive{name = <<"defer">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, true}}}} ->
+            true;
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
+            true;
+        error ->
+            % `@defer` without `if` defaults to `true`
+            true;
+        _ ->
+            false
+    end;
+maybe_omit_selection_filter(#argo_graphql_directive{name = <<"include">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
+            true;
+        _ ->
+            false
+    end;
+maybe_omit_selection_filter(#argo_graphql_directive{name = <<"skip">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
+            true;
+        _ ->
+            false
+    end;
+maybe_omit_selection_filter(#argo_graphql_directive{name = <<"stream">>, arguments = Arguments}) ->
+    case argo_graphql_arguments:find_argument(Arguments, <<"if">>) of
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {boolean, true}}}} ->
+            true;
+        {ok, #argo_graphql_argument{value = #argo_graphql_value{inner = {variable, _}}}} ->
+            true;
+        error ->
+            % `@stream` without `if` defaults to `true`
+            true;
+        _ ->
+            false
+    end;
+maybe_omit_selection_filter(#argo_graphql_directive{}) ->
+    false.
 
 %% @private
 -spec wrap_wire_type(Type, WireType) -> WireType when Type :: argo_graphql_type:t(), WireType :: argo_wire_type:t().

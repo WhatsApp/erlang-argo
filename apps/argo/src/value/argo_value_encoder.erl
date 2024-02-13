@@ -82,6 +82,7 @@ encode_value(ValueEncoder1 = #argo_value_encoder{}, Value = #argo_value{}) ->
         RecordValue = #argo_record_value{} -> encode_record_value(ValueEncoder1, RecordValue);
         DescValue = #argo_desc_value{} -> encode_desc_value(ValueEncoder1, DescValue);
         ErrorValue = #argo_error_value{} -> encode_error_value(ValueEncoder1, ErrorValue);
+        ExtensionsValue = #argo_extensions_value{} -> encode_extensions_value(ValueEncoder1, ExtensionsValue);
         PathValue = #argo_path_value{} -> encode_path_value(ValueEncoder1, PathValue)
     end.
 
@@ -375,18 +376,39 @@ encode_error_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1
                         VE2_1 = ValueEncoder2,
                         VE2_2 = VE2_1#argo_value_encoder{message = ME4_2},
                         VE2_2;
-                    {some, Extensions = #argo_index_map{}} ->
+                    {some, Extensions = #argo_extensions_value{}} ->
                         ME4_1 = MessageEncoder4,
                         ME4_2 = argo_message_encoder:write_core_omittable_type(ME4_1, non_null, false),
                         VE2_1 = ValueEncoder2,
                         VE2_2 = VE2_1#argo_value_encoder{message = ME4_2},
-                        VE2_3 = encode_desc_value(VE2_2, argo_desc_value:object(Extensions)),
+                        VE2_3 = encode_extensions_value(VE2_2, Extensions),
                         VE2_3
                 end,
             ValueEncoder3;
         true ->
             encode_self_describing_error_value(ValueEncoder1, ErrorValue)
     end.
+
+%% @private
+-spec encode_extensions_value(ValueEncoder, ExtensionsValue) -> ValueEncoder when
+    ValueEncoder :: t(), ExtensionsValue :: argo_extensions_value:t().
+encode_extensions_value(
+    ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1},
+    _ExtensionsValue = #argo_extensions_value{inner = Extensions}
+) ->
+    MessageEncoder2 = argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT),
+    MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, argo_index_map:size(Extensions)),
+    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
+    ValueEncoder3 = argo_index_map:foldl(
+        fun(_Index, Key, Value, ValueEncoderAcc1 = #argo_value_encoder{message = MessageEncoderAcc1}) ->
+            MessageEncoderAcc2 = argo_message_encoder:encode_block_string(MessageEncoderAcc1, Key),
+            ValueEncoderAcc2 = ValueEncoderAcc1#argo_value_encoder{message = MessageEncoderAcc2},
+            encode_desc_value(ValueEncoderAcc2, Value)
+        end,
+        ValueEncoder2,
+        Extensions
+    ),
+    ValueEncoder3.
 
 %% @private
 -spec encode_path_value(ValueEncoder, PathValue) -> ValueEncoder when

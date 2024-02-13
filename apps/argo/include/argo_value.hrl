@@ -35,7 +35,11 @@
     message :: argo_desc_value:desc_string(),
     location :: none | {some, [argo_location_value:t()]},
     path :: none | {some, argo_path_value:t()},
-    extensions :: none | {some, argo_desc_value:desc_object()}
+    extensions :: none | {some, argo_extensions_value:t()}
+}).
+
+-record(argo_extensions_value, {
+    inner :: argo_extensions_value:inner()
 }).
 
 -record(argo_field_value, {

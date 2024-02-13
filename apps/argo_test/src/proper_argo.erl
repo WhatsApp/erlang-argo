@@ -53,6 +53,7 @@
     block_value/1,
     desc_value/0,
     error_value/0,
+    extensions_value/0,
     field_value/0,
     field_value/1,
     nullable_value/0,
@@ -75,6 +76,7 @@
     block_wire_type/0,
     desc_wire_type/0,
     error_wire_type/0,
+    extensions_wire_type/0,
     field_wire_type/0,
     field_wire_type/1,
     field_wire_type/2,
@@ -309,8 +311,16 @@ desc_value_object(Length) when is_integer(Length) andalso Length >= 0 ->
 error_value() ->
     ?LET(
         {Message, Location, Path, Extensions},
-        {string_utf8(), option(error_value_location()), option(path_value()), option(desc_value_object())},
+        {string_utf8(), option(error_value_location()), option(path_value()), option(extensions_value())},
         argo_error_value:new(Message, Location, Path, Extensions)
+    ).
+
+-spec extensions_value() -> proper_types:type().
+extensions_value() ->
+    ?LET(
+        Extensions,
+        desc_value_object(),
+        argo_extensions_value:new(Extensions)
     ).
 
 %% @private
@@ -459,6 +469,8 @@ value(#argo_wire_type{inner = _DescWireType = #argo_desc_wire_type{}}) ->
     ?LET(Value, desc_value(), argo_value:desc(Value));
 value(#argo_wire_type{inner = _ErrorWireType = #argo_error_wire_type{}}) ->
     ?LET(Value, error_value(), argo_value:error(Value));
+value(#argo_wire_type{inner = _ExtensionsWireType = #argo_extensions_wire_type{}}) ->
+    ?LET(Value, extensions_value(), argo_value:extensions(Value));
 value(#argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}) ->
     ?LET(Value, nullable_value(NullableWireType), argo_value:nullable(Value));
 value(#argo_wire_type{inner = _PathWireType = #argo_path_wire_type{}}) ->
@@ -526,6 +538,10 @@ desc_wire_type() ->
 -spec error_wire_type() -> proper_types:type().
 error_wire_type() ->
     exactly(#argo_error_wire_type{}).
+
+-spec extensions_wire_type() -> proper_types:type().
+extensions_wire_type() ->
+    exactly(#argo_extensions_wire_type{}).
 
 -spec field_wire_type() -> proper_types:type().
 field_wire_type() ->
@@ -608,6 +624,7 @@ wire_type() ->
                         block_wire_type(),
                         desc_wire_type(),
                         error_wire_type(),
+                        extensions_wire_type(),
                         nullable_wire_type(),
                         array_wire_type(),
                         record_wire_type()

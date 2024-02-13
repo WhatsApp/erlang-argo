@@ -64,6 +64,8 @@ encode_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, WireType
             encode_desc_wire_type(JsonWireTypeEncoder1);
         #argo_error_wire_type{} ->
             encode_error_wire_type(JsonWireTypeEncoder1);
+        #argo_extensions_wire_type{} ->
+            encode_extensions_wire_type(JsonWireTypeEncoder1);
         #argo_path_wire_type{} ->
             encode_path_wire_type(JsonWireTypeEncoder1)
     end.
@@ -168,7 +170,7 @@ encode_error_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{stric
     JsonStringWireType = {[{<<"type">>, <<"STRING">>}]},
     JsonVarintWireType = {[{<<"type">>, <<"VARINT">>}]},
     JsonPathWireType = {[{<<"type">>, <<"PATH">>}]},
-    JsonDescWireType = {[{<<"type">>, <<"DESC">>}]},
+    JsonExtensionsWireType = {[{<<"type">>, <<"DESC">>}]},
     JsonLocationRecordWireType =
         {[
             {<<"type">>, <<"RECORD">>},
@@ -189,10 +191,18 @@ encode_error_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{stric
                 {[{<<"name">>, <<"message">>}, {<<"type">>, JsonStringWireType}, {<<"omittable">>, false}]},
                 {[{<<"name">>, <<"location">>}, {<<"type">>, JsonLocationWireType}, {<<"omittable">>, true}]},
                 {[{<<"name">>, <<"path">>}, {<<"type">>, JsonPathWireType}, {<<"omittable">>, true}]},
-                {[{<<"name">>, <<"extensions">>}, {<<"type">>, JsonDescWireType}, {<<"omittable">>, true}]}
+                {[{<<"name">>, <<"extensions">>}, {<<"type">>, JsonExtensionsWireType}, {<<"omittable">>, true}]}
             ]}
         ]},
     {JsonWireTypeEncoder1, JsonErrorWireType}.
+
+%% @private
+-spec encode_extensions_wire_type(JsonWireTypeEncoder) -> {JsonWireTypeEncoder, JsonValue} when
+    JsonWireTypeEncoder :: t(), JsonValue :: argo_json:json_value().
+encode_extensions_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{strict = false}) ->
+    {JsonWireTypeEncoder1, {[{<<"type">>, <<"EXTENSIONS">>}]}};
+encode_extensions_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{strict = true}) ->
+    {JsonWireTypeEncoder1, {[{<<"type">>, <<"DESC">>}]}}.
 
 %% @private
 -spec encode_path_wire_type(JsonWireTypeEncoder) -> {JsonWireTypeEncoder, JsonValue} when

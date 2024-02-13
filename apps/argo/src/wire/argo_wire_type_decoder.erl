@@ -17,7 +17,6 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_label.hrl").
 -include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
@@ -96,6 +95,8 @@ decode_wire_type(WireTypeDecoder1 = #argo_wire_type_decoder{message = MessageDec
             {WireTypeDecoder2, argo_wire_type:desc()};
         ?ARGO_LABEL_WIRE_TYPE_MARKER_ERROR ->
             {WireTypeDecoder2, argo_wire_type:error()};
+        ?ARGO_LABEL_WIRE_TYPE_MARKER_EXTENSIONS ->
+            {WireTypeDecoder2, argo_wire_type:extensions()};
         ?ARGO_LABEL_WIRE_TYPE_MARKER_PATH ->
             {WireTypeDecoder2, argo_wire_type:path()}
     end.

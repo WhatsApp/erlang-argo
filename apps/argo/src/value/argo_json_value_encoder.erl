@@ -36,9 +36,6 @@
     t/0
 ]).
 
-%% Macros
--define(is_json_object(X), (is_map((X)) orelse is_record((X), argo_index_map))).
-
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
@@ -79,6 +76,8 @@ encode_value(JsonValueEncoder1 = #argo_json_value_encoder{}, Value = #argo_value
             encode_desc_value(JsonValueEncoder1, DescValue);
         ErrorValue = #argo_error_value{} ->
             encode_error_value(JsonValueEncoder1, ErrorValue);
+        ExtensionsValue = #argo_extensions_value{} ->
+            encode_extensions_value(JsonValueEncoder1, ExtensionsValue);
         PathValue = #argo_path_value{} ->
             encode_path_value(JsonValueEncoder1, PathValue)
     end.
@@ -294,13 +293,30 @@ encode_error_value(JsonValueEncoder1 = #argo_json_value_encoder{}, ErrorValue = 
         case ErrorValue#argo_error_value.extensions of
             none ->
                 {JsonValueEncoder3, JsonObject4};
-            {some, Extensions} when ?is_json_object(Extensions) ->
+            {some, ExtensionsValue = #argo_extensions_value{}} ->
                 Enc3_1 = JsonValueEncoder3,
-                {Enc3_2, JsonExtensions} = encode_desc_value(Enc3_1, argo_desc_value:object(Extensions)),
+                {Enc3_2, JsonExtensions} = encode_extensions_value(Enc3_1, ExtensionsValue),
                 {Enc3_2, argo_index_map:put(<<"extensions">>, JsonExtensions, JsonObject4)}
         end,
     JsonValue = JsonObject5,
     {JsonValueEncoder4, {argo_index_map:to_list(JsonValue)}}.
+
+-spec encode_extensions_value(JsonValueEncoder, ExtensionsValue) -> {JsonValueEncoder, JsonValue} when
+    JsonValueEncoder :: t(), ExtensionsValue :: argo_extensions_value:t(), JsonValue :: argo_json:json_value().
+encode_extensions_value(
+    JsonValueEncoder1 = #argo_json_value_encoder{}, _ExtensionsValue = #argo_extensions_value{inner = Extensions}
+) ->
+    {JsonValueEncoder2, JsonValue} = argo_index_map:foldl(
+        fun(_Index, Key, Val, {JsonValueEncoderAcc1, ObjectAcc1}) ->
+            JsonKey = argo_json:string(Key),
+            {JsonValueEncoderAcc2, JsonVal} = encode_desc_value(JsonValueEncoderAcc1, Val),
+            ObjectAcc2 = argo_index_map:put(JsonKey, JsonVal, ObjectAcc1),
+            {JsonValueEncoderAcc2, ObjectAcc2}
+        end,
+        {JsonValueEncoder1, argo_index_map:new()},
+        Extensions
+    ),
+    {JsonValueEncoder2, {argo_index_map:to_list(JsonValue)}}.
 
 -spec encode_location_value(JsonValueEncoder, LocationValue) -> {JsonValueEncoder, JsonValue} when
     JsonValueEncoder :: t(), LocationValue :: argo_location_value:t(), JsonValue :: argo_json:json_value().

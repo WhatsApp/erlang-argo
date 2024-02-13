@@ -41,6 +41,7 @@
     block/1,
     desc/0,
     error/0,
+    extensions/0,
     nullable/1,
     path/0,
     record/1,
@@ -54,6 +55,7 @@
     is_block/1,
     is_desc/1,
     is_error/1,
+    is_extensions/1,
     is_labeled/1,
     is_nullable/1,
     is_path/1,
@@ -67,6 +69,7 @@
     | argo_block_wire_type:t()
     | argo_desc_wire_type:t()
     | argo_error_wire_type:t()
+    | argo_extensions_wire_type:t()
     | argo_nullable_wire_type:t()
     | argo_path_wire_type:t()
     | argo_record_wire_type:t()
@@ -166,6 +169,10 @@ desc() ->
 error() ->
     #argo_wire_type{inner = #argo_error_wire_type{}}.
 
+-spec extensions() -> WireType when WireType :: t().
+extensions() ->
+    #argo_wire_type{inner = #argo_extensions_wire_type{}}.
+
 -spec nullable(NullableWireType) -> WireType when NullableWireType :: argo_nullable_wire_type:t(), WireType :: t().
 nullable(NullableWireType = #argo_nullable_wire_type{}) ->
     #argo_wire_type{inner = NullableWireType}.
@@ -210,6 +217,10 @@ is_desc(#argo_wire_type{}) -> false.
 -spec is_error(WireType) -> boolean() when WireType :: t().
 is_error(#argo_wire_type{inner = #argo_error_wire_type{}}) -> true;
 is_error(#argo_wire_type{}) -> false.
+
+-spec is_extensions(WireType) -> boolean() when WireType :: t().
+is_extensions(#argo_wire_type{inner = #argo_extensions_wire_type{}}) -> true;
+is_extensions(#argo_wire_type{}) -> false.
 
 -spec is_labeled(WireType) -> boolean() when WireType :: t().
 is_labeled(#argo_wire_type{inner = ScalarWireType = #argo_scalar_wire_type{}}) ->
@@ -263,6 +274,8 @@ fold_path_values(WireType = #argo_wire_type{}, Function, Acc1, PathValue1 = #arg
         #argo_desc_wire_type{} ->
             Acc1;
         #argo_error_wire_type{} ->
+            Acc1;
+        #argo_extensions_wire_type{} ->
             Acc1;
         #argo_nullable_wire_type{'of' = Of} ->
             fold_path_values(Of, Function, Acc1, PathValue1);

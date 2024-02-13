@@ -89,6 +89,8 @@ print_value(Printer1 = #argo_value_printer{}, Value = #argo_value{}) ->
             print_desc_value(Printer1, DescValue);
         ErrorValue = #argo_error_value{} ->
             print_error_value(Printer1, ErrorValue);
+        ExtensionsValue = #argo_extensions_value{} ->
+            print_extensions_value(Printer1, ExtensionsValue);
         PathValue = #argo_path_value{} ->
             print_path_value(Printer1, PathValue)
     end.
@@ -241,7 +243,7 @@ print_error_value(Printer1 = #argo_value_printer{}, ErrorValue = #argo_error_val
                 P7_1 = Printer7,
                 P7_2 = indent(P7_1),
                 P7_3 = write(P7_2, "extensions: ", []),
-                P7_4 = print_desc_value_object(P7_3, Extensions),
+                P7_4 = print_extensions_value(P7_3, Extensions),
                 P7_5 = write(P7_4, "~n", []),
                 P7_5
         end,
@@ -249,6 +251,32 @@ print_error_value(Printer1 = #argo_value_printer{}, ErrorValue = #argo_error_val
     Printer10 = indent(Printer9),
     Printer11 = write(Printer10, "})", []),
     Printer11.
+
+%% @private
+-spec print_extensions_value(Printer, ExtensionsValue) -> Printer when
+    Printer :: t(), ExtensionsValue :: argo_extensions_value:t().
+print_extensions_value(Printer1 = #argo_value_printer{}, _ExtensionsValue = #argo_extensions_value{inner = Extensions}) ->
+    case argo_index_map:size(Extensions) of
+        0 ->
+            write(Printer1, "EXTENSIONS({})", []);
+        _ ->
+            Printer2 = write(Printer1, "EXTENSIONS({~n", []),
+            Printer3 = argo_index_map:foldl(
+                fun(_Index, Key, DescValue, PrinterAcc1) ->
+                    PrinterAcc2 = indent(PrinterAcc1),
+                    PrinterAcc3 = write(PrinterAcc2, "~0tp: ", [Key]),
+                    PrinterAcc4 = print_desc_value(PrinterAcc3, DescValue),
+                    PrinterAcc5 = write(PrinterAcc4, "~n", []),
+                    PrinterAcc5
+                end,
+                Printer2#argo_value_printer{depth = Printer2#argo_value_printer.depth + 1},
+                Extensions
+            ),
+            Printer4 = Printer3#argo_value_printer{depth = Printer3#argo_value_printer.depth - 1},
+            Printer5 = indent(Printer4),
+            Printer6 = write(Printer5, "})", []),
+            Printer6
+    end.
 
 %% @private
 -spec print_field_value(Printer, FieldValue) -> Printer when

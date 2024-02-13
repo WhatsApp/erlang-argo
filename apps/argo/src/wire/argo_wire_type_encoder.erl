@@ -19,7 +19,6 @@
 
 -include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_label.hrl").
--include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% API
@@ -60,6 +59,7 @@ encode_wire_type(WireTypeEncoder1 = #argo_wire_type_encoder{}, WireType = #argo_
         RecordWireType = #argo_record_wire_type{} -> encode_record_wire_type(WireTypeEncoder1, RecordWireType);
         #argo_desc_wire_type{} -> encode_desc_wire_type(WireTypeEncoder1);
         #argo_error_wire_type{} -> encode_error_wire_type(WireTypeEncoder1);
+        #argo_extensions_wire_type{} -> encode_extensions_wire_type(WireTypeEncoder1);
         #argo_path_wire_type{} -> encode_path_wire_type(WireTypeEncoder1)
     end.
 
@@ -202,6 +202,13 @@ encode_desc_wire_type(WireTypeEncoder1 = #argo_wire_type_encoder{message = Messa
 -spec encode_error_wire_type(WireTypeEncoder) -> WireTypeEncoder when WireTypeEncoder :: t().
 encode_error_wire_type(WireTypeEncoder1 = #argo_wire_type_encoder{message = MessageEncoder1}) ->
     MessageEncoder2 = argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_WIRE_TYPE_MARKER_ERROR),
+    WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder2},
+    WireTypeEncoder2.
+
+%% @private
+-spec encode_extensions_wire_type(WireTypeEncoder) -> WireTypeEncoder when WireTypeEncoder :: t().
+encode_extensions_wire_type(WireTypeEncoder1 = #argo_wire_type_encoder{message = MessageEncoder1}) ->
+    MessageEncoder2 = argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_WIRE_TYPE_MARKER_EXTENSIONS),
     WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder2},
     WireTypeEncoder2.
 

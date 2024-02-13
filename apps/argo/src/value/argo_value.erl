@@ -42,6 +42,7 @@
     block/1,
     desc/1,
     error/1,
+    extensions/1,
     nullable/1,
     path/1,
     record/1,
@@ -54,6 +55,7 @@
     is_block/1,
     is_desc/1,
     is_error/1,
+    is_extensions/1,
     is_labeled/1,
     is_nullable/1,
     is_path/1,
@@ -68,6 +70,7 @@
     | argo_block_value:t()
     | argo_desc_value:t()
     | argo_error_value:t()
+    | argo_extensions_value:t()
     | argo_nullable_value:t()
     | argo_path_value:t()
     | argo_record_value:t()
@@ -199,6 +202,10 @@ desc(DescValue = #argo_desc_value{}) ->
 error(ErrorValue = #argo_error_value{}) ->
     #argo_value{inner = ErrorValue}.
 
+-spec extensions(ExtensionsValue) -> Value when ExtensionsValue :: argo_extensions_value:t(), Value :: t().
+extensions(ExtensionsValue = #argo_extensions_value{}) ->
+    #argo_value{inner = ExtensionsValue}.
+
 -spec nullable(NullableValue) -> Value when NullableValue :: argo_nullable_value:t(), Value :: t().
 nullable(NullableValue = #argo_nullable_value{}) ->
     #argo_value{inner = NullableValue}.
@@ -234,6 +241,10 @@ is_desc(#argo_value{}) -> false.
 -spec is_error(Value) -> boolean() when Value :: t().
 is_error(#argo_value{inner = #argo_error_value{}}) -> true;
 is_error(#argo_value{}) -> false.
+
+-spec is_extensions(Value) -> boolean() when Value :: t().
+is_extensions(#argo_value{inner = #argo_extensions_value{}}) -> true;
+is_extensions(#argo_value{}) -> false.
 
 -spec is_labeled(Value) -> boolean() when Value :: t().
 is_labeled(#argo_value{inner = ScalarValue = #argo_scalar_value{}}) ->
@@ -274,6 +285,8 @@ to_wire_type(#argo_value{inner = #argo_desc_value{}}) ->
     argo_wire_type:desc();
 to_wire_type(#argo_value{inner = #argo_error_value{}}) ->
     argo_wire_type:error();
+to_wire_type(#argo_value{inner = #argo_extensions_value{}}) ->
+    argo_wire_type:extensions();
 to_wire_type(#argo_value{inner = NullableValue = #argo_nullable_value{}}) ->
     NullableWireType = argo_nullable_value:to_nullable_wire_type(NullableValue),
     argo_wire_type:nullable(NullableWireType);
@@ -391,6 +404,18 @@ xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
                         location = OptionLocation2, path = OptionPath2, extensions = OptionExtensions2
                     },
                     {T3, Acc5};
+                #argo_extensions_value{inner = Extensions1} ->
+                    {Extensions2, Acc3} = argo_index_map:foldl(
+                        fun(_Index, Key, DescValue1, {Extensions1_Acc1, Acc2_Acc1}) ->
+                            {DescValue2, Acc2_Acc2} = xform(DescValue1, Acc2_Acc1, Fun),
+                            Extensions1_Acc2 = argo_index_map:put(Key, DescValue2, Extensions1_Acc1),
+                            {Extensions1_Acc2, Acc2_Acc2}
+                        end,
+                        {argo_index_map:new(), Acc2},
+                        Extensions1
+                    ),
+                    T3 = T2#argo_extensions_value{inner = Extensions2},
+                    {T3, Acc3};
                 #argo_nullable_value{inner = null} ->
                     {T2, Acc2};
                 #argo_nullable_value{inner = {non_null, Value1}} ->

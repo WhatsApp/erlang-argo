@@ -139,6 +139,10 @@ decode_wire_type(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, JsonValu
             ok = check_for_unknown_keys(JsonObject, #{<<"type">> => []}),
             WireType = argo_wire_type:error(),
             {JsonWireTypeDecoder1, WireType};
+        <<"EXTENSIONS">> ->
+            ok = check_for_unknown_keys(JsonObject, #{<<"type">> => []}),
+            WireType = argo_wire_type:extensions(),
+            {JsonWireTypeDecoder1, WireType};
         <<"PATH">> ->
             ok = check_for_unknown_keys(JsonObject, #{<<"type">> => []}),
             WireType = argo_wire_type:path(),

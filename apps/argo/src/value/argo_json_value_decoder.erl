@@ -105,6 +105,10 @@ decode_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, WireType = #arg
             {JsonValueDecoder2, ErrorValue} = decode_error_wire_type(JsonValueDecoder1, JsonValue),
             Value = argo_value:error(ErrorValue),
             {JsonValueDecoder2, Value};
+        #argo_extensions_wire_type{} ->
+            {JsonValueDecoder2, ExtensionsValue} = decode_extensions_wire_type(JsonValueDecoder1, JsonValue),
+            Value = argo_value:error(ExtensionsValue),
+            {JsonValueDecoder2, Value};
         #argo_path_wire_type{} ->
             {JsonValueDecoder2, PathValue} = decode_path_wire_type(JsonValueDecoder1, JsonValue),
             Value = argo_value:path(PathValue),
@@ -478,16 +482,10 @@ decode_error_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonObjec
         end,
     {JsonValueDecoder4, Extensions} =
         case argo_json:object_find(<<"extensions">>, JsonObject) of
-            {ok, ExtensionsObject} when ?is_json_object(ExtensionsObject) ->
+            {ok, JsonExtensions} ->
                 Dec3_1 = JsonValueDecoder3,
-                {Dec3_2, #argo_desc_value{inner = {object, ExtensionsValue}}} = decode_desc_wire_type(
-                    Dec3_1, ExtensionsObject
-                ),
+                {Dec3_2, ExtensionsValue} = decode_extensions_wire_type(Dec3_1, JsonExtensions),
                 {Dec3_2, {some, ExtensionsValue}};
-            {ok, ExtensionsActual} ->
-                error_with_info(badarg, [JsonValueDecoder1, JsonObject], #{
-                    2 => {mismatch, expected_object, ExtensionsActual}
-                });
             error ->
                 {JsonValueDecoder3, none}
         end,
@@ -530,6 +528,25 @@ decode_error_wire_type_location(JsonValueDecoder1 = #argo_json_value_decoder{}, 
     LocationValue = argo_location_value:new(Line, Column),
     {JsonValueDecoder1, LocationValue};
 decode_error_wire_type_location(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue) ->
+    error_with_info(badarg, [JsonValueDecoder1, JsonValue], #{2 => {mismatch, expected_object, JsonValue}}).
+
+-spec decode_extensions_wire_type(JsonValueDecoder, JsonValue) -> {JsonValueDecoder, ExtensionsValue} when
+    JsonValueDecoder :: t(), JsonValue :: argo_json:json_value(), ExtensionsValue :: argo_extensions_value:t().
+decode_extensions_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonObject) when
+    ?is_json_object(JsonObject)
+->
+    {JsonValueDecoder2, Extensions} = argo_json:object_fold(
+        fun(JsonKey, JsonVal, {JsonValueDecoderAcc1, ExtensionsAcc1}) when is_binary(JsonKey) ->
+            {JsonValueDecoderAcc2, Val} = decode_desc_wire_type(JsonValueDecoderAcc1, JsonVal),
+            ExtensionsAcc2 = argo_index_map:put(JsonKey, Val, ExtensionsAcc1),
+            {JsonValueDecoderAcc2, ExtensionsAcc2}
+        end,
+        {JsonValueDecoder1, argo_index_map:new()},
+        JsonObject
+    ),
+    ExtensionsValue = argo_extensions_value:new(Extensions),
+    {JsonValueDecoder2, ExtensionsValue};
+decode_extensions_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue) ->
     error_with_info(badarg, [JsonValueDecoder1, JsonValue], #{2 => {mismatch, expected_object, JsonValue}}).
 
 -spec decode_path_wire_type(JsonValueDecoder, JsonValue) -> {JsonValueDecoder, PathValue} when

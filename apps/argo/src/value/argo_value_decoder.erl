@@ -109,6 +109,10 @@ decode_wire_type(ValueDecoder1 = #argo_value_decoder{}, WireType = #argo_wire_ty
             {ValueDecoder2, ErrorValue} = decode_error_wire_type(ValueDecoder1),
             Value = argo_value:error(ErrorValue),
             {ValueDecoder2, Value};
+        #argo_extensions_value{} ->
+            {ValueDecoder2, ExtensionsValue} = decode_extensions_wire_type(ValueDecoder1),
+            Value = argo_value:extensions(ExtensionsValue),
+            {ValueDecoder2, Value};
         #argo_path_wire_type{} ->
             {ValueDecoder2, PathValue} = decode_path_wire_type(ValueDecoder1),
             Value = argo_value:path(PathValue),
@@ -427,20 +431,9 @@ decode_error_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDeco
                     absent ->
                         {ValueDecoder6, none};
                     non_null ->
-                        MD7_1 = MessageDecoder7,
-                        {MD7_2, ExtensionsLabel} = argo_message_decoder:read_core_label(MD7_1),
-                        case ExtensionsLabel of
-                            ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT ->
-                                {MD7_3, ExtensionsLength} = argo_message_decoder:read_core_length(MD7_2),
-                                VD6_1 = ValueDecoder6,
-                                VD6_2 = VD6_1#argo_value_decoder{message = MD7_3},
-                                {VD6_3, ExtensionsValue} = decode_desc_wire_type_object(
-                                    VD6_2, ExtensionsLength, argo_index_map:new()
-                                ),
-                                {VD6_3, {some, ExtensionsValue}};
-                            _ ->
-                                error_with_info(badarg, [ValueDecoder1], #{1 => {invalid_record_label, ExtensionsLabel}})
-                        end
+                        VD6_1 = ValueDecoder6,
+                        {VD6_2, ExtensionsValue} = decode_extensions_wire_type(VD6_1),
+                        {VD6_2, {some, ExtensionsValue}}
                 end,
             ErrorValue = argo_error_value:new(Message, Location, Path, Extensions),
             {ValueDecoder7, ErrorValue};
@@ -462,6 +455,22 @@ decode_error_wire_type_location(ValueDecoder1 = #argo_value_decoder{message = Me
     List2 = [LocationValue | List1],
     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
     decode_error_wire_type_location(ValueDecoder2, Length - 1, List2).
+
+%% @private
+-spec decode_extensions_wire_type(ValueDecoder) -> {ValueDecoder, ExtensionsValue} when
+    ValueDecoder :: t(), ExtensionsValue :: argo_extensions_value:t().
+decode_extensions_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}) ->
+    {MessageDecoder2, ExtensionsLabel} = argo_message_decoder:read_core_label(MessageDecoder1),
+    case ExtensionsLabel of
+        ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT ->
+            {MessageDecoder3, Length} = argo_message_decoder:read_core_length(MessageDecoder2),
+            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
+            {ValueDecoder3, Extensions} = decode_desc_wire_type_object(ValueDecoder2, Length, argo_index_map:new()),
+            ExtensionsValue = argo_extensions_value:new(Extensions),
+            {ValueDecoder3, ExtensionsValue};
+        _ ->
+            error_with_info(badarg, [ValueDecoder1], #{1 => {invalid_record_label, ExtensionsLabel}})
+    end.
 
 %% @private
 -spec decode_path_wire_type(ValueDecoder) -> {ValueDecoder, PathValue} when
@@ -542,7 +551,7 @@ decode_self_describing_error_wire_type_fields(ValueDecoder1 = #argo_value_decode
         end,
     Extensions =
         case maps:find(<<"extensions">>, Map1) of
-            {ok, ExtensionsValue = #argo_index_map{}} ->
+            {ok, ExtensionsValue = #argo_extensions_value{}} ->
                 {some, ExtensionsValue};
             error ->
                 none
@@ -587,21 +596,10 @@ decode_self_describing_error_wire_type_fields(
             Map2 = maps:put(Key, PathValue, Map1),
             decode_self_describing_error_wire_type_fields(ValueDecoder3, Length - 1, Map2);
         <<"extensions">> ->
-            {MessageDecoder3, ExtensionsLabel} = argo_message_decoder:read_core_label(MessageDecoder2),
-            case ExtensionsLabel of
-                ?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT ->
-                    {MessageDecoder4, ExtensionsLength} = argo_message_decoder:read_core_length(MessageDecoder3),
-                    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder4},
-                    {ValueDecoder3, ExtensionsObject} = decode_desc_wire_type_object(
-                        ValueDecoder2, ExtensionsLength, argo_index_map:new()
-                    ),
-                    Map2 = maps:put(Key, ExtensionsObject, Map1),
-                    decode_self_describing_error_wire_type_fields(ValueDecoder3, Length - 1, Map2);
-                _ ->
-                    error_with_info(badarg, [ValueDecoder1, Length, Map1], #{
-                        1 => {invalid_record_label, ExtensionsLabel}
-                    })
-            end;
+            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+            {ValueDecoder3, ExtensionsValue} = decode_extensions_wire_type(ValueDecoder2),
+            Map2 = maps:put(Key, ExtensionsValue, Map1),
+            decode_self_describing_error_wire_type_fields(ValueDecoder3, Length - 1, Map2);
         _ ->
             error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {unknown_field, Key}})
     end.
