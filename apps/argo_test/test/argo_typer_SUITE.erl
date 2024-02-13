@@ -129,8 +129,8 @@ test_issue_7_incorrect_type_for_fields_in_fragment(Config) ->
             "      name?: STRING<String>\n"
             "    }?\n"
             "  }?\n"
-            "  errors?: ERROR[]?\n"
-            "  extensions?: DESC?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
             "}"
         >>,
     case Actual =:= Expected of
@@ -156,8 +156,8 @@ test_issue_8_field_omittable(Config) ->
             "      skipVariable?: STRING<String>\n"
             "    }?\n"
             "  }?\n"
-            "  errors?: ERROR[]?\n"
-            "  extensions?: DESC?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
             "}"
         >>,
     case Actual =:= Expected of
@@ -204,8 +204,8 @@ test_issue_8_fragment_spread_omittable(Config) ->
             "      }\n"
             "    }?\n"
             "  }?\n"
-            "  errors?: ERROR[]?\n"
-            "  extensions?: DESC?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
             "}"
         >>,
     case Actual =:= Expected of
@@ -236,8 +236,8 @@ test_issue_8_inline_fragment_omittable(Config) ->
             "      typeConditionInlineNoMatch?: STRING<String>\n"
             "    }?\n"
             "  }?\n"
-            "  errors?: ERROR[]?\n"
-            "  extensions?: DESC?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
             "}"
         >>,
     case Actual =:= Expected of
