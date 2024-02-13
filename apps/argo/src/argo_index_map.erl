@@ -51,6 +51,9 @@
     take_index/2,
     take_index_of/2,
     to_list/1,
+    update/3,
+    update_with/3,
+    update_with/4,
     values/1
 ]).
 
@@ -427,6 +430,65 @@ to_list(#argo_index_map{entries = Entries}) ->
     array:foldr(fun collect_pairs/3, [], Entries);
 to_list(Iterator = {{_, _}, #argo_index_map{}}) ->
     lists:reverse(foldl_iterator(Iterator, fun collect_pairs/4, [])).
+
+-spec update(Key, Value, IndexMap1) -> IndexMap2 when
+    Key :: key(), Value :: value(), IndexMap1 :: t(Key, Value), IndexMap2 :: t(Key, Value).
+update(Key, Value, IndexMap1 = #argo_index_map{entries = Entries1}) ->
+    case find_full(Key, IndexMap1) of
+        {ok, {_Index, Key, Value}} ->
+            IndexMap1;
+        {ok, {Index, Key, _OldValue}} ->
+            Entries2 = array:set(Index, {Key, Value}, Entries1),
+            IndexMap2 = IndexMap1#argo_index_map{entries = Entries2},
+            IndexMap2;
+        error ->
+            erlang:error({badkey, Key}, [Key, Value, IndexMap1], [{error_info, #{module => ?MODULE}}])
+    end.
+
+-spec update_with(Key, UpdateFun, IndexMap1) -> IndexMap2 when
+    Key :: key(),
+    UpdateFun :: fun((Index, Value1) -> Value2),
+    Index :: index(),
+    Value1 :: value(),
+    Value2 :: value(),
+    IndexMap1 :: t(Key, Value1),
+    IndexMap2 :: t(Key, Value2).
+update_with(Key, UpdateFun, IndexMap1 = #argo_index_map{entries = Entries1}) when is_function(UpdateFun, 2) ->
+    case find_full(Key, IndexMap1) of
+        {ok, {Index, Key, Value1}} ->
+            Value2 = UpdateFun(Index, Value1),
+            Entries2 = array:set(Index, {Key, Value2}, Entries1),
+            IndexMap2 = IndexMap1#argo_index_map{entries = Entries2},
+            IndexMap2;
+        error ->
+            erlang:error({badkey, Key}, [Key, UpdateFun, IndexMap1], [{error_info, #{module => ?MODULE}}])
+    end.
+
+-spec update_with(Key, UpdateFun, InitValue, IndexMap1) -> IndexMap2 when
+    Key :: key(),
+    UpdateFun :: fun((Index, Value1) -> Value2),
+    Index :: index(),
+    Value1 :: value(),
+    Value2 :: value(),
+    InitValue :: value(),
+    IndexMap1 :: t(Key, Value1),
+    IndexMap2 :: t(Key, Value2).
+update_with(Key, UpdateFun, InitValue, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entries1}) when
+    is_function(UpdateFun, 2)
+->
+    case find_full(Key, IndexMap1) of
+        {ok, {Index, Key, Value1}} ->
+            Value2 = UpdateFun(Index, Value1),
+            Entries2 = array:set(Index, {Key, Value2}, Entries1),
+            IndexMap2 = IndexMap1#argo_index_map{entries = Entries2},
+            IndexMap2;
+        error ->
+            Index = array:size(Entries1),
+            Indices2 = maps:put(Key, Index, Indices1),
+            Entries2 = array:fix(array:set(Index, {Key, InitValue}, array:relax(Entries1))),
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices2, entries = Entries2},
+            IndexMap2
+    end.
 
 -spec values(IndexMapOrIterator) -> Values when
     Key :: key(), Value :: value(), IndexMapOrIterator :: t(Key, Value) | iterator(Key, Value), Values :: [Value].

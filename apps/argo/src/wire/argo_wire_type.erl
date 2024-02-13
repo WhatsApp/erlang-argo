@@ -85,10 +85,10 @@
 
 -spec display(WireType) -> ok when WireType :: t().
 display(WireType = #argo_wire_type{}) ->
-    display(WireType, standard_io).
+    display(standard_io, WireType).
 
--spec display(WireType, IoDevice) -> ok when WireType :: t(), IoDevice :: io:device().
-display(WireType = #argo_wire_type{}, IoDevice) when not is_list(IoDevice) ->
+-spec display(IoDevice, WireType) -> ok when IoDevice :: io:device(), WireType :: t().
+display(IoDevice, WireType = #argo_wire_type{}) when not is_list(IoDevice) ->
     Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
     Printer2 = argo_wire_type_printer:print_wire_type(Printer1, WireType),
     case argo_wire_type_printer:finalize(Printer2) of
@@ -270,10 +270,10 @@ fold_path_values(WireType = #argo_wire_type{}, Function, Acc1, PathValue1 = #arg
             Acc1;
         #argo_record_wire_type{fields = Fields} ->
             Acc2 = argo_index_map:foldl(
-                fun(_Index, FieldName, #argo_field_wire_type{'of' = Of}, Acc1_Acc1) ->
+                fun(_Index, FieldName, #argo_field_wire_type{type = FieldType}, Acc1_Acc1) ->
                     PathValue2 = argo_path_value:push_field_name(PathValue1, FieldName),
                     Acc1_Acc2 = Function(PathValue2, Acc1_Acc1),
-                    Acc1_Acc3 = fold_path_values(Of, Function, Acc1_Acc2, PathValue2),
+                    Acc1_Acc3 = fold_path_values(FieldType, Function, Acc1_Acc2, PathValue2),
                     Acc1_Acc3
                 end,
                 Acc1,

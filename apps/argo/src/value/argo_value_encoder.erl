@@ -63,7 +63,7 @@ encode_value(ValueEncoder1 = #argo_value_encoder{wire_type = undefined}, Value =
             case argo_record_value:find(RecordValue, <<"data">>) of
                 {ok,
                     _FieldValue = #argo_field_value{
-                        wire_type = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}
+                        wire_type = #argo_field_wire_type{type = DataWireType = #argo_wire_type{}}
                     }} ->
                     encode_value(ValueEncoder1, Value, {some, DataWireType});
                 error ->

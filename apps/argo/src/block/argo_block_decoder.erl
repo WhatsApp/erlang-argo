@@ -152,7 +152,7 @@ decode_boolean(
                             ?ARGO_LABEL_MARKER_TRUE ->
                                 true;
                             Actual ->
-                                error_with_info(badarg, [BlockDecoder1, CoreReader1], {invalid_boolean, Actual})
+                                error_with_info(badarg, [BlockDecoder1, CoreReader1], #{2 => {invalid_boolean, Actual}})
                         end,
                     {BlockDecoder1, CoreReader2, Value};
                 #argo_normal_block_decoder{} ->
@@ -184,7 +184,7 @@ decode_bytes(
                             Value = array:get(Index, References1),
                             {BlockDecoder1, CoreReader2, Value};
                         {backreference, Index} ->
-                            error_with_info(badarg, [BlockDecoder1, CoreReader1], {invalid_backreference, Index});
+                            error_with_info(badarg, [BlockDecoder1, CoreReader1], #{2 => {invalid_backreference, Index}});
                         {length, Length} ->
                             {Values2, Value} = argo_block_reader:read_bytes(Values1, Length),
                             References2 = array:resize(ReferencesSize + 1, References1),

@@ -37,15 +37,15 @@
 %%% API functions
 %%%=============================================================================
 
--spec new(Name, Of, Omittable) -> FieldWireType when
-    Name :: argo_types:name(), Of :: argo_wire_type:t(), Omittable :: boolean(), FieldWireType :: t().
-new(Name, Of = #argo_wire_type{}, Omittable) when is_binary(Name) andalso is_boolean(Omittable) ->
-    #argo_field_wire_type{name = Name, 'of' = Of, omittable = Omittable}.
+-spec new(Name, Type, Omittable) -> FieldWireType when
+    Name :: argo_types:name(), Type :: argo_wire_type:t(), Omittable :: boolean(), FieldWireType :: t().
+new(Name, Type = #argo_wire_type{}, Omittable) when is_binary(Name) andalso is_boolean(Omittable) ->
+    #argo_field_wire_type{name = Name, type = Type, omittable = Omittable}.
 
 -compile({inline, [is_labeled/1]}).
 -spec is_labeled(FieldWireType) -> boolean() when FieldWireType :: t().
-is_labeled(#argo_field_wire_type{'of' = Of}) ->
-    argo_wire_type:is_labeled(Of).
+is_labeled(#argo_field_wire_type{type = Type}) ->
+    argo_wire_type:is_labeled(Type).
 
 -spec is_omittable(FieldWireType) -> boolean() when FieldWireType :: t().
 is_omittable(#argo_field_wire_type{omittable = Omittable}) ->

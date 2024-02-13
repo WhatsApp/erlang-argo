@@ -34,6 +34,7 @@
 %% API
 -export([
     new/0,
+    new/1,
     inline_everything/1,
     set_inline_everything/2,
     self_describing/1,
@@ -58,9 +59,19 @@
 ]).
 
 %% Types
+-type options() :: #{
+    inline_everything => boolean(),
+    self_describing => boolean(),
+    out_of_band_field_errors => boolean(),
+    self_describing_errors => boolean(),
+    null_terminated_strings => boolean(),
+    no_deduplication => boolean(),
+    user_flags => undefined | bitstring()
+}.
 -type t() :: #argo_header{}.
 
 -export_type([
+    options/0,
     t/0
 ]).
 
@@ -166,6 +177,33 @@ encode_varbit(<<Chunk:7/bits, Rest/bits>>) ->
 -spec new() -> t().
 new() ->
     #argo_header{}.
+
+-spec new(options()) -> t().
+new(Options) when is_map(Options) ->
+    Config = [
+        {inline_everything, fun set_inline_everything/2},
+        {self_describing, fun set_self_describing/2},
+        {out_of_band_field_errors, fun set_out_of_band_field_errors/2},
+        {self_describing_errors, fun set_self_describing_errors/2},
+        {null_terminated_strings, fun set_null_terminated_strings/2},
+        {no_deduplication, fun set_no_deduplication/2},
+        {user_flags, fun set_user_flags/2}
+    ],
+    new(Options, Config, new()).
+
+%% @private
+-spec new(Options, Config, Header) -> Header when
+    Options :: options(), Config :: [{atom(), fun((Header, dynamic()) -> {Header, dynamic()})}], Header :: t().
+new(_Options, [], Header) ->
+    Header;
+new(Options, [{Key, SetFun} | Config], Header1) when is_map(Options) ->
+    case maps:find(Key, Options) of
+        {ok, Value} ->
+            {Header2, _} = SetFun(Header1, Value),
+            new(Options, Config, Header2);
+        error ->
+            new(Options, Config, Header1)
+    end.
 
 -spec inline_everything(t()) -> boolean().
 inline_everything(#argo_header{inline_everything = V}) ->

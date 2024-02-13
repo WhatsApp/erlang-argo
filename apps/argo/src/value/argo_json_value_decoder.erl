@@ -327,7 +327,7 @@ decode_field_wire_type(
             case argo_json:object_find(Name, JsonObject) of
                 {ok, JsonValue} ->
                     {JsonValueDecoder2, Value} = decode_wire_type(
-                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.'of', JsonValue
+                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.type, JsonValue
                     ),
                     FieldValue = argo_field_value:required(FieldWireType, Value),
                     {JsonValueDecoder2, FieldValue};
@@ -340,7 +340,7 @@ decode_field_wire_type(
             case argo_json:object_find(Name, JsonObject) of
                 {ok, JsonValue} ->
                     {JsonValueDecoder2, Value} = decode_wire_type(
-                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.'of', JsonValue
+                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.type, JsonValue
                     ),
                     FieldValue = argo_field_value:optional(FieldWireType, {some, Value}),
                     {JsonValueDecoder2, FieldValue};

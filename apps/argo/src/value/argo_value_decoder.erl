@@ -70,7 +70,7 @@ decode_wire_type(ValueDecoder1 = #argo_value_decoder{wire_type = undefined}, Wir
     case WireType#argo_wire_type.inner of
         RecordWireType = #argo_record_wire_type{} ->
             case argo_record_wire_type:find(RecordWireType, <<"data">>) of
-                {ok, _FieldWireType = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}} ->
+                {ok, _FieldWireType = #argo_field_wire_type{type = DataWireType = #argo_wire_type{}}} ->
                     decode_wire_type(ValueDecoder1, WireType, {some, DataWireType});
                 error ->
                     RootWireType = WireType,
@@ -276,11 +276,11 @@ decode_field_wire_type(
 ) ->
     case FieldWireType#argo_field_wire_type.omittable of
         false ->
-            {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, FieldWireType#argo_field_wire_type.'of'),
+            {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, FieldWireType#argo_field_wire_type.type),
             FieldValue = argo_field_value:required(FieldWireType, Value),
             {ValueDecoder2, FieldValue};
         true ->
-            IsLabeled = argo_wire_type:is_labeled(FieldWireType#argo_field_wire_type.'of'),
+            IsLabeled = argo_wire_type:is_labeled(FieldWireType#argo_field_wire_type.type),
             {MessageDecoder2, OmittableType} = argo_message_decoder:read_core_omittable_type(
                 MessageDecoder1, IsLabeled
             ),
@@ -292,7 +292,7 @@ decode_field_wire_type(
                 non_null ->
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
                     {ValueDecoder3, Value} = decode_wire_type(
-                        ValueDecoder2, FieldWireType#argo_field_wire_type.'of'
+                        ValueDecoder2, FieldWireType#argo_field_wire_type.type
                     ),
                     FieldValue = argo_field_value:optional(FieldWireType, {some, Value}),
                     {ValueDecoder3, FieldValue}
@@ -849,7 +849,7 @@ decode_self_describing_record_wire_type_fields(
             case argo_index_map:find(FieldName, RecordWireType#argo_record_wire_type.fields) of
                 {ok, FieldWireType = #argo_field_wire_type{}} ->
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-                    {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, FieldWireType#argo_field_wire_type.'of'),
+                    {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, FieldWireType#argo_field_wire_type.type),
                     case FieldWireType#argo_field_wire_type.omittable of
                         false ->
                             Map2 = maps:put(FieldName, argo_field_value:required(FieldWireType, Value), Map1),

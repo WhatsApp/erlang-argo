@@ -148,10 +148,10 @@ encode_record_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, #
 -spec encode_field_wire_type(JsonWireTypeEncoder, FieldWireType) -> {JsonWireTypeEncoder, JsonValue} when
     JsonWireTypeEncoder :: t(), FieldWireType :: argo_field_wire_type:t(), JsonValue :: argo_json:json_value().
 encode_field_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, #argo_field_wire_type{
-    name = Name, 'of' = Of, omittable = Omittable
+    name = Name, type = Type, omittable = Omittable
 }) ->
-    {JsonWireTypeEncoder2, JsonOf} = encode_wire_type(JsonWireTypeEncoder1, Of),
-    {JsonWireTypeEncoder2, {[{<<"name">>, Name}, {<<"type">>, JsonOf}, {<<"omittable">>, Omittable}]}}.
+    {JsonWireTypeEncoder2, JsonType} = encode_wire_type(JsonWireTypeEncoder1, Type),
+    {JsonWireTypeEncoder2, {[{<<"name">>, Name}, {<<"type">>, JsonType}, {<<"omittable">>, Omittable}]}}.
 
 %% @private
 -spec encode_desc_wire_type(JsonWireTypeEncoder) -> {JsonWireTypeEncoder, JsonValue} when

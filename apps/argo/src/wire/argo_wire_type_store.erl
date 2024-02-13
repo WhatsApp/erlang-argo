@@ -25,6 +25,7 @@
     display/1,
     display/2,
     format/1,
+    format_with_lines/1,
     from_json/1,
     from_reader/1,
     to_json/1,
@@ -56,10 +57,10 @@
 
 -spec display(WireTypeStore) -> ok when WireTypeStore :: t().
 display(WireTypeStore = #argo_wire_type_store{}) ->
-    display(WireTypeStore, standard_io).
+    display(standard_io, WireTypeStore).
 
--spec display(WireTypeStore, IoDevice) -> ok when WireTypeStore :: t(), IoDevice :: io:device().
-display(WireTypeStore = #argo_wire_type_store{}, IoDevice) when not is_list(IoDevice) ->
+-spec display(IoDevice, WireTypeStore) -> ok when IoDevice :: io:device(), WireTypeStore :: t().
+display(IoDevice, WireTypeStore = #argo_wire_type_store{}) when not is_list(IoDevice) ->
     Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
     Printer2 = argo_wire_type_printer:print_wire_type_store(Printer1, WireTypeStore),
     case argo_wire_type_printer:finalize(Printer2) of
@@ -75,6 +76,10 @@ format(WireTypeStore = #argo_wire_type_store{}) ->
         Output when is_list(Output) ->
             Output
     end.
+
+-spec format_with_lines(WireTypeStore) -> unicode:unicode_binary() when WireTypeStore :: t().
+format_with_lines(WireTypeStore = #argo_wire_type_store{}) ->
+    argo_types:format_with_lines(format(WireTypeStore)).
 
 -spec from_json(JsonValue) -> WireTypeStore when
     JsonValue :: argo_json:json_value(), WireTypeStore :: t().

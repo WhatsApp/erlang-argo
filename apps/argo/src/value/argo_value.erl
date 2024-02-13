@@ -95,10 +95,10 @@
 
 -spec display(Value) -> ok when Value :: t().
 display(Value = #argo_value{}) ->
-    display(Value, standard_io).
+    display(standard_io, Value).
 
--spec display(Value, IoDevice) -> ok when Value :: t(), IoDevice :: io:device().
-display(Value = #argo_value{}, IoDevice) when not is_list(IoDevice) ->
+-spec display(IoDevice, Value) -> ok when IoDevice :: io:device(), Value :: t().
+display(IoDevice, Value = #argo_value{}) when not is_list(IoDevice) ->
     Printer1 = argo_value_printer:new_io_device(IoDevice),
     Printer2 = argo_value_printer:print_value(Printer1, Value),
     case argo_value_printer:finalize(Printer2) of

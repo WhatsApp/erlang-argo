@@ -31,7 +31,8 @@
     find/2,
     find_index/2,
     find_index_of/2,
-    insert/2
+    insert/2,
+    update/2
 ]).
 
 %% Types
@@ -90,5 +91,12 @@ find_index_of(#argo_record_wire_type{fields = Fields}, Name) when is_binary(Name
     RecordWireType :: t(), FieldWireType :: argo_field_wire_type:t().
 insert(RecordWireType0 = #argo_record_wire_type{fields = Fields0}, FieldWireType = #argo_field_wire_type{name = Name}) ->
     Fields1 = argo_index_map:put(Name, FieldWireType, Fields0),
+    RecordWireType1 = RecordWireType0#argo_record_wire_type{fields = Fields1},
+    RecordWireType1.
+
+-spec update(RecordWireType, FieldWireType) -> RecordWireType when
+    RecordWireType :: t(), FieldWireType :: argo_field_wire_type:t().
+update(RecordWireType0 = #argo_record_wire_type{fields = Fields0}, FieldWireType = #argo_field_wire_type{name = Name}) ->
+    Fields1 = argo_index_map:update(Name, FieldWireType, Fields0),
     RecordWireType1 = RecordWireType0#argo_record_wire_type{fields = Fields1},
     RecordWireType1.

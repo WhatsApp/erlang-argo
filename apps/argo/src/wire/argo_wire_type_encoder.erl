@@ -183,7 +183,7 @@ encode_field_wire_type(
     WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder2},
     WireTypeEncoder3 =
         #argo_wire_type_encoder{message = MessageEncoder3} = encode_wire_type(
-            WireTypeEncoder2, FieldWireType#argo_field_wire_type.'of'
+            WireTypeEncoder2, FieldWireType#argo_field_wire_type.type
         ),
     MessageEncoder4 = argo_message_encoder:encode_block_boolean(
         MessageEncoder3, FieldWireType#argo_field_wire_type.omittable

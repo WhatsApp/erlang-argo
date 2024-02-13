@@ -44,6 +44,7 @@
     read_core_bytes/2,
     read_core_float64/1,
     read_core_label/1,
+    read_core_labeled_type/1,
     read_core_length/1,
     read_core_nullable_type/2,
     read_core_omittable_type/2,
@@ -178,6 +179,13 @@ read_core_label(MessageDecoder1 = #argo_message_decoder{core = Core1}) ->
     {Core2, Label} = argo_core_reader:read_label(Core1),
     MessageDecoder2 = MessageDecoder1#argo_message_decoder{core = Core2},
     {MessageDecoder2, Label}.
+
+-spec read_core_labeled_type(MessageDecoder) -> {MessageDecoder, LabeledType} when
+    MessageDecoder :: t(), LabeledType :: argo_core:labeled_type().
+read_core_labeled_type(MessageDecoder1 = #argo_message_decoder{core = Core1}) ->
+    {Core2, LabeledType} = argo_core_reader:read_labeled_type(Core1),
+    MessageDecoder2 = MessageDecoder1#argo_message_decoder{core = Core2},
+    {MessageDecoder2, LabeledType}.
 
 -spec read_core_length(MessageDecoder) -> {MessageDecoder, Length} when
     MessageDecoder :: t(), Length :: argo_types:length().

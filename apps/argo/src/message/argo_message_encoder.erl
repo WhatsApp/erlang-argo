@@ -38,6 +38,7 @@
     write_core_bytes/2,
     write_core_float64/2,
     write_core_label/2,
+    write_core_labeled_type/2,
     write_core_length/2,
     write_core_nullable_type/3,
     write_core_omittable_type/3,
@@ -145,6 +146,13 @@ write_core_float64(MessageEncoder1 = #argo_message_encoder{core = Core1}, Value)
 -spec write_core_label(MessageEncoder, Label) -> MessageEncoder when MessageEncoder :: t(), Label :: argo_types:i64().
 write_core_label(MessageEncoder1 = #argo_message_encoder{core = Core1}, Label) when ?is_i64(Label) ->
     Core2 = argo_core_writer:write_label(Core1, Label),
+    MessageEncoder2 = MessageEncoder1#argo_message_encoder{core = Core2},
+    MessageEncoder2.
+
+-spec write_core_labeled_type(MessageEncoder, LabeledType) -> MessageEncoder when
+    MessageEncoder :: t(), LabeledType :: argo_core:labeled_type().
+write_core_labeled_type(MessageEncoder1 = #argo_message_encoder{core = Core1}, LabeledType) ->
+    Core2 = argo_core_writer:write_labeled_type(Core1, LabeledType),
     MessageEncoder2 = MessageEncoder1#argo_message_encoder{core = Core2},
     MessageEncoder2.
 

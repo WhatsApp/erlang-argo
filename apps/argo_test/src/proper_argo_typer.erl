@@ -179,7 +179,7 @@ value(
     OptionOperationName,
     WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}
 ) when ?is_option_binary(OptionOperationName) ->
-    {ok, #argo_field_wire_type{'of' = DataWireType}} = argo_record_wire_type:find(RecordWireType, <<"data">>),
+    {ok, #argo_field_wire_type{type = DataWireType}} = argo_record_wire_type:find(RecordWireType, <<"data">>),
     ?LET(
         Value,
         proper_argo:maybe_root_wire_type(DataWireType, proper_argo:value(WireType)),

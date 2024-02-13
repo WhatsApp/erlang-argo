@@ -333,10 +333,10 @@ field_value() ->
     ?LET(FieldWireType, field_wire_type(), field_value(FieldWireType)).
 
 -spec field_value(FieldWireType :: argo_field_wire_type:t()) -> proper_types:type().
-field_value(FieldWireType = #argo_field_wire_type{'of' = Of, omittable = true}) ->
+field_value(FieldWireType = #argo_field_wire_type{type = Type, omittable = true}) ->
     ?LET(
         OptionValue,
-        option(value(Of)),
+        option(value(Type)),
         case OptionValue of
             none ->
                 argo_field_value:optional(FieldWireType, OptionValue);
@@ -344,8 +344,8 @@ field_value(FieldWireType = #argo_field_wire_type{'of' = Of, omittable = true}) 
                 argo_field_value:optional(FieldWireType, OptionValue)
         end
     );
-field_value(FieldWireType = #argo_field_wire_type{'of' = Of}) ->
-    ?LET(Value, value(Of), argo_field_value:required(FieldWireType, Value)).
+field_value(FieldWireType = #argo_field_wire_type{type = Type}) ->
+    ?LET(Value, value(Type), argo_field_value:required(FieldWireType, Value)).
 
 -spec nullable_value() -> proper_types:type().
 nullable_value() ->

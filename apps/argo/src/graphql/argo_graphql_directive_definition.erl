@@ -105,6 +105,22 @@ builtin(DirectiveName = <<"ArgoDeduplicate">>) ->
     DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [DeduplicateArgumentDefinition2]),
     DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['SCALAR', 'ENUM']),
     {ok, DirectiveDefinition3};
+builtin(DirectiveName = <<"defer">>) ->
+    % See: https://github.com/graphql/graphql-spec/pull/742
+    DirectiveDefinition1 = new(DirectiveName, false),
+    LabelArgumentType = argo_graphql_type:named_type(<<"String">>),
+    LabelArgumentDefinition1 = argo_graphql_input_value_definition:new(<<"label">>, LabelArgumentType),
+    IfArgumentType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IfArgumentDefaultValue = argo_graphql_value_const:boolean(true),
+    IfArgumentDefinition1 = argo_graphql_input_value_definition:new(<<"if">>, IfArgumentType),
+    IfArgumentDefinition2 = argo_graphql_input_value_definition:set_default_value(
+        IfArgumentDefinition1, {some, IfArgumentDefaultValue}
+    ),
+    DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [
+        LabelArgumentDefinition1, IfArgumentDefinition2
+    ]),
+    DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['FRAGMENT_SPREAD', 'INLINE_FRAGMENT']),
+    {ok, DirectiveDefinition3};
 builtin(DirectiveName = <<"deprecated">>) ->
     % See: https://spec.graphql.org/draft/#sec--deprecated
     DirectiveDefinition1 = new(DirectiveName, false),
@@ -142,6 +158,30 @@ builtin(DirectiveName = <<"specifiedBy">>) ->
     UrlArgumentDefinition = argo_graphql_input_value_definition:new(<<"url">>, UrlArgumentType),
     DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [UrlArgumentDefinition]),
     DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['SCALAR']),
+    {ok, DirectiveDefinition3};
+builtin(DirectiveName = <<"stream">>) ->
+    % See: https://github.com/graphql/graphql-spec/pull/742
+    DirectiveDefinition1 = new(DirectiveName, false),
+    LabelArgumentType = argo_graphql_type:named_type(<<"String">>),
+    LabelArgumentDefinition1 = argo_graphql_input_value_definition:new(<<"label">>, LabelArgumentType),
+    IfArgumentType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IfArgumentDefaultValue = argo_graphql_value_const:boolean(true),
+    IfArgumentDefinition1 = argo_graphql_input_value_definition:new(<<"if">>, IfArgumentType),
+    IfArgumentDefinition2 = argo_graphql_input_value_definition:set_default_value(
+        IfArgumentDefinition1, {some, IfArgumentDefaultValue}
+    ),
+    InitialCountArgumentType = argo_graphql_type:named_type(<<"Int">>),
+    InitialCountArgumentDefaultValue = argo_graphql_value_const:int(0),
+    InitialCountArgumentDefinition1 = argo_graphql_input_value_definition:new(
+        <<"initialCount">>, InitialCountArgumentType
+    ),
+    InitialCountArgumentDefinition2 = argo_graphql_input_value_definition:set_default_value(
+        InitialCountArgumentDefinition1, {some, InitialCountArgumentDefaultValue}
+    ),
+    DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [
+        LabelArgumentDefinition1, IfArgumentDefinition2, InitialCountArgumentDefinition2
+    ]),
+    DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['FIELD']),
     {ok, DirectiveDefinition3};
 builtin(DirectiveName) when is_binary(DirectiveName) ->
     error.

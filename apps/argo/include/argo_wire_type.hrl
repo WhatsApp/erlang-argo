@@ -33,7 +33,7 @@
 
 -record(argo_field_wire_type, {
     name :: argo_types:name(),
-    'of' :: argo_wire_type:t(),
+    type :: argo_wire_type:t(),
     omittable :: boolean()
 }).
 

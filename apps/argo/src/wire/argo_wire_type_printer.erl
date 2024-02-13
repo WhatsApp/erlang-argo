@@ -140,7 +140,7 @@ print_field_wire_type(Printer1 = #argo_wire_type_printer{}, FieldWireType = #arg
             true ->
                 write(Printer3, "~ts?: ", [FieldWireType#argo_field_wire_type.name])
         end,
-    Printer5 = print_wire_type(Printer4, FieldWireType#argo_field_wire_type.'of'),
+    Printer5 = print_wire_type(Printer4, FieldWireType#argo_field_wire_type.type),
     Printer6 = write(Printer5, "~n", []),
     Printer7 = Printer6#argo_wire_type_printer{depth = Printer6#argo_wire_type_printer.depth - 1},
     Printer7.
