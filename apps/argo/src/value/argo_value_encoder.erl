@@ -516,12 +516,12 @@ encode_self_describing_error_value(
                 VE2_1 = ValueEncoder2,
                 VE2_2 = VE2_1#argo_value_encoder{message = ME8_1},
                 VE2_2;
-            {some, Extensions = #argo_index_map{}} ->
+            {some, ExtensionsValue = #argo_extensions_value{}} ->
                 ME8_1 = MessageEncoder8,
                 ME8_2 = argo_message_encoder:encode_block_string(ME8_1, <<"extensions">>),
                 VE2_1 = ValueEncoder2,
                 VE2_2 = VE2_1#argo_value_encoder{message = ME8_2},
-                VE2_3 = encode_desc_value(VE2_2, argo_desc_value:object(Extensions)),
+                VE2_3 = encode_extensions_value(VE2_2, ExtensionsValue),
                 VE2_3
         end,
     ValueEncoder3.
