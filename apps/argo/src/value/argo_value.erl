@@ -389,15 +389,7 @@ xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
                                 {OptionExtensions1, Acc4};
                             {some, Extensions1} ->
                                 A4_1 = Acc4,
-                                {Extensions2, A4_2} = argo_index_map:foldl(
-                                    fun(_Index, DescKey, DescValue1, {Extensions1_Acc1, A4_1_Acc1}) ->
-                                        {DescValue2, A4_1_Acc2} = xform(DescValue1, A4_1_Acc1, Fun),
-                                        Extensions1_Acc2 = argo_index_map:put(DescKey, DescValue2, Extensions1_Acc1),
-                                        {Extensions1_Acc2, A4_1_Acc2}
-                                    end,
-                                    {argo_index_map:new(), A4_1},
-                                    Extensions1
-                                ),
+                                {Extensions2, A4_2} = xform(Extensions1, A4_1, Fun),
                                 {{some, Extensions2}, A4_2}
                         end,
                     T3 = T2#argo_error_value{
