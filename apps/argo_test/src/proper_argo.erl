@@ -462,23 +462,23 @@ value() ->
 
 -spec value(WireType :: argo_wire_type:t()) -> proper_types:type().
 value(#argo_wire_type{inner = ArrayWireType = #argo_array_wire_type{}}) ->
-    ?LET(Value, array_value(ArrayWireType), argo_value:array(Value));
+    ?LAZY(?LET(Value, array_value(ArrayWireType), argo_value:array(Value)));
 value(#argo_wire_type{inner = BlockWireType = #argo_block_wire_type{}}) ->
-    ?LET(Value, block_value(BlockWireType), argo_value:block(Value));
+    ?LAZY(?LET(Value, block_value(BlockWireType), argo_value:block(Value)));
 value(#argo_wire_type{inner = _DescWireType = #argo_desc_wire_type{}}) ->
-    ?LET(Value, desc_value(), argo_value:desc(Value));
+    ?LAZY(?LET(Value, desc_value(), argo_value:desc(Value)));
 value(#argo_wire_type{inner = _ErrorWireType = #argo_error_wire_type{}}) ->
-    ?LET(Value, error_value(), argo_value:error(Value));
+    ?LAZY(?LET(Value, error_value(), argo_value:error(Value)));
 value(#argo_wire_type{inner = _ExtensionsWireType = #argo_extensions_wire_type{}}) ->
-    ?LET(Value, extensions_value(), argo_value:extensions(Value));
+    ?LAZY(?LET(Value, extensions_value(), argo_value:extensions(Value)));
 value(#argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}) ->
-    ?LET(Value, nullable_value(NullableWireType), argo_value:nullable(Value));
+    ?LAZY(?LET(Value, nullable_value(NullableWireType), argo_value:nullable(Value)));
 value(#argo_wire_type{inner = _PathWireType = #argo_path_wire_type{}}) ->
-    ?LET(Value, path_value(), argo_value:path(Value));
+    ?LAZY(?LET(Value, path_value(), argo_value:path(Value)));
 value(WireType = #argo_wire_type{inner = RecordWireType = #argo_record_wire_type{}}) ->
-    maybe_root_wire_type(WireType, ?LET(Value, record_value(RecordWireType), argo_value:record(Value)));
+    ?LAZY(maybe_root_wire_type(WireType, ?LET(Value, record_value(RecordWireType), argo_value:record(Value))));
 value(#argo_wire_type{inner = ScalarWireType = #argo_scalar_wire_type{}}) ->
-    ?LET(Value, scalar_value(ScalarWireType), argo_value:scalar(Value)).
+    ?LAZY(?LET(Value, scalar_value(ScalarWireType), argo_value:scalar(Value))).
 
 -spec value_json_safe() -> proper_types:type().
 value_json_safe() ->
@@ -639,6 +639,7 @@ wire_type() ->
             #argo_block_wire_type{} -> argo_wire_type:block(InnerWireType);
             #argo_desc_wire_type{} -> argo_wire_type:desc();
             #argo_error_wire_type{} -> argo_wire_type:error();
+            #argo_extensions_wire_type{} -> argo_wire_type:extensions();
             #argo_nullable_wire_type{} -> argo_wire_type:nullable(InnerWireType);
             #argo_path_wire_type{} -> argo_wire_type:path();
             #argo_record_wire_type{} -> argo_wire_type:record(InnerWireType);
