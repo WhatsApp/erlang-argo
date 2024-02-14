@@ -1,6 +1,6 @@
 # `argo`
 
-[![Build Status](https://github.com/WhatsApp/erlang-argo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WhatsApp/argo/actions) [![Hex.pm](https://img.shields.io/hexpm/v/argo_graphql.svg)](https://hex.pm/packages/argo_graphql)
+[![Build Status](https://github.com/WhatsApp/erlang-argo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WhatsApp/erlang-argo/actions) [![Hex.pm](https://img.shields.io/hexpm/v/argo_graphql.svg)](https://hex.pm/packages/argo_graphql)
 
 `argo` for GraphQL.
 

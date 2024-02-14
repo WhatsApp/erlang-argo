@@ -190,7 +190,17 @@ strip_whitespace_right([]) ->
 
 -spec block_string_character() -> proper_types:type().
 block_string_character() ->
-    unicode_codepoint_upto(4).
+    % LineTerminator in the scanner can produce mismatched descriptions that visually look identical
+    % after scanning, parsing, and outputting the block string characters again.
+    %
+    % The problematic characters are
+    %
+    % 1. \x{000D} (\r)
+    % 2. \x{2028} (Unicode Line Separator)
+    % 3. \x{2029} (Unicode Paragraph Separator)
+    %
+    % To simplify things, the only LineTerminator we allow is \x{000A} (or \n).
+    ?SUCHTHAT(C, unicode_codepoint_upto(4), (C =/= 16#000D andalso C =/= 16#2028 andalso C =/= 16#2029)).
 
 -spec block_string_value() -> proper_types:type().
 block_string_value() ->
