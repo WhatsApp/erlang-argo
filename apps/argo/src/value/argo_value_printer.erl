@@ -17,17 +17,14 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_index_map.hrl").
--include_lib("argo/include/argo_label.hrl").
--include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% API
 -export([
-    new_io_device/1,
-    new_string/0,
+    new_io_device/2,
+    new_string/1,
     finalize/1,
     print_value/2
 ]).
@@ -35,13 +32,18 @@
 %% Records
 -record(argo_value_printer, {
     depth = 0 :: non_neg_integer(),
-    output = [] :: iolist() | io:device()
+    output = [] :: iolist() | io:device(),
+    strict = false :: boolean()
 }).
 
 %% Types
+-type options() :: #{
+    strict => boolean()
+}.
 -type t() :: #argo_value_printer{}.
 
 -export_type([
+    options/0,
     t/0
 ]).
 
@@ -49,13 +51,15 @@
 %%% API functions
 %%%=============================================================================
 
--spec new_io_device(IoDevice) -> Printer when IoDevice :: io:device(), Printer :: t().
-new_io_device(IoDevice) when not is_list(IoDevice) ->
-    #argo_value_printer{depth = 0, output = IoDevice}.
+-spec new_io_device(IoDevice, Options) -> Printer when IoDevice :: io:device(), Options :: options(), Printer :: t().
+new_io_device(IoDevice, Options) when is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_value_printer{depth = 0, output = IoDevice, strict = Strict}.
 
--spec new_string() -> Printer when Printer :: t().
-new_string() ->
-    #argo_value_printer{depth = 0, output = []}.
+-spec new_string(Options) -> Printer when Options :: options(), Printer :: t().
+new_string(Options) when is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_value_printer{depth = 0, output = [], strict = Strict}.
 
 -spec finalize(Printer) -> ok | iolist() when Printer :: t().
 finalize(#argo_value_printer{output = Output}) when is_list(Output) ->
@@ -191,32 +195,41 @@ print_desc_value_object(Printer1 = #argo_value_printer{}, Object = #argo_index_m
 -spec print_error_value(Printer, ErrorValue) -> Printer when
     Printer :: t(), ErrorValue :: argo_error_value:t().
 print_error_value(Printer1 = #argo_value_printer{}, ErrorValue = #argo_error_value{}) ->
-    Printer2 = write(Printer1, "ERROR({~n", []),
+    {ErrorLabelOpen, ErrorLabelClose, LocationLabelOpen, LocationLabelClose} =
+        case Printer1 of
+            #argo_value_printer{strict = false} ->
+                {"ERROR({", "})", "LOCATION({", "})"};
+            #argo_value_printer{strict = true} ->
+                {"{", "}", "{", "}"}
+        end,
+    Printer2 = write(Printer1, "~ts~n", [ErrorLabelOpen]),
     Printer3 = Printer2#argo_value_printer{depth = Printer2#argo_value_printer.depth + 1},
     Printer4 = indent(Printer3),
     Printer5 = write(Printer4, "message: ~0tp~n", [ErrorValue#argo_error_value.message]),
     Printer6 =
-        case ErrorValue#argo_error_value.location of
+        case ErrorValue#argo_error_value.locations of
             none ->
                 Printer5;
             {some, []} ->
                 P5_1 = Printer5,
                 P5_2 = indent(P5_1),
-                P5_3 = write(P5_2, "location: []~n", []),
+                P5_3 = write(P5_2, "locations: []~n", []),
                 P5_3;
-            {some, Location} ->
+            {some, Locations} ->
                 P5_1 = Printer5,
                 P5_2 = indent(P5_1),
-                P5_3 = write(P5_2, "location: [~n", []),
+                P5_3 = write(P5_2, "locations: [~n", []),
                 P5_4 = P5_3#argo_value_printer{depth = P5_3#argo_value_printer.depth + 1},
                 P5_5 = lists:foldl(
                     fun(#argo_location_value{line = Line, column = Column}, P5_4_Acc1) ->
                         P5_4_Acc2 = indent(P5_4_Acc1),
-                        P5_4_Acc3 = write(P5_4_Acc2, "LOCATION({line: ~0tp, column: ~0tp})~n", [Line, Column]),
+                        P5_4_Acc3 = write(P5_4_Acc2, "~tsline: ~0tp, column: ~0tp~ts~n", [
+                            LocationLabelOpen, Line, Column, LocationLabelClose
+                        ]),
                         P5_4_Acc3
                     end,
                     P5_4,
-                    Location
+                    Locations
                 ),
                 P5_6 = P5_5#argo_value_printer{depth = P5_5#argo_value_printer.depth - 1},
                 P5_7 = indent(P5_6),
@@ -249,18 +262,25 @@ print_error_value(Printer1 = #argo_value_printer{}, ErrorValue = #argo_error_val
         end,
     Printer9 = Printer8#argo_value_printer{depth = Printer8#argo_value_printer.depth - 1},
     Printer10 = indent(Printer9),
-    Printer11 = write(Printer10, "})", []),
+    Printer11 = write(Printer10, "~ts", [ErrorLabelClose]),
     Printer11.
 
 %% @private
 -spec print_extensions_value(Printer, ExtensionsValue) -> Printer when
     Printer :: t(), ExtensionsValue :: argo_extensions_value:t().
 print_extensions_value(Printer1 = #argo_value_printer{}, _ExtensionsValue = #argo_extensions_value{inner = Extensions}) ->
+    ExtensionsLabel =
+        case Printer1 of
+            #argo_value_printer{strict = false} ->
+                "EXTENSIONS";
+            #argo_value_printer{strict = true} ->
+                "DESC"
+        end,
     case argo_index_map:size(Extensions) of
         0 ->
-            write(Printer1, "EXTENSIONS({})", []);
+            write(Printer1, "~ts({})", [ExtensionsLabel]);
         _ ->
-            Printer2 = write(Printer1, "EXTENSIONS({~n", []),
+            Printer2 = write(Printer1, "~ts({~n", [ExtensionsLabel]),
             Printer3 = argo_index_map:foldl(
                 fun(_Index, Key, DescValue, PrinterAcc1) ->
                     PrinterAcc2 = indent(PrinterAcc1),
@@ -317,7 +337,25 @@ print_nullable_value(Printer1 = #argo_value_printer{}, NullableValue = #argo_nul
             Printer2 = write(Printer1, "NON_NULL(", []),
             Printer3 = print_value(Printer2, Value),
             Printer4 = write(Printer3, ")", []),
-            Printer4
+            Printer4;
+        {field_errors, []} ->
+            write(Printer1, "FIELD_ERRORS([])", []);
+        {field_errors, ErrorValueList} ->
+            Printer2 = write(Printer1, "FIELD_ERRORS([~n", []),
+            Printer3 = lists:foldl(
+                fun(ErrorValue, PrinterAcc1) ->
+                    PrinterAcc2 = indent(PrinterAcc1),
+                    PrinterAcc3 = print_error_value(PrinterAcc2, ErrorValue),
+                    PrinterAcc4 = write(PrinterAcc3, ",~n", []),
+                    PrinterAcc4
+                end,
+                Printer2#argo_value_printer{depth = Printer2#argo_value_printer.depth + 1},
+                ErrorValueList
+            ),
+            Printer4 = Printer3#argo_value_printer{depth = Printer3#argo_value_printer.depth - 1},
+            Printer5 = indent(Printer4),
+            Printer6 = write(Printer5, "])", []),
+            Printer6
     end.
 
 %% @private

@@ -17,15 +17,19 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-behaviour(argo_debug_type).
+
 -include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
+%% argo_debug_type callbacks
+-export([
+    display/3,
+    format/2
+]).
+
 %% Codec API
 -export([
-    display/1,
-    display/2,
-    format/1,
-    format_with_lines/1,
     from_json/1,
     from_reader/1,
     to_json/1,
@@ -41,6 +45,8 @@
 %% Instance API
 -export([
     find/2,
+    find_entry/2,
+    insert/2,
     insert/3
 ]).
 
@@ -52,34 +58,34 @@
 ]).
 
 %%%=============================================================================
-%%% Codec API functions
+%%% argo_debug_type callbacks
 %%%=============================================================================
 
--spec display(WireTypeStore) -> ok when WireTypeStore :: t().
-display(WireTypeStore = #argo_wire_type_store{}) ->
-    display(standard_io, WireTypeStore).
-
--spec display(IoDevice, WireTypeStore) -> ok when IoDevice :: io:device(), WireTypeStore :: t().
-display(IoDevice, WireTypeStore = #argo_wire_type_store{}) when not is_list(IoDevice) ->
-    Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
+-spec display(IoDevice, WireTypeStore, Options) -> ok when
+    IoDevice :: io:device(), WireTypeStore :: t(), Options :: argo_wire_type_printer:options().
+display(IoDevice, WireTypeStore = #argo_wire_type_store{}, Options) when
+    not is_list(IoDevice) andalso is_map(Options)
+->
+    Printer1 = argo_wire_type_printer:new_io_device(IoDevice, Options),
     Printer2 = argo_wire_type_printer:print_wire_type_store(Printer1, WireTypeStore),
     case argo_wire_type_printer:finalize(Printer2) of
         ok ->
             ok
     end.
 
--spec format(WireTypeStore) -> Output when WireTypeStore :: t(), Output :: iolist().
-format(WireTypeStore = #argo_wire_type_store{}) ->
-    Printer1 = argo_wire_type_printer:new_string(),
+-spec format(WireTypeStore, Options) -> Output when
+    WireTypeStore :: t(), Options :: argo_wire_type_printer:options(), Output :: unicode:unicode_binary().
+format(WireTypeStore = #argo_wire_type_store{}, Options) when is_map(Options) ->
+    Printer1 = argo_wire_type_printer:new_string(Options),
     Printer2 = argo_wire_type_printer:print_wire_type_store(Printer1, WireTypeStore),
     case argo_wire_type_printer:finalize(Printer2) of
         Output when is_list(Output) ->
-            Output
+            argo_types:unicode_binary(Output)
     end.
 
--spec format_with_lines(WireTypeStore) -> unicode:unicode_binary() when WireTypeStore :: t().
-format_with_lines(WireTypeStore = #argo_wire_type_store{}) ->
-    argo_types:format_with_lines(format(WireTypeStore)).
+%%%=============================================================================
+%%% Codec API functions
+%%%=============================================================================
 
 -spec from_json(JsonValue) -> WireTypeStore when
     JsonValue :: argo_json:json_value(), WireTypeStore :: t().
@@ -132,14 +138,35 @@ new() ->
 
 -spec find(WireTypeStore, TypeName) -> {ok, WireType} | error when
     WireTypeStore :: t(), TypeName :: argo_types:name(), WireType :: argo_wire_type:t().
-find(#argo_wire_type_store{types = Types}, TypeName) when is_binary(TypeName) ->
+find(WireTypeStore = #argo_wire_type_store{}, TypeName) when is_binary(TypeName) ->
+    case find_entry(WireTypeStore, TypeName) of
+        {ok, #argo_wire_type_store_entry{type = WireType}} ->
+            {ok, WireType};
+        error ->
+            error
+    end.
+
+-spec find_entry(WireTypeStore, TypeName) -> {ok, WireTypeStoreEntry} | error when
+    WireTypeStore :: t(), TypeName :: argo_types:name(), WireTypeStoreEntry :: argo_wire_type_store_entry:t().
+find_entry(#argo_wire_type_store{types = Types}, TypeName) when is_binary(TypeName) ->
     argo_index_map:find(TypeName, Types).
+
+-spec insert(WireTypeStore, WireTypeStoreEntry) -> WireTypeStore when
+    WireTypeStore :: t(), WireTypeStoreEntry :: argo_wire_type_store_entry:t().
+insert(
+    WireTypeStore1 = #argo_wire_type_store{types = Types1},
+    WireTypeStoreEntry = #argo_wire_type_store_entry{name = TypeName}
+) when
+    is_binary(TypeName)
+->
+    Types2 = argo_index_map:put(TypeName, WireTypeStoreEntry, Types1),
+    WireTypeStore2 = WireTypeStore1#argo_wire_type_store{types = Types2},
+    WireTypeStore2.
 
 -spec insert(WireTypeStore, TypeName, WireType) -> WireTypeStore when
     WireTypeStore :: t(), TypeName :: argo_types:name(), WireType :: argo_wire_type:t().
-insert(WireTypeStore1 = #argo_wire_type_store{types = Types1}, TypeName, WireType = #argo_wire_type{}) when
+insert(WireTypeStore = #argo_wire_type_store{}, TypeName, WireType = #argo_wire_type{}) when
     is_binary(TypeName)
 ->
-    Types2 = argo_index_map:put(TypeName, WireType, Types1),
-    WireTypeStore2 = WireTypeStore1#argo_wire_type_store{types = Types2},
-    WireTypeStore2.
+    WireTypeStoreEntry = argo_wire_type_store_entry:new(TypeName, WireType),
+    insert(WireTypeStore, WireTypeStoreEntry).

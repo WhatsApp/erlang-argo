@@ -43,23 +43,23 @@
 %%% API functions
 %%%=============================================================================
 
--spec new(Message, none | {some, Location}, none | {some, Path}, none | {some, Extensions}) -> ErrorValue when
+-spec new(Message, none | {some, Locations}, none | {some, Path}, none | {some, Extensions}) -> ErrorValue when
     Message :: argo_desc_value:desc_string(),
-    Location :: [argo_location_value:t()],
+    Locations :: [argo_location_value:t()],
     Path :: argo_path_value:t(),
     Extensions :: argo_extensions_value:t(),
     ErrorValue :: t().
-new(Message, Location, Path, Extensions) when
-    is_binary(Message) andalso ?is_option_list(Location) andalso ?is_option_record(Path, argo_path_value) andalso
+new(Message, Locations, Path, Extensions) when
+    is_binary(Message) andalso ?is_option_list(Locations) andalso ?is_option_record(Path, argo_path_value) andalso
         ?is_option_record(Extensions, argo_extensions_value)
 ->
-    #argo_error_value{message = Message, location = Location, path = Path, extensions = Extensions}.
+    #argo_error_value{message = Message, locations = Locations, path = Path, extensions = Extensions}.
 
 -spec present_fields_count(ErrorValue) -> non_neg_integer() when ErrorValue :: t().
-present_fields_count(#argo_error_value{location = Location, path = Path, extensions = Extensions}) ->
+present_fields_count(#argo_error_value{locations = Locations, path = Path, extensions = Extensions}) ->
     Count1 = 1,
     Count2 =
-        case Location of
+        case Locations of
             none ->
                 Count1;
             {some, _} ->

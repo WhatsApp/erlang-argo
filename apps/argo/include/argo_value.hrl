@@ -33,7 +33,7 @@
 
 -record(argo_error_value, {
     message :: argo_desc_value:desc_string(),
-    location :: none | {some, [argo_location_value:t()]},
+    locations :: none | {some, [argo_location_value:t()]},
     path :: none | {some, argo_path_value:t()},
     extensions :: none | {some, argo_extensions_value:t()}
 }).

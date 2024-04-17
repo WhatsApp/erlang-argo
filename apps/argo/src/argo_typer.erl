@@ -162,8 +162,8 @@ path_to_wire_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_reco
     is_binary(FieldName) andalso is_list(Path)
 ->
     case argo_record_wire_type:find_index_of(RecordWireType, FieldName) of
-        {ok, FieldIndex, _FieldWireType = #argo_field_wire_type{name = FieldName, type = Type}} ->
-            [FieldIndex | path_to_wire_path(Type, Path)];
+        {ok, FieldIndex, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = FieldOf}} ->
+            [FieldIndex | path_to_wire_path(FieldOf, Path)];
         error ->
             error_with_info(badarg, [WireType, [FieldName | Path]], #{2 => {missing_field_name, FieldName}})
     end;
@@ -199,8 +199,8 @@ wire_path_to_path(WireType = #argo_wire_type{inner = RecordWireType = #argo_reco
     ?is_usize(FieldIndex) andalso is_list(WirePath)
 ->
     case argo_record_wire_type:find_index(RecordWireType, FieldIndex) of
-        {ok, _FieldWireType = #argo_field_wire_type{name = FieldName, type = Type}} ->
-            [FieldName | wire_path_to_path(Type, WirePath)];
+        {ok, _FieldWireType = #argo_field_wire_type{name = FieldName, 'of' = FieldOf}} ->
+            [FieldName | wire_path_to_path(FieldOf, WirePath)];
         error ->
             error_with_info(badarg, [WireType, [FieldIndex | WirePath]], #{2 => {missing_field_index, FieldIndex}})
     end;

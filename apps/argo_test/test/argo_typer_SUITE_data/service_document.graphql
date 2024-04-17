@@ -29,4 +29,6 @@ type Object implements Child {
 type Query {
   hero: Character
   root: Child
+  x: Int!
+  y: Int
 }

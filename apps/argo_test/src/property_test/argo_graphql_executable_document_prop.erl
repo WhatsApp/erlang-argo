@@ -66,8 +66,8 @@ prop_roundtrip_executable_document(_Config) ->
                         [
                             Expected,
                             Actual,
-                            argo_graphql:format_with_lines(Expected),
-                            argo_graphql:format_with_lines(Actual)
+                            argo:format_with_lines(Expected),
+                            argo:format_with_lines(Actual)
                         ]
                     )
                 end,

@@ -19,7 +19,6 @@
 
 -include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_header.hrl").
--include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_label.hrl").
 -include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_value.hrl").
@@ -63,7 +62,7 @@ encode_value(ValueEncoder1 = #argo_value_encoder{wire_type = undefined}, Value =
             case argo_record_value:find(RecordValue, <<"data">>) of
                 {ok,
                     _FieldValue = #argo_field_value{
-                        wire_type = #argo_field_wire_type{type = DataWireType = #argo_wire_type{}}
+                        wire_type = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}
                     }} ->
                     encode_value(ValueEncoder1, Value, {some, DataWireType});
                 error ->
@@ -138,36 +137,56 @@ encode_block_value(ValueEncoder1 = #argo_value_encoder{}, BlockValue = #argo_blo
 encode_nullable_value(
     ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1}, NullableValue = #argo_nullable_value{}
 ) ->
-    IsLabeled = argo_nullable_value:is_labeled(NullableValue),
-    case NullableValue#argo_nullable_value.inner of
-        null ->
-            MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, null, IsLabeled),
-            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
-            ValueEncoder2;
-        {non_null, Value = #argo_value{}} ->
-            MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, non_null, IsLabeled),
-            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
-            ValueEncoder3 = encode_value(ValueEncoder2, Value),
-            ValueEncoder3;
-        {field_errors, FieldErrors} when is_list(FieldErrors) ->
-            case argo_header:out_of_band_field_errors(MessageEncoder1#argo_message_encoder.header) of
-                false ->
-                    FieldErrorsLength = length(FieldErrors),
-                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, error, IsLabeled),
-                    MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, FieldErrorsLength),
-                    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
-                    ValueEncoder3 = lists:foldl(
-                        fun(ErrorValue = #argo_error_value{}, ValueEncoderAcc) ->
-                            encode_error_value(ValueEncoderAcc, ErrorValue)
-                        end,
-                        ValueEncoder2,
-                        FieldErrors
-                    ),
-                    ValueEncoder3;
-                true ->
-                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, error, IsLabeled),
+    case argo_header:self_describing(MessageEncoder1#argo_message_encoder.header) of
+        false ->
+            IsLabeled = argo_nullable_value:is_labeled(NullableValue),
+            case NullableValue#argo_nullable_value.inner of
+                null ->
+                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(MessageEncoder1, null, IsLabeled),
                     ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
-                    ValueEncoder2
+                    ValueEncoder2;
+                {non_null, Value = #argo_value{}} ->
+                    MessageEncoder2 = argo_message_encoder:write_core_nullable_type(
+                        MessageEncoder1, non_null, IsLabeled
+                    ),
+                    ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
+                    ValueEncoder3 = encode_value(ValueEncoder2, Value),
+                    ValueEncoder3;
+                {field_errors, FieldErrors} when is_list(FieldErrors) ->
+                    case argo_header:out_of_band_field_errors(MessageEncoder1#argo_message_encoder.header) of
+                        false ->
+                            FieldErrorsLength = length(FieldErrors),
+                            MessageEncoder2 = argo_message_encoder:write_core_nullable_type(
+                                MessageEncoder1, error, IsLabeled
+                            ),
+                            MessageEncoder3 = argo_message_encoder:write_core_length(
+                                MessageEncoder2, FieldErrorsLength
+                            ),
+                            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder3},
+                            ValueEncoder3 = lists:foldl(
+                                fun(ErrorValue = #argo_error_value{}, ValueEncoderAcc) ->
+                                    encode_error_value(ValueEncoderAcc, ErrorValue)
+                                end,
+                                ValueEncoder2,
+                                FieldErrors
+                            ),
+                            ValueEncoder3;
+                        true ->
+                            MessageEncoder2 = argo_message_encoder:write_core_nullable_type(
+                                MessageEncoder1, error, IsLabeled
+                            ),
+                            ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
+                            ValueEncoder2
+                    end
+            end;
+        true ->
+            case NullableValue#argo_nullable_value.inner of
+                null ->
+                    encode_desc_value(ValueEncoder1, argo_desc_value:null());
+                {non_null, Value = #argo_value{}} ->
+                    encode_value(ValueEncoder1, Value);
+                {field_errors, FieldErrors} when is_list(FieldErrors) ->
+                    encode_desc_value(ValueEncoder1, argo_desc_value:null())
             end
     end.
 
@@ -328,13 +347,13 @@ encode_error_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1
                 MessageEncoder1, ErrorValue#argo_error_value.message
             ),
             MessageEncoder3 =
-                case ErrorValue#argo_error_value.location of
+                case ErrorValue#argo_error_value.locations of
                     none ->
                         argo_message_encoder:write_core_omittable_type(MessageEncoder2, absent, true);
-                    {some, Location} when is_list(Location) ->
+                    {some, Locations} when is_list(Locations) ->
                         ME2_1 = MessageEncoder2,
                         ME2_2 = argo_message_encoder:write_core_omittable_type(ME2_1, non_null, true),
-                        ME2_3 = argo_message_encoder:write_core_length(ME2_2, length(Location)),
+                        ME2_3 = argo_message_encoder:write_core_length(ME2_2, length(Locations)),
                         ME2_4 = lists:foldl(
                             fun(LocationValue = #argo_location_value{}, ME2_3_Acc1) ->
                                 ME2_3_Acc2 = argo_message_encoder:encode_block_varint(
@@ -346,7 +365,7 @@ encode_error_value(ValueEncoder1 = #argo_value_encoder{message = MessageEncoder1
                                 ME2_3_Acc3
                             end,
                             ME2_3,
-                            Location
+                            Locations
                         ),
                         ME2_4
                 end,
@@ -457,14 +476,14 @@ encode_self_describing_error_value(
     MessageEncoder5 = argo_message_encoder:write_core_label(MessageEncoder4, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING),
     MessageEncoder6 = argo_message_encoder:encode_block_string(MessageEncoder5, ErrorValue#argo_error_value.message),
     MessageEncoder7 =
-        case ErrorValue#argo_error_value.location of
+        case ErrorValue#argo_error_value.locations of
             none ->
                 MessageEncoder6;
-            {some, Location} when is_list(Location) ->
+            {some, Locations} when is_list(Locations) ->
                 ME6_1 = MessageEncoder6,
-                ME6_2 = argo_message_encoder:encode_block_string(ME6_1, <<"location">>),
+                ME6_2 = argo_message_encoder:encode_block_string(ME6_1, <<"locations">>),
                 ME6_3 = argo_message_encoder:write_core_label(ME6_2, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_LIST),
-                ME6_4 = argo_message_encoder:write_core_length(ME6_3, length(Location)),
+                ME6_4 = argo_message_encoder:write_core_length(ME6_3, length(Locations)),
                 ME6_5 = lists:foldl(
                     fun(LocationValue = #argo_location_value{}, ME6_4_Acc1) ->
                         ME6_4_Acc2 = argo_message_encoder:write_core_label(
@@ -488,7 +507,7 @@ encode_self_describing_error_value(
                         ME6_4_Acc9
                     end,
                     ME6_4,
-                    Location
+                    Locations
                 ),
                 ME6_5
         end,

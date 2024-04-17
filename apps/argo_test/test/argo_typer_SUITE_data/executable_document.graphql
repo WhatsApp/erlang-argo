@@ -102,3 +102,8 @@ fragment RootFragmentUnreachable1 on Child {
 fragment RootFragmentUnreachable2 on Child {
   ...RootFragmentUnreachable
 }
+
+query SimpleQuery {
+  x
+  y
+}

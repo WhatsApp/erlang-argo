@@ -17,12 +17,6 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--compile(
-    {inline, [
-        error_with_info/3
-    ]}
-).
-
 -include_lib("argo/include/argo_header.hrl").
 
 %% Codec API
@@ -302,6 +296,7 @@ set_user_flags(H0 = #argo_header{}, New) when is_bitstring(New) ->
 %%%=============================================================================
 
 %% @private
+-compile({inline, [error_with_info/3]}).
 -spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
 error_with_info(Reason, Args, Cause) ->
     erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).

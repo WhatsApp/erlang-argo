@@ -265,20 +265,20 @@ encode_error_value(JsonValueEncoder1 = #argo_json_value_encoder{}, ErrorValue = 
     JsonObject1 = argo_index_map:new(),
     JsonObject2 = argo_index_map:put(<<"message">>, argo_json:string(ErrorValue#argo_error_value.message), JsonObject1),
     {JsonValueEncoder2, JsonObject3} =
-        case ErrorValue#argo_error_value.location of
+        case ErrorValue#argo_error_value.locations of
             none ->
                 {JsonValueEncoder1, JsonObject2};
-            {some, Location} ->
+            {some, Locations} ->
                 Enc1_1 = JsonValueEncoder1,
-                {Enc1_2, JsonLocation} = lists:foldl(
+                {Enc1_2, JsonLocations} = lists:foldl(
                     fun(LocationValue, {Enc1_Acc1, LocationAcc1}) ->
                         {Enc1_Acc2, JsonLocation} = encode_location_value(Enc1_Acc1, LocationValue),
                         {Enc1_Acc2, [JsonLocation | LocationAcc1]}
                     end,
                     {Enc1_1, []},
-                    Location
+                    Locations
                 ),
-                {Enc1_2, argo_index_map:put(<<"location">>, lists:reverse(JsonLocation), JsonObject2)}
+                {Enc1_2, argo_index_map:put(<<"locations">>, lists:reverse(JsonLocations), JsonObject2)}
         end,
     {JsonValueEncoder3, JsonObject4} =
         case ErrorValue#argo_error_value.path of

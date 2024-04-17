@@ -30,10 +30,6 @@
     is_valid_dependency/3,
     merge/2
 ]).
-% %% argo_graphql_display callbacks
-% -export([
-%     format/2
-% ]).
 %% Errors API
 -export([
     format_error/2
@@ -126,13 +122,6 @@ is_valid_dependency(#argo_graphql_input_type_graph{inputs = Graph}, InputTypeNam
 ->
     not has_path(Graph, DependencyTypeName, InputTypeName).
 
-% is_valid_merge(InputTypeGraph = #argo_graphql_input_type_graph{}, )
-
-% merge(InputTypeGraph = #argo_graphql_input_type_graph{}, #argo_graphql_input_type_graph{inputs = BInputs}) ->
-%     maps:fold(fun(InputTypeName, Dependencies, Acc) ->
-
-%     end, InputTypeGraph, BInputs),
-
 %% @private
 -spec has_path(G, U, V) -> HasPath when
     G :: inputs(),
@@ -181,39 +170,6 @@ has_path(G, U, V, Visited1, Iterator1) ->
                     {true, Visited2}
             end
     end.
-
-% %%%=============================================================================
-% %%% argo_graphql_display callbacks
-% %%%=============================================================================
-
-% -spec format(Formatter1, Type :: t()) -> Formatter2 when
-%     Formatter1 :: argo_graphql_formatter:t(), Formatter2 :: argo_graphql_formatter:t().
-% format(Formatter1, #argo_graphql_input_type_graph{inputs = InputsMap}) ->
-%     case argo_index_map:size(InputsMap) of
-%         0 ->
-%             Formatter2 = argo_graphql_formatter:write(Formatter1, " {}", []),
-%             Formatter2;
-%         _ ->
-%             Formatter2 = argo_graphql_formatter:write(Formatter1, " {", []),
-%             Formatter3 = argo_graphql_formatter:shift_right(Formatter2),
-%             Formatter4 = argo_index_map:foldl(
-%                 fun(_Index, _InputName, InputValueDefinition, Formatter3_Acc1) ->
-%                     Formatter3_Acc2 = argo_graphql_formatter:write(Formatter3_Acc1, "~n", []),
-%                     Formatter3_Acc3 = argo_graphql_formatter:write_indent(Formatter3_Acc2),
-%                     Formatter3_Acc4 = argo_graphql_input_value_definition:format(
-%                         Formatter3_Acc3, InputValueDefinition
-%                     ),
-%                     Formatter3_Acc4
-%                 end,
-%                 Formatter3,
-%                 InputsMap
-%             ),
-%             Formatter5 = argo_graphql_formatter:write(Formatter4, "~n", []),
-%             Formatter6 = argo_graphql_formatter:shift_left(Formatter5),
-%             Formatter7 = argo_graphql_formatter:write_indent(Formatter6),
-%             Formatter8 = argo_graphql_formatter:write(Formatter7, "}", []),
-%             Formatter8
-%     end.
 
 %%%=============================================================================
 %%% Errors API functions

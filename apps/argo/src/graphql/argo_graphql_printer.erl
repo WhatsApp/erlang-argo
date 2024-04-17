@@ -21,8 +21,8 @@
 
 %% API
 -export([
-    new_io_device/1,
-    new_string/0,
+    new_io_device/2,
+    new_string/1,
     finalize/1
 ]).
 %% argo_graphql_formatter callbacks
@@ -36,13 +36,18 @@
 %% Records
 -record(argo_graphql_printer, {
     depth = 0 :: non_neg_integer(),
-    output = [] :: iolist() | io:device()
+    output = [] :: iolist() | io:device(),
+    strict = false :: boolean()
 }).
 
 %% Types
+-type options() :: #{
+    strict => boolean()
+}.
 -type t() :: #argo_graphql_printer{}.
 
 -export_type([
+    options/0,
     t/0
 ]).
 
@@ -50,13 +55,15 @@
 %%% API functions
 %%%=============================================================================
 
--spec new_io_device(IoDevice) -> Printer when IoDevice :: io:device(), Printer :: t().
-new_io_device(IoDevice) when not is_list(IoDevice) ->
-    #argo_graphql_printer{depth = 0, output = IoDevice}.
+-spec new_io_device(IoDevice, Options) -> Printer when IoDevice :: io:device(), Options :: options(), Printer :: t().
+new_io_device(IoDevice, Options) when not is_list(IoDevice) andalso is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_graphql_printer{depth = 0, output = IoDevice, strict = Strict}.
 
--spec new_string() -> Printer when Printer :: t().
-new_string() ->
-    #argo_graphql_printer{depth = 0, output = []}.
+-spec new_string(Options) -> Printer when Options :: options(), Printer :: t().
+new_string(Options) when is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_graphql_printer{depth = 0, output = [], strict = Strict}.
 
 -spec finalize(Printer) -> ok | iolist() when Printer :: t().
 finalize(#argo_graphql_printer{output = Output}) when is_list(Output) ->

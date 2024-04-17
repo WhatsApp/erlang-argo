@@ -98,8 +98,8 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
                         [
                             ExpectedValue,
                             ActualValue,
-                            argo_value:format_with_lines(ExpectedValue),
-                            argo_value:format_with_lines(ActualValue),
+                            argo:format_with_lines(ExpectedValue),
+                            argo:format_with_lines(ActualValue),
                             json_encode_pretty(ExpectedValue),
                             json_encode_pretty(ActualValue)
                         ]

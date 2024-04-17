@@ -17,16 +17,20 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-behaviour(argo_debug_type).
+
 -include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
+%% argo_debug_type callbacks
+-export([
+    display/3,
+    format/2
+]).
+
 %% Codec API
 -export([
-    display/1,
-    display/2,
-    format/1,
-    format_with_lines/1,
     from_json/2,
     from_json/4,
     from_reader/2,
@@ -93,34 +97,32 @@
 ]).
 
 %%%=============================================================================
-%%% Codec API functions
+%%% argo_debug_type callbacks
 %%%=============================================================================
 
--spec display(Value) -> ok when Value :: t().
-display(Value = #argo_value{}) ->
-    display(standard_io, Value).
-
--spec display(IoDevice, Value) -> ok when IoDevice :: io:device(), Value :: t().
-display(IoDevice, Value = #argo_value{}) when not is_list(IoDevice) ->
-    Printer1 = argo_value_printer:new_io_device(IoDevice),
+-spec display(IoDevice, Value, Options) -> ok when
+    IoDevice :: io:device(), Value :: t(), Options :: argo_value_printer:options().
+display(IoDevice, Value = #argo_value{}, Options) when not is_list(IoDevice) andalso is_map(Options) ->
+    Printer1 = argo_value_printer:new_io_device(IoDevice, Options),
     Printer2 = argo_value_printer:print_value(Printer1, Value),
     case argo_value_printer:finalize(Printer2) of
         ok ->
             ok
     end.
 
--spec format(Value) -> Output when Value :: t(), Output :: iolist().
-format(Value = #argo_value{}) ->
-    Printer1 = argo_value_printer:new_string(),
+-spec format(Value, Options) -> Output when
+    Value :: t(), Options :: argo_value_printer:options(), Output :: unicode:unicode_binary().
+format(Value = #argo_value{}, Options) when is_map(Options) ->
+    Printer1 = argo_value_printer:new_string(Options),
     Printer2 = argo_value_printer:print_value(Printer1, Value),
     case argo_value_printer:finalize(Printer2) of
         Output when is_list(Output) ->
-            Output
+            argo_types:unicode_binary(Output)
     end.
 
--spec format_with_lines(Value) -> unicode:unicode_binary() when Value :: t().
-format_with_lines(Value = #argo_value{}) ->
-    argo_types:format_with_lines(format(Value)).
+%%%=============================================================================
+%%% Codec API functions
+%%%=============================================================================
 
 -spec from_json(WireType, JsonValue) -> Value when
     WireType :: argo_wire_type:t(), JsonValue :: argo_json:json_value(), Value :: t().
@@ -355,11 +357,11 @@ xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
                     L =:= 'boolean' orelse L =:= 'string' orelse L =:= 'bytes' orelse L =:= 'int' orelse L =:= 'float'
                 ->
                     {T2, Acc2};
-                #argo_error_value{location = OptionLocation1, path = OptionPath1, extensions = OptionExtensions1} ->
-                    {OptionLocation2, Acc3} =
-                        case OptionLocation1 of
+                #argo_error_value{locations = OptionLocations1, path = OptionPath1, extensions = OptionExtensions1} ->
+                    {OptionLocations2, Acc3} =
+                        case OptionLocations1 of
                             none ->
-                                {OptionLocation1, Acc2};
+                                {OptionLocations1, Acc2};
                             {some, LocationList1} ->
                                 A2_1 = Acc2,
                                 {LocationList2, A2_2} = lists:foldl(
@@ -393,7 +395,7 @@ xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
                                 {{some, Extensions2}, A4_2}
                         end,
                     T3 = T2#argo_error_value{
-                        location = OptionLocation2, path = OptionPath2, extensions = OptionExtensions2
+                        locations = OptionLocations2, path = OptionPath2, extensions = OptionExtensions2
                     },
                     {T3, Acc5};
                 #argo_extensions_value{inner = Extensions1} ->

@@ -17,16 +17,19 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-behaviour(argo_debug_type).
+
 -include_lib("argo/include/argo_graphql.hrl").
+
+%% argo_debug_type callbacks
+-export([
+    display/3,
+    format/1,
+    format/2
+]).
 
 %% API
 -export([
-    display/1,
-    display/2,
-    display_with_lines/1,
-    display_with_lines/2,
-    format/1,
-    format_with_lines/1,
     xform/3
 ]).
 
@@ -44,53 +47,42 @@
 ]).
 
 %% Macros
+-define(DEFAULT_OPTIONS, #{}).
 -define(is_record(X), (is_tuple((X)) andalso tuple_size((X)) > 0 andalso is_atom(element(1, (X))))).
 
 %%%=============================================================================
-%%% API functions
+%%% argo_debug_type callbacks
 %%%=============================================================================
 
--spec display(dynamic()) -> ok.
-display(Type) when ?is_record(Type) ->
-    display(standard_io, Type).
-
--spec display(io:device(), dynamic()) -> ok.
-display(IoDevice, Type) when not is_list(IoDevice) andalso ?is_record(Type) ->
+-spec display(IoDevice, Type, Options) -> ok when
+    IoDevice :: io:device(), Type :: dynamic(), Options :: argo_graphql_printer:options().
+display(IoDevice, Type, Options) when not is_list(IoDevice) andalso ?is_record(Type) andalso is_map(Options) ->
     Module = element(1, Type),
-    Printer1 = argo_graphql_printer:new_io_device(IoDevice),
+    Printer1 = argo_graphql_printer:new_io_device(IoDevice, Options),
     Printer2 = Module:format(Printer1, Type),
     case argo_graphql_printer:finalize(Printer2) of
         ok ->
             ok
     end.
 
--spec display_with_lines(dynamic()) -> ok.
-display_with_lines(Type) when ?is_record(Type) ->
-    display_with_lines(standard_io, Type).
-
--spec display_with_lines(io:device(), dynamic()) -> ok.
-display_with_lines(IoDevice, Type) when not is_list(IoDevice) andalso ?is_record(Type) ->
-    Lines = format_with_lines(Type),
-    Printer1 = argo_graphql_printer:new_io_device(IoDevice),
-    Printer2 = argo_graphql_printer:write(Printer1, "~ts", [Lines]),
-    case argo_graphql_printer:finalize(Printer2) of
-        ok ->
-            ok
-    end.
-
--spec format(dynamic()) -> unicode:unicode_binary().
+-spec format(Type) -> Output when Type :: dynamic(), Output :: unicode:unicode_binary().
 format(Type) when ?is_record(Type) ->
+    format(Type, ?DEFAULT_OPTIONS).
+
+-spec format(Type, Options) -> Output when
+    Type :: dynamic(), Options :: argo_graphql_printer:options(), Output :: unicode:unicode_binary().
+format(Type, Options) when ?is_record(Type) andalso is_map(Options) ->
     Module = element(1, Type),
-    Printer1 = argo_graphql_printer:new_string(),
+    Printer1 = argo_graphql_printer:new_string(Options),
     Printer2 = Module:format(Printer1, Type),
     case argo_graphql_printer:finalize(Printer2) of
         Output when is_list(Output) ->
             argo_types:unicode_binary(Output)
     end.
 
--spec format_with_lines(dynamic()) -> unicode:unicode_binary().
-format_with_lines(Type) when ?is_record(Type) ->
-    argo_types:format_with_lines(format(Type)).
+%%%=============================================================================
+%%% API functions
+%%%=============================================================================
 
 -spec xform(TypeIn, AccIn, Fun) -> {TypeOut, AccOut} when
     TypeIn :: dynamic(),

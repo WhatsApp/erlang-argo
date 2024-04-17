@@ -35,7 +35,7 @@
 
 -record(argo_field_wire_type, {
     name :: argo_types:name(),
-    type :: argo_wire_type:t(),
+    'of' :: argo_wire_type:t(),
     omittable :: boolean()
 }).
 
@@ -80,7 +80,12 @@
 }).
 
 -record(argo_wire_type_store, {
-    types :: argo_index_map:t(argo_types:name(), argo_wire_type:t())
+    types :: argo_index_map:t(argo_types:name(), argo_wire_type_store_entry:t())
+}).
+
+-record(argo_wire_type_store_entry, {
+    name :: argo_types:name(),
+    type :: argo_wire_type:t()
 }).
 
 -endif.

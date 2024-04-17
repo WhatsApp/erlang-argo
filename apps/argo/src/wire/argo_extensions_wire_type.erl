@@ -21,7 +21,8 @@
 
 %% API
 -export([
-    new/0
+    new/0,
+    expand_wire_type/1
 ]).
 
 %% Types
@@ -38,3 +39,7 @@
 -spec new() -> ExtensionsWireType when ExtensionsWireType :: t().
 new() ->
     #argo_extensions_wire_type{}.
+
+-spec expand_wire_type(ErrorWireType) -> WireType when ErrorWireType :: t(), WireType :: argo_wire_type:t().
+expand_wire_type(#argo_extensions_wire_type{}) ->
+    argo_wire_type:desc().

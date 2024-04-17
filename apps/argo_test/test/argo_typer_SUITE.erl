@@ -120,7 +120,7 @@ test_issue_7_incorrect_type_for_fields_in_fragment(Config) ->
     {_, WireType} = argo_typer:derive_wire_type(
         ServiceDocument, ExecutableDocument, {some, <<"IncorrectTypeForFieldsInFragment">>}
     ),
-    Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
     Expected =
         <<
             "{\n"
@@ -144,7 +144,7 @@ test_issue_8_field_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
     ExecutableDocument = test_server:lookup_config(executable_document, Config),
     {_, WireType} = argo_typer:derive_wire_type(ServiceDocument, ExecutableDocument, {some, <<"FieldOmittable">>}),
-    Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
     Expected =
         <<
             "{\n"
@@ -173,7 +173,7 @@ test_issue_8_fragment_spread_omittable(Config) ->
     {_, WireType} = argo_typer:derive_wire_type(
         ServiceDocument, ExecutableDocument, {some, <<"FragmentSpreadOmittable">>}
     ),
-    Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
     Expected =
         <<
             "{\n"
@@ -221,7 +221,7 @@ test_issue_8_inline_fragment_omittable(Config) ->
     {_, WireType} = argo_typer:derive_wire_type(
         ServiceDocument, ExecutableDocument, {some, <<"InlineFragmentOmittable">>}
     ),
-    Actual = erlang:iolist_to_binary(argo_wire_type:format(WireType)),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
     Expected =
         <<
             "{\n"

@@ -116,9 +116,9 @@ read_label(R = #argo_core_reader{}) ->
     CoreReader :: t(), LabeledType :: argo_core:labeled_type().
 read_labeled_type(R0 = #argo_core_reader{}) ->
     {R1, LengthOrBackreference} = read_varint(R0),
-    case LengthOrBackreference =< ?ARGO_LABEL_MARKER_LOWEST_RESERVED_VALUE of
+    case LengthOrBackreference < ?ARGO_LABEL_MARKER_LOWEST_RESERVED_VALUE of
         true ->
-            Backreference = abs(LengthOrBackreference - ?ARGO_LABEL_MARKER_LOWEST_RESERVED_VALUE),
+            Backreference = -LengthOrBackreference + ?ARGO_LABEL_MARKER_OFFSET_FACTOR,
             ok = backreference_sanity_check(Backreference),
             {R1, {backreference, Backreference}};
         false ->

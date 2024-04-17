@@ -24,8 +24,6 @@
 ).
 
 -include_lib("argo/include/argo_common.hrl").
--include_lib("argo/include/argo_header.hrl").
--include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_label.hrl").
 -include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_value.hrl").
@@ -70,7 +68,7 @@ decode_wire_type(ValueDecoder1 = #argo_value_decoder{wire_type = undefined}, Wir
     case WireType#argo_wire_type.inner of
         RecordWireType = #argo_record_wire_type{} ->
             case argo_record_wire_type:find(RecordWireType, <<"data">>) of
-                {ok, _FieldWireType = #argo_field_wire_type{type = DataWireType = #argo_wire_type{}}} ->
+                {ok, _FieldWireType = #argo_field_wire_type{'of' = DataWireType = #argo_wire_type{}}} ->
                     decode_wire_type(ValueDecoder1, WireType, {some, DataWireType});
                 error ->
                     RootWireType = WireType,
@@ -196,21 +194,68 @@ decode_block_wire_type(ValueDecoder1 = #argo_value_decoder{}, BlockWireType = #a
 decode_nullable_wire_type(
     ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, NullableWireType = #argo_nullable_wire_type{}
 ) ->
-    IsLabeled = argo_nullable_wire_type:is_labeled(NullableWireType),
-    {MessageDecoder2, NullableType} = argo_message_decoder:read_core_nullable_type(MessageDecoder1, IsLabeled),
-    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-    case NullableType of
-        null ->
-            NullableValue = argo_nullable_value:null(NullableWireType),
-            {ValueDecoder2, NullableValue};
-        non_null ->
-            {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, NullableWireType#argo_nullable_wire_type.'of'),
-            NullableValue = argo_nullable_value:non_null(NullableWireType, Value),
-            {ValueDecoder3, NullableValue};
-        error ->
-            NullableValue = argo_nullable_value:field_errors(NullableWireType, []),
-            {ValueDecoder2, NullableValue}
+    case argo_header:self_describing(MessageDecoder1#argo_message_decoder.header) of
+        false ->
+            IsLabeled = argo_nullable_wire_type:is_labeled(NullableWireType),
+            {MessageDecoder2, NullableType} = argo_message_decoder:read_core_nullable_type(MessageDecoder1, IsLabeled),
+            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+            case NullableType of
+                null ->
+                    NullableValue = argo_nullable_value:null(NullableWireType),
+                    {ValueDecoder2, NullableValue};
+                non_null ->
+                    {ValueDecoder3, Value} = decode_wire_type(
+                        ValueDecoder2, NullableWireType#argo_nullable_wire_type.'of'
+                    ),
+                    NullableValue = argo_nullable_value:non_null(NullableWireType, Value),
+                    {ValueDecoder3, NullableValue};
+                error ->
+                    case argo_header:out_of_band_field_errors(MessageDecoder2#argo_message_decoder.header) of
+                        false ->
+                            {MessageDecoder3, Length} = argo_message_decoder:read_core_length(MessageDecoder2),
+                            ValueDecoder3 = ValueDecoder2#argo_value_decoder{message = MessageDecoder3},
+                            {ValueDecoder4, FieldErrors} = decode_nullable_wire_type_field_errors(
+                                ValueDecoder3, Length, []
+                            ),
+                            NullableValue = argo_nullable_value:field_errors(NullableWireType, FieldErrors),
+                            {ValueDecoder4, NullableValue};
+                        true ->
+                            NullableValue = argo_nullable_value:field_errors(NullableWireType, []),
+                            {ValueDecoder2, NullableValue}
+                    end
+            end;
+        true ->
+            {MessageDecoder2, NullableType} = argo_message_decoder:read_core_nullable_type(MessageDecoder1, true),
+            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+            case NullableType of
+                null ->
+                    NullableValue = argo_nullable_value:null(NullableWireType),
+                    {ValueDecoder2, NullableValue};
+                non_null ->
+                    {ValueDecoder3, Value} = decode_wire_type(
+                        ValueDecoder2, NullableWireType#argo_nullable_wire_type.'of'
+                    ),
+                    NullableValue = argo_nullable_value:non_null(NullableWireType, Value),
+                    {ValueDecoder3, NullableValue};
+                error ->
+                    error_with_info(badarg, [ValueDecoder1, NullableWireType], #{
+                        1 => {invalid_nullable_type_for_self_describing_mode, NullableType}
+                    })
+            end
     end.
+
+%% @private
+-spec decode_nullable_wire_type_field_errors(ValueDecoder, Length, FieldErrors) -> {ValueDecoder, FieldErrors} when
+    ValueDecoder :: t(),
+    Length :: non_neg_integer(),
+    FieldErrors :: [argo_error_value:t()].
+decode_nullable_wire_type_field_errors(ValueDecoder1 = #argo_value_decoder{}, 0, FieldErrors) ->
+    {ValueDecoder1, lists:reverse(FieldErrors)};
+decode_nullable_wire_type_field_errors(
+    ValueDecoder1 = #argo_value_decoder{}, Length, FieldErrors
+) when is_integer(Length) andalso Length > 0 ->
+    {ValueDecoder2, ErrorValue} = decode_error_wire_type(ValueDecoder1),
+    decode_nullable_wire_type_field_errors(ValueDecoder2, Length - 1, [ErrorValue | FieldErrors]).
 
 %% @private
 -spec decode_array_wire_type(ValueDecoder, ArrayWireType) -> {ValueDecoder, ArrayValue} when
@@ -280,11 +325,11 @@ decode_field_wire_type(
 ) ->
     case FieldWireType#argo_field_wire_type.omittable of
         false ->
-            {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, FieldWireType#argo_field_wire_type.type),
+            {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, FieldWireType#argo_field_wire_type.'of'),
             FieldValue = argo_field_value:required(FieldWireType, Value),
             {ValueDecoder2, FieldValue};
         true ->
-            IsLabeled = argo_wire_type:is_labeled(FieldWireType#argo_field_wire_type.type),
+            IsLabeled = argo_wire_type:is_labeled(FieldWireType#argo_field_wire_type.'of'),
             {MessageDecoder2, OmittableType} = argo_message_decoder:read_core_omittable_type(
                 MessageDecoder1, IsLabeled
             ),
@@ -296,7 +341,7 @@ decode_field_wire_type(
                 non_null ->
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
                     {ValueDecoder3, Value} = decode_wire_type(
-                        ValueDecoder2, FieldWireType#argo_field_wire_type.type
+                        ValueDecoder2, FieldWireType#argo_field_wire_type.'of'
                     ),
                     FieldValue = argo_field_value:optional(FieldWireType, {some, Value}),
                     {ValueDecoder3, FieldValue}
@@ -395,12 +440,12 @@ decode_error_wire_type(ValueDecoder1 = #argo_value_decoder{message = MessageDeco
     of
         false ->
             {MessageDecoder2, Message} = argo_message_decoder:decode_block_string(MessageDecoder1),
-            {MessageDecoder3, LocationOmittableType} = argo_message_decoder:read_core_omittable_type(
+            {MessageDecoder3, LocationsOmittableType} = argo_message_decoder:read_core_omittable_type(
                 MessageDecoder2, true
             ),
             ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder3},
             {ValueDecoder3 = #argo_value_decoder{message = MessageDecoder4}, Location} =
-                case LocationOmittableType of
+                case LocationsOmittableType of
                     absent ->
                         {ValueDecoder2, none};
                     non_null ->
@@ -535,10 +580,10 @@ decode_self_describing_error_wire_type_fields(ValueDecoder1 = #argo_value_decode
             error ->
                 error_with_info(badarg, [ValueDecoder1, 0, Map1], #{1 => {missing_required_field, <<"message">>}})
         end,
-    Location =
-        case maps:find(<<"location">>, Map1) of
-            {ok, LocationValue} when is_list(LocationValue) ->
-                {some, LocationValue};
+    Locations =
+        case maps:find(<<"locations">>, Map1) of
+            {ok, LocationsValue} when is_list(LocationsValue) ->
+                {some, LocationsValue};
             error ->
                 none
         end,
@@ -556,7 +601,7 @@ decode_self_describing_error_wire_type_fields(ValueDecoder1 = #argo_value_decode
             error ->
                 none
         end,
-    ErrorValue = argo_error_value:new(Message, Location, Path, Extensions),
+    ErrorValue = argo_error_value:new(Message, Locations, Path, Extensions),
     {ValueDecoder1, ErrorValue};
 decode_self_describing_error_wire_type_fields(
     ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, Length, Map1
@@ -576,7 +621,7 @@ decode_self_describing_error_wire_type_fields(
                 _ ->
                     error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {invalid_string_label, MessageLabel}})
             end;
-        <<"location">> ->
+        <<"locations">> ->
             {MessageDecoder3, LocationLabel} = argo_message_decoder:read_core_label(MessageDecoder2),
             case LocationLabel of
                 ?ARGO_LABEL_SELF_DESCRIBING_MARKER_LIST ->
@@ -676,7 +721,7 @@ decode_self_describing_error_wire_type_location_fields(
                     Map2 = maps:put(Key, LineValue, Map1),
                     decode_self_describing_error_wire_type_location_fields(ValueDecoder2, Length - 1, Map2);
                 _ ->
-                    error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {invalid_array_label, LineLabel}})
+                    error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {invalid_varint_label, LineLabel}})
             end;
         <<"column">> ->
             {MessageDecoder3, ColumnLabel} = argo_message_decoder:read_core_label(MessageDecoder2),
@@ -687,7 +732,7 @@ decode_self_describing_error_wire_type_location_fields(
                     Map2 = maps:put(Key, ColumnValue, Map1),
                     decode_self_describing_error_wire_type_location_fields(ValueDecoder2, Length - 1, Map2);
                 _ ->
-                    error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {invalid_array_label, ColumnLabel}})
+                    error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {invalid_varint_label, ColumnLabel}})
             end;
         _ ->
             error_with_info(badarg, [ValueDecoder1, Length, Map1], #{1 => {unknown_field, Key}})
@@ -847,7 +892,7 @@ decode_self_describing_record_wire_type_fields(
             case argo_index_map:find(FieldName, RecordWireType#argo_record_wire_type.fields) of
                 {ok, FieldWireType = #argo_field_wire_type{}} ->
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-                    {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, FieldWireType#argo_field_wire_type.type),
+                    {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, FieldWireType#argo_field_wire_type.'of'),
                     case FieldWireType#argo_field_wire_type.omittable of
                         false ->
                             Map2 = maps:put(FieldName, argo_field_value:required(FieldWireType, Value), Map1),
@@ -901,9 +946,9 @@ format_error_description(_Key, {invalid_fixed_label, Actual}) ->
     io_lib:format("invalid FIXED label, expected ~w, but was ~w", [?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES, Actual]);
 format_error_description(_Key, {invalid_float64_label, Actual}) ->
     io_lib:format("invalid FLOAT64 label, expected ~w, but was ~w", [?ARGO_LABEL_SELF_DESCRIBING_MARKER_FLOAT, Actual]);
-format_error_description(_Key, {invalid_nullable_label, Actual}) ->
-    io_lib:format("invalid NULLABLE label, expected ~w or ~w, but was ~w", [
-        ?ARGO_LABEL_MARKER_NULL, ?ARGO_LABEL_MARKER_NON_NULL, Actual
+format_error_description(_Key, {invalid_nullable_type_for_self_describing_mode, Actual}) ->
+    io_lib:format("invalid NULLABLE type for self-describing, expected null or non_null, but was ~w", [
+        Actual
     ]);
 format_error_description(_Key, {invalid_record_label, Actual}) ->
     io_lib:format("invalid RECORD label, expected ~w, but was ~w", [?ARGO_LABEL_SELF_DESCRIBING_MARKER_OBJECT, Actual]);

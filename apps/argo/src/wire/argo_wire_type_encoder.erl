@@ -73,7 +73,12 @@ encode_wire_type_store(
     MessageEncoder3 = argo_message_encoder:write_core_length(MessageEncoder2, argo_index_map:size(Types)),
     WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder3},
     WireTypeEncoder3 = argo_index_map:foldl(
-        fun(_Index, TypeName, WireType, WireTypeEncoderAcc1 = #argo_wire_type_encoder{message = MessageEncoderAcc1}) ->
+        fun(
+            _Index,
+            TypeName,
+            #argo_wire_type_store_entry{name = TypeName, type = WireType},
+            WireTypeEncoderAcc1 = #argo_wire_type_encoder{message = MessageEncoderAcc1}
+        ) ->
             MessageEncoderAcc2 = argo_message_encoder:encode_block_string(MessageEncoderAcc1, TypeName),
             WireTypeEncoderAcc2 = WireTypeEncoderAcc1#argo_wire_type_encoder{message = MessageEncoderAcc2},
             WireTypeEncoderAcc3 = encode_wire_type(WireTypeEncoderAcc2, WireType),
@@ -183,7 +188,7 @@ encode_field_wire_type(
     WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder2},
     WireTypeEncoder3 =
         #argo_wire_type_encoder{message = MessageEncoder3} = encode_wire_type(
-            WireTypeEncoder2, FieldWireType#argo_field_wire_type.type
+            WireTypeEncoder2, FieldWireType#argo_field_wire_type.'of'
         ),
     MessageEncoder4 = argo_message_encoder:encode_block_boolean(
         MessageEncoder3, FieldWireType#argo_field_wire_type.omittable

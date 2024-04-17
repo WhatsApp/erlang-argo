@@ -331,7 +331,7 @@ decode_field_wire_type(
             case argo_json:object_find(Name, JsonObject) of
                 {ok, JsonValue} ->
                     {JsonValueDecoder2, Value} = decode_wire_type(
-                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.type, JsonValue
+                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.'of', JsonValue
                     ),
                     FieldValue = argo_field_value:required(FieldWireType, Value),
                     {JsonValueDecoder2, FieldValue};
@@ -344,7 +344,7 @@ decode_field_wire_type(
             case argo_json:object_find(Name, JsonObject) of
                 {ok, JsonValue} ->
                     {JsonValueDecoder2, Value} = decode_wire_type(
-                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.type, JsonValue
+                        JsonValueDecoder1, FieldWireType#argo_field_wire_type.'of', JsonValue
                     ),
                     FieldValue = argo_field_value:optional(FieldWireType, {some, Value}),
                     {JsonValueDecoder2, FieldValue};
@@ -448,8 +448,8 @@ decode_error_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonObjec
                     2 => {required_object_key_missing, <<"message">>}
                 })
         end,
-    {JsonValueDecoder2, Location} =
-        case argo_json:object_find(<<"location">>, JsonObject) of
+    {JsonValueDecoder2, Locations} =
+        case argo_json:object_find(<<"locations">>, JsonObject) of
             {ok, LocationList} when is_list(LocationList) ->
                 Dec1_1 = JsonValueDecoder1,
                 {Dec1_2, LocationAcc} = lists:foldl(
@@ -489,7 +489,7 @@ decode_error_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonObjec
             error ->
                 {JsonValueDecoder3, none}
         end,
-    ErrorValue = argo_error_value:new(Message, Location, Path, Extensions),
+    ErrorValue = argo_error_value:new(Message, Locations, Path, Extensions),
     {JsonValueDecoder4, ErrorValue};
 decode_error_wire_type(JsonValueDecoder1 = #argo_json_value_decoder{}, JsonValue) ->
     error_with_info(badarg, [JsonValueDecoder1, JsonValue], #{2 => {mismatch, expected_object, JsonValue}}).

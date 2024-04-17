@@ -87,10 +87,10 @@ prop_roundtrip(_Config) ->
                             WireType,
                             Value,
                             Header,
-                            argo_graphql:format_with_lines(ServiceDocument),
-                            argo_graphql:format_with_lines(ExecutableDocument),
-                            argo_wire_type:format(WireType),
-                            argo_value:format(Value)
+                            argo:format_with_lines(ServiceDocument),
+                            argo:format_with_lines(ExecutableDocument),
+                            argo:format(WireType),
+                            argo:format(Value)
                         ]
                     )
                 end,

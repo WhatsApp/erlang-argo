@@ -343,10 +343,10 @@ field_value() ->
     ?LET(FieldWireType, field_wire_type(), field_value(FieldWireType)).
 
 -spec field_value(FieldWireType :: argo_field_wire_type:t()) -> proper_types:type().
-field_value(FieldWireType = #argo_field_wire_type{type = Type, omittable = true}) ->
+field_value(FieldWireType = #argo_field_wire_type{'of' = Of, omittable = true}) ->
     ?LET(
         OptionValue,
-        option(value(Type)),
+        option(value(Of)),
         case OptionValue of
             none ->
                 argo_field_value:optional(FieldWireType, OptionValue);
@@ -354,8 +354,8 @@ field_value(FieldWireType = #argo_field_wire_type{type = Type, omittable = true}
                 argo_field_value:optional(FieldWireType, OptionValue)
         end
     );
-field_value(FieldWireType = #argo_field_wire_type{type = Type}) ->
-    ?LET(Value, value(Type), argo_field_value:required(FieldWireType, Value)).
+field_value(FieldWireType = #argo_field_wire_type{'of' = Of}) ->
+    ?LET(Value, value(Of), argo_field_value:required(FieldWireType, Value)).
 
 -spec nullable_value() -> proper_types:type().
 nullable_value() ->
@@ -368,7 +368,12 @@ nullable_value(NullableWireType = #argo_nullable_wire_type{}) ->
         ?LET(
             Value,
             value(NullableWireType#argo_nullable_wire_type.'of'),
-            argo_nullable_value:non_null(NullableWireType, Value)
+            case Value of
+                #argo_value{inner = #argo_desc_value{inner = null}} ->
+                    argo_nullable_value:null(NullableWireType);
+                #argo_value{} ->
+                    argo_nullable_value:non_null(NullableWireType, Value)
+            end
         )
     ]).
 
@@ -557,7 +562,7 @@ field_wire_type(Name, Of = #argo_wire_type{}) when is_binary(Name) ->
 
 -spec nullable_wire_type() -> proper_types:type().
 nullable_wire_type() ->
-    ?LET(Of, ?LAZY(wire_type()), argo_nullable_wire_type:new(Of)).
+    ?LET(Of, ?LAZY(wire_type()), argo_nullable_wire_type:new(unwrap_nullable_wire_type(Of))).
 
 -spec path_wire_type() -> proper_types:type().
 path_wire_type() ->
@@ -646,3 +651,14 @@ wire_type() ->
             #argo_scalar_wire_type{} -> argo_wire_type:scalar(InnerWireType)
         end
     ).
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec unwrap_nullable_wire_type(WireType) -> WireType when WireType :: argo_wire_type:t().
+unwrap_nullable_wire_type(#argo_wire_type{inner = #argo_nullable_wire_type{'of' = Of}}) ->
+    unwrap_nullable_wire_type(Of);
+unwrap_nullable_wire_type(WireType = #argo_wire_type{}) ->
+    WireType.

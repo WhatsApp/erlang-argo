@@ -112,7 +112,7 @@ write_label(W = #argo_core_writer{}, Label) ->
     CoreWriter :: t(), LabeledType :: argo_core:labeled_type().
 write_labeled_type(W = #argo_core_writer{}, {backreference, Backreference}) when ?is_usize(Backreference) ->
     ok = backreference_sanity_check(Backreference),
-    Label = ?ARGO_LABEL_MARKER_LOWEST_RESERVED_VALUE - Backreference,
+    Label = ?ARGO_LABEL_MARKER_OFFSET_FACTOR - Backreference,
     write_label(W, Label);
 write_labeled_type(W = #argo_core_writer{}, {length, Length}) when ?is_usize(Length) ->
     write_length(W, Length).

@@ -84,8 +84,8 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
                         [
                             ExpectedWireType,
                             ActualWireType,
-                            argo_wire_type:format_with_lines(ExpectedWireType),
-                            argo_wire_type:format_with_lines(ActualWireType),
+                            argo:format_with_lines(ExpectedWireType),
+                            argo:format_with_lines(ActualWireType),
                             json_encode_pretty(ExpectedWireType),
                             json_encode_pretty(ActualWireType)
                         ]

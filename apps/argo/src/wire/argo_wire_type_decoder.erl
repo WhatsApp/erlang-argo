@@ -173,5 +173,6 @@ decode_wire_type_store_types(
     {MessageDecoder2, TypeName} = argo_message_decoder:decode_block_string(MessageDecoder1),
     WireTypeDecoder2 = WireTypeDecoder1#argo_wire_type_decoder{message = MessageDecoder2},
     {WireTypeDecoder3, WireType} = decode_wire_type(WireTypeDecoder2),
-    WireTypeStore2 = argo_wire_type_store:insert(WireTypeStore1, TypeName, WireType),
+    WireTypeStoreEntry = argo_wire_type_store_entry:new(TypeName, WireType),
+    WireTypeStore2 = argo_wire_type_store:insert(WireTypeStore1, WireTypeStoreEntry),
     decode_wire_type_store_types(WireTypeDecoder3, Length - 1, WireTypeStore2).

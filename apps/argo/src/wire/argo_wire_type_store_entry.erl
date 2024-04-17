@@ -10,10 +10,10 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created :  10 Nov 2023 by Andrew Bennett <potatosaladx@meta.com>
+%%% Created :  21 Mar 2024 by Andrew Bennett <potatosaladx@meta.com>
 %%%-----------------------------------------------------------------------------
 %%% % @format
--module(argo_field_wire_type).
+-module(argo_wire_type_store_entry).
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
@@ -21,13 +21,11 @@
 
 %% API
 -export([
-    new/3,
-    is_labeled/1,
-    is_omittable/1
+    new/2
 ]).
 
 %% Types
--type t() :: #argo_field_wire_type{}.
+-type t() :: #argo_wire_type_store_entry{}.
 
 -export_type([
     t/0
@@ -37,16 +35,7 @@
 %%% API functions
 %%%=============================================================================
 
--spec new(Name, Of, Omittable) -> FieldWireType when
-    Name :: argo_types:name(), Of :: argo_wire_type:t(), Omittable :: boolean(), FieldWireType :: t().
-new(Name, Of = #argo_wire_type{}, Omittable) when is_binary(Name) andalso is_boolean(Omittable) ->
-    #argo_field_wire_type{name = Name, 'of' = Of, omittable = Omittable}.
-
--compile({inline, [is_labeled/1]}).
--spec is_labeled(FieldWireType) -> boolean() when FieldWireType :: t().
-is_labeled(#argo_field_wire_type{'of' = Of}) ->
-    argo_wire_type:is_labeled(Of).
-
--spec is_omittable(FieldWireType) -> boolean() when FieldWireType :: t().
-is_omittable(#argo_field_wire_type{omittable = Omittable}) ->
-    Omittable =:= true.
+-spec new(Name, Type) -> WireTypeStoreEntry when
+    Name :: argo_types:name(), Type :: argo_wire_type:t(), WireTypeStoreEntry :: t().
+new(Name, Type = #argo_wire_type{}) when is_binary(Name) ->
+    #argo_wire_type_store_entry{name = Name, type = Type}.

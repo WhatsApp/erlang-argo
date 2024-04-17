@@ -17,16 +17,20 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-behaviour(argo_debug_type).
+
 -include_lib("argo/include/argo_header.hrl").
 -include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
+%% argo_debug_type callbacks
+-export([
+    display/3,
+    format/2
+]).
+
 %% Codec API
 -export([
-    display/1,
-    display/2,
-    format/1,
-    format_with_lines/1,
     from_json/1,
     from_reader/1,
     to_json/1,
@@ -60,7 +64,8 @@
     is_nullable/1,
     is_path/1,
     is_record/1,
-    is_scalar/1
+    is_scalar/1,
+    xform/3
 ]).
 
 %% Types
@@ -77,40 +82,47 @@
 
 -type t() :: #argo_wire_type{}.
 
+-type xform_action() :: cont | skip.
+-type xform_result(TypeOut, AccOut) :: xform_action() | {xform_action(), AccOut} | {xform_action(), TypeOut, AccOut}.
+-type xform_func(Type, Acc) :: xform_func(Type, Acc, Type, Acc).
+-type xform_func(TypeIn, AccIn, TypeOut, AccOut) :: fun((TypeIn, AccIn) -> xform_result(TypeOut, AccOut)).
+
 -export_type([
     inner/0,
-    t/0
+    t/0,
+    xform_action/0,
+    xform_result/2,
+    xform_func/2,
+    xform_func/4
 ]).
 
 %%%=============================================================================
-%%% Codec API functions
+%%% argo_debug_type callbacks
 %%%=============================================================================
 
--spec display(WireType) -> ok when WireType :: t().
-display(WireType = #argo_wire_type{}) ->
-    display(standard_io, WireType).
-
--spec display(IoDevice, WireType) -> ok when IoDevice :: io:device(), WireType :: t().
-display(IoDevice, WireType = #argo_wire_type{}) when not is_list(IoDevice) ->
-    Printer1 = argo_wire_type_printer:new_io_device(IoDevice),
+-spec display(IoDevice, WireType, Options) -> ok when
+    IoDevice :: io:device(), WireType :: t(), Options :: argo_wire_type_printer:options().
+display(IoDevice, WireType = #argo_wire_type{}, Options) when not is_list(IoDevice) andalso is_map(Options) ->
+    Printer1 = argo_wire_type_printer:new_io_device(IoDevice, Options),
     Printer2 = argo_wire_type_printer:print_wire_type(Printer1, WireType),
     case argo_wire_type_printer:finalize(Printer2) of
         ok ->
             ok
     end.
 
--spec format(WireType) -> Output when WireType :: t(), Output :: iolist().
-format(WireType = #argo_wire_type{}) ->
-    Printer1 = argo_wire_type_printer:new_string(),
+-spec format(WireType, Options) -> Output when
+    WireType :: t(), Options :: argo_wire_type_printer:options(), Output :: unicode:unicode_binary().
+format(WireType = #argo_wire_type{}, Options) when is_map(Options) ->
+    Printer1 = argo_wire_type_printer:new_string(Options),
     Printer2 = argo_wire_type_printer:print_wire_type(Printer1, WireType),
     case argo_wire_type_printer:finalize(Printer2) of
         Output when is_list(Output) ->
-            Output
+            argo_types:unicode_binary(Output)
     end.
 
--spec format_with_lines(WireType) -> unicode:unicode_binary() when WireType :: t().
-format_with_lines(WireType = #argo_wire_type{}) ->
-    argo_types:format_with_lines(format(WireType)).
+%%%=============================================================================
+%%% Codec API functions
+%%%=============================================================================
 
 -spec from_json(JsonValue) -> WireType when
     JsonValue :: argo_json:json_value(), WireType :: t().
@@ -250,6 +262,85 @@ is_record(#argo_wire_type{}) -> false.
 is_scalar(#argo_wire_type{inner = #argo_scalar_wire_type{}}) -> true;
 is_scalar(#argo_wire_type{}) -> false.
 
+-spec xform(TypeIn, AccIn, Fun) -> {TypeOut, AccOut} when
+    TypeIn :: dynamic(),
+    AccIn :: dynamic(),
+    Fun :: xform_func(TypeIn, AccIn, TypeOut, AccOut),
+    TypeOut :: dynamic(),
+    AccOut :: dynamic().
+xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
+    case xform_normalize(T1, Acc1, Fun(T1, Acc1)) of
+        {cont, T2, Acc2} ->
+            case T2 of
+                #argo_array_wire_type{'of' = WireType1} ->
+                    {WireType2, Acc3} = xform(WireType1, Acc2, Fun),
+                    T3 = T2#argo_array_wire_type{'of' = WireType2},
+                    {T3, Acc3};
+                #argo_block_wire_type{'of' = ScalarWireType1} ->
+                    {ScalarWireType2, Acc3} = xform(ScalarWireType1, Acc2, Fun),
+                    T3 = T2#argo_block_wire_type{'of' = ScalarWireType2},
+                    {T3, Acc3};
+                #argo_desc_wire_type{} ->
+                    {T2, Acc2};
+                #argo_error_wire_type{} ->
+                    {T2, Acc2};
+                #argo_extensions_wire_type{} ->
+                    {T2, Acc2};
+                #argo_field_wire_type{'of' = WireType1} ->
+                    {WireType2, Acc3} = xform(WireType1, Acc2, Fun),
+                    T3 = T2#argo_field_wire_type{'of' = WireType2},
+                    {T3, Acc3};
+                #argo_fixed_wire_type{} ->
+                    {T2, Acc2};
+                #argo_nullable_wire_type{'of' = WireType1} ->
+                    {WireType2, Acc3} = xform(WireType1, Acc2, Fun),
+                    T3 = T2#argo_nullable_wire_type{'of' = WireType2},
+                    {T3, Acc3};
+                #argo_path_wire_type{} ->
+                    {T2, Acc2};
+                #argo_record_wire_type{fields = Fields1} ->
+                    {Fields2, Acc3} = argo_index_map:foldl(
+                        fun(_Index, FieldName, FieldWireType1, {Fields1_Acc1, Acc2_Acc1}) ->
+                            {FieldWireType2, Acc2_Acc2} = xform(FieldWireType1, Acc2_Acc1, Fun),
+                            Fields1_Acc2 = argo_index_map:put(FieldName, FieldWireType2, Fields1_Acc1),
+                            {Fields1_Acc2, Acc2_Acc2}
+                        end,
+                        {argo_index_map:new(), Acc2},
+                        Fields1
+                    ),
+                    T3 = T2#argo_record_wire_type{fields = Fields2},
+                    {T3, Acc3};
+                #argo_scalar_wire_type{inner = FixedWireType1 = #argo_fixed_wire_type{}} ->
+                    {FixedWireType2, Acc3} = xform(FixedWireType1, Acc2, Fun),
+                    T3 = T2#argo_scalar_wire_type{inner = FixedWireType2},
+                    {T3, Acc3};
+                #argo_scalar_wire_type{} ->
+                    {T2, Acc2};
+                #argo_wire_type_store{types = Types1} ->
+                    {Types2, Acc3} = argo_index_map:foldl(
+                        fun(_Index, TypeName, WireTypeStoreEntry1, {Types1_Acc1, Acc2_Acc1}) ->
+                            {WireTypeStoreEntry2, Acc2_Acc2} = xform(WireTypeStoreEntry1, Acc2_Acc1, Fun),
+                            Types1_Acc2 = argo_index_map:put(TypeName, WireTypeStoreEntry2, Types1_Acc1),
+                            {Types1_Acc2, Acc2_Acc2}
+                        end,
+                        {argo_index_map:new(), Acc2},
+                        Types1
+                    ),
+                    T3 = T2#argo_wire_type_store{types = Types2},
+                    {T3, Acc3};
+                #argo_wire_type_store_entry{type = WireType1} ->
+                    {WireType2, Acc3} = xform(WireType1, Acc2, Fun),
+                    T3 = T2#argo_wire_type_store_entry{type = WireType2},
+                    {T3, Acc3};
+                #argo_wire_type{inner = Inner1} ->
+                    {Inner2, Acc3} = xform(Inner1, Acc2, Fun),
+                    T3 = T2#argo_wire_type{inner = Inner2},
+                    {T3, Acc3}
+            end;
+        {skip, T2, Acc2} ->
+            {T2, Acc2}
+    end.
+
 %%%-----------------------------------------------------------------------------
 %%% Internal functions
 %%%-----------------------------------------------------------------------------
@@ -283,10 +374,10 @@ fold_path_values(WireType = #argo_wire_type{}, Function, Acc1, PathValue1 = #arg
             Acc1;
         #argo_record_wire_type{fields = Fields} ->
             Acc2 = argo_index_map:foldl(
-                fun(_Index, FieldName, #argo_field_wire_type{type = FieldType}, Acc1_Acc1) ->
+                fun(_Index, FieldName, #argo_field_wire_type{'of' = FieldOf}, Acc1_Acc1) ->
                     PathValue2 = argo_path_value:push_field_name(PathValue1, FieldName),
                     Acc1_Acc2 = Function(PathValue2, Acc1_Acc1),
-                    Acc1_Acc3 = fold_path_values(FieldType, Function, Acc1_Acc2, PathValue2),
+                    Acc1_Acc3 = fold_path_values(FieldOf, Function, Acc1_Acc2, PathValue2),
                     Acc1_Acc3
                 end,
                 Acc1,
@@ -296,3 +387,18 @@ fold_path_values(WireType = #argo_wire_type{}, Function, Acc1, PathValue1 = #arg
         #argo_scalar_wire_type{} ->
             Acc1
     end.
+
+%% @private
+-spec xform_normalize(TypeIn, AccIn, Result) -> {Action, TypeOut, AccOut} when
+    TypeIn :: dynamic(),
+    AccIn :: dynamic(),
+    Result :: xform_result(TypeOut, AccOut),
+    Action :: xform_action(),
+    TypeOut :: dynamic(),
+    AccOut :: dynamic().
+xform_normalize(TypeIn, AccIn, Action) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeIn, AccIn};
+xform_normalize(TypeIn, _AccIn, {Action, AccOut}) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeIn, AccOut};
+xform_normalize(_TypeIn, _AccIn, {Action, TypeOut, AccOut}) when Action =:= 'cont' orelse Action =:= 'skip' ->
+    {Action, TypeOut, AccOut}.

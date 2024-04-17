@@ -161,12 +161,10 @@ decode_wire_type_store(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, Js
             WireTypeStore1 = argo_wire_type_store:new(),
             {JsonWireTypeDecoder2, WireTypeStore2} = lists:foldl(
                 fun(JsonField, {JsonWireTypeDecoder1_Acc1, WireTypeStore1_Acc1}) ->
-                    {JsonWireTypeDecoder1_Acc2, TypeName, WireType} = decode_wire_type_store_entry(
+                    {JsonWireTypeDecoder1_Acc2, WireTypeStoreEntry} = decode_wire_type_store_entry(
                         JsonWireTypeDecoder1_Acc1, JsonField
                     ),
-                    WireTypeStore1_Acc2 = argo_wire_type_store:insert(
-                        WireTypeStore1_Acc1, TypeName, WireType
-                    ),
+                    WireTypeStore1_Acc2 = argo_wire_type_store:insert(WireTypeStore1_Acc1, WireTypeStoreEntry),
                     {JsonWireTypeDecoder1_Acc2, WireTypeStore1_Acc2}
                 end,
                 {JsonWireTypeDecoder1, WireTypeStore1},
@@ -280,23 +278,23 @@ decode_scalar_wire_type(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, J
 decode_field_wire_type(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, JsonValue) ->
     JsonObject = argo_json:as_object(JsonValue),
     Name = argo_json:as_string(argo_json:object_get(<<"name">>, JsonObject)),
-    JsonOf = argo_json:object_get(<<"type">>, JsonObject),
+    JsonOf = argo_json:object_get(<<"of">>, JsonObject),
     {JsonWireTypeDecoder2, Of} = decode_wire_type(JsonWireTypeDecoder1, JsonOf),
     Omittable = argo_json:as_boolean(argo_json:object_get(<<"omittable">>, JsonObject)),
-    ok = check_for_unknown_keys(JsonObject, #{<<"name">> => [], <<"type">> => [], <<"omittable">> => []}),
+    ok = check_for_unknown_keys(JsonObject, #{<<"name">> => [], <<"of">> => [], <<"omittable">> => []}),
     FieldWireType = argo_field_wire_type:new(Name, Of, Omittable),
     {JsonWireTypeDecoder2, FieldWireType}.
 
 %% @private
--spec decode_wire_type_store_entry(JsonWireTypeDecoder, JsonValue) -> {JsonWireTypeDecoder, TypeName, WireType} when
+-spec decode_wire_type_store_entry(JsonWireTypeDecoder, JsonValue) -> {JsonWireTypeDecoder, WireTypeStoreEntry} when
     JsonWireTypeDecoder :: t(),
     JsonValue :: argo_json:json_value(),
-    TypeName :: argo_types:name(),
-    WireType :: argo_wire_type:t().
+    WireTypeStoreEntry :: argo_wire_type_store_entry:t().
 decode_wire_type_store_entry(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, JsonValue) ->
     JsonObject = argo_json:as_object(JsonValue),
     TypeName = argo_json:as_string(argo_json:object_get(<<"name">>, JsonObject)),
     JsonWireType = argo_json:object_get(<<"type">>, JsonObject),
     {JsonWireTypeDecoder2, WireType} = decode_wire_type(JsonWireTypeDecoder1, JsonWireType),
     ok = check_for_unknown_keys(JsonObject, #{<<"name">> => [], <<"type">> => []}),
-    {JsonWireTypeDecoder2, TypeName, WireType}.
+    WireTypeStoreEntry = argo_wire_type_store_entry:new(TypeName, WireType),
+    {JsonWireTypeDecoder2, WireTypeStoreEntry}.

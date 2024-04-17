@@ -17,15 +17,12 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--include_lib("argo/include/argo_header.hrl").
--include_lib("argo/include/argo_label.hrl").
--include_lib("argo/include/argo_message.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
 %% API
 -export([
-    new_io_device/1,
-    new_string/0,
+    new_io_device/2,
+    new_string/1,
     finalize/1,
     print_wire_type/2,
     print_wire_type_store/2
@@ -34,13 +31,18 @@
 %% Records
 -record(argo_wire_type_printer, {
     depth = 0 :: non_neg_integer(),
-    output = [] :: iolist() | io:device()
+    output = [] :: iolist() | io:device(),
+    strict = false :: boolean()
 }).
 
 %% Types
+-type options() :: #{
+    strict => boolean()
+}.
 -type t() :: #argo_wire_type_printer{}.
 
 -export_type([
+    options/0,
     t/0
 ]).
 
@@ -48,13 +50,15 @@
 %%% API functions
 %%%=============================================================================
 
--spec new_io_device(IoDevice) -> Printer when IoDevice :: io:device(), Printer :: t().
-new_io_device(IoDevice) when not is_list(IoDevice) ->
-    #argo_wire_type_printer{depth = 0, output = IoDevice}.
+-spec new_io_device(IoDevice, Options) -> Printer when IoDevice :: io:device(), Options :: options(), Printer :: t().
+new_io_device(IoDevice, Options) when is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_wire_type_printer{depth = 0, output = IoDevice, strict = Strict}.
 
--spec new_string() -> Printer when Printer :: t().
-new_string() ->
-    #argo_wire_type_printer{depth = 0, output = []}.
+-spec new_string(Options) -> Printer when Options :: options(), Printer :: t().
+new_string(Options) when is_map(Options) ->
+    Strict = maps:get(strict, Options, false),
+    #argo_wire_type_printer{depth = 0, output = [], strict = Strict}.
 
 -spec finalize(Printer) -> ok | iolist() when Printer :: t().
 finalize(#argo_wire_type_printer{output = Output}) when is_list(Output) ->
@@ -64,7 +68,7 @@ finalize(Printer = #argo_wire_type_printer{}) ->
     ok.
 
 -spec print_wire_type(Printer, WireType) -> Printer when Printer :: t(), WireType :: argo_wire_type:t().
-print_wire_type(Printer1 = #argo_wire_type_printer{}, WireType = #argo_wire_type{}) ->
+print_wire_type(Printer1 = #argo_wire_type_printer{strict = Strict}, WireType = #argo_wire_type{}) ->
     case WireType#argo_wire_type.inner of
         ScalarWireType = #argo_scalar_wire_type{} ->
             print_scalar_wire_type(Printer1, ScalarWireType);
@@ -91,12 +95,24 @@ print_wire_type(Printer1 = #argo_wire_type_printer{}, WireType = #argo_wire_type
         #argo_desc_wire_type{} ->
             Printer2 = write(Printer1, "DESC", []),
             Printer2;
-        #argo_error_wire_type{} ->
-            Printer2 = write(Printer1, "ERROR", []),
-            Printer2;
-        #argo_extensions_wire_type{} ->
-            Printer2 = write(Printer1, "EXTENSIONS", []),
-            Printer2;
+        ErrorWireType = #argo_error_wire_type{} ->
+            case Strict of
+                false ->
+                    Printer2 = write(Printer1, "ERROR", []),
+                    Printer2;
+                true ->
+                    ExpandedErrorWireType = argo_error_wire_type:expand_wire_type(ErrorWireType),
+                    print_wire_type(Printer1, ExpandedErrorWireType)
+            end;
+        ExtensionsWireType = #argo_extensions_wire_type{} ->
+            case Strict of
+                false ->
+                    Printer2 = write(Printer1, "EXTENSIONS", []),
+                    Printer2;
+                true ->
+                    ExpandedExtensionsWireType = argo_extensions_wire_type:expand_wire_type(ExtensionsWireType),
+                    print_wire_type(Printer1, ExpandedExtensionsWireType)
+            end;
         #argo_path_wire_type{} ->
             Printer2 = write(Printer1, "PATH", []),
             Printer2
@@ -108,8 +124,8 @@ print_wire_type_store(Printer1 = #argo_wire_type_printer{}, WireTypeStore = #arg
     Printer2 = write(Printer1, "{~n", []),
     Types = WireTypeStore#argo_wire_type_store.types,
     Printer3 = argo_index_map:foldl(
-        fun(_Index, TypeName, WireType, PrinterAcc) ->
-            print_wire_type_store_type(PrinterAcc, TypeName, WireType)
+        fun(_Index, _TypeName, WireTypeStoreEntry, PrinterAcc) ->
+            print_wire_type_store_entry(PrinterAcc, WireTypeStoreEntry)
         end,
         Printer2,
         Types
@@ -119,9 +135,11 @@ print_wire_type_store(Printer1 = #argo_wire_type_printer{}, WireTypeStore = #arg
     Printer5.
 
 %% @private
--spec print_wire_type_store_type(Printer, TypeName, WireType) -> Printer when
-    Printer :: t(), TypeName :: argo_types:name(), WireType :: argo_wire_type:t().
-print_wire_type_store_type(Printer1 = #argo_wire_type_printer{}, TypeName, WireType = #argo_wire_type{}) ->
+-spec print_wire_type_store_entry(Printer, WireTypeStoreEntry) -> Printer when
+    Printer :: t(), WireTypeStoreEntry :: argo_wire_type_store_entry:t().
+print_wire_type_store_entry(Printer1 = #argo_wire_type_printer{}, #argo_wire_type_store_entry{
+    name = TypeName, type = WireType = #argo_wire_type{}
+}) ->
     Printer2 = Printer1#argo_wire_type_printer{depth = Printer1#argo_wire_type_printer.depth + 1},
     Printer3 = indent(Printer2),
     Printer4 = write(Printer3, "~ts: ", [TypeName]),
@@ -143,7 +161,7 @@ print_field_wire_type(Printer1 = #argo_wire_type_printer{}, FieldWireType = #arg
             true ->
                 write(Printer3, "~ts?: ", [FieldWireType#argo_field_wire_type.name])
         end,
-    Printer5 = print_wire_type(Printer4, FieldWireType#argo_field_wire_type.type),
+    Printer5 = print_wire_type(Printer4, FieldWireType#argo_field_wire_type.'of'),
     Printer6 = write(Printer5, "~n", []),
     Printer7 = Printer6#argo_wire_type_printer{depth = Printer6#argo_wire_type_printer.depth - 1},
     Printer7.

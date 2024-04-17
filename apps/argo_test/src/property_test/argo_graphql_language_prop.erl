@@ -70,8 +70,8 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                         [
                                             Document,
                                             strip_location(ParsedDocument),
-                                            argo_graphql:format_with_lines(Document),
-                                            argo_graphql:format_with_lines(ParsedDocument)
+                                            argo:format_with_lines(Document),
+                                            argo:format_with_lines(ParsedDocument)
                                         ]
                                     )
                                 end,
@@ -84,7 +84,7 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                         "FAILURE: Parser Error due to ~0tp~n"
                                         "Expected (Record):~n~0tp~n"
                                         "Expected (String):~n~ts~n",
-                                        [ParserError, Document, argo_graphql:format_with_lines(Document)]
+                                        [ParserError, Document, argo:format_with_lines(Document)]
                                     )
                                 end,
                                 false
@@ -97,7 +97,7 @@ prop_roundtrip_formatter_and_parser(_Config) ->
                                 "FAILURE: Lexer Error due to ~0tp~n"
                                 "Expected (Record):~n~0tp~n"
                                 "Expected (String):~n~ts~n",
-                                [LexerError, Document, argo_graphql:format_with_lines(Document)]
+                                [LexerError, Document, argo:format_with_lines(Document)]
                             )
                         end,
                         false

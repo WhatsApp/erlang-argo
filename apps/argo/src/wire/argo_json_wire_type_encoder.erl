@@ -75,7 +75,12 @@ encode_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, WireType
 encode_wire_type_store(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, WireTypeStore = #argo_wire_type_store{}) ->
     Types = WireTypeStore#argo_wire_type_store.types,
     {JsonWireTypeEncoder2, JsonTypes1} = argo_index_map:foldl(
-        fun(_Index, TypeName, WireType, {JsonWireTypeEncoder1_Acc1, JsonTypesAcc1}) ->
+        fun(
+            _Index,
+            TypeName,
+            #argo_wire_type_store_entry{name = TypeName, type = WireType},
+            {JsonWireTypeEncoder1_Acc1, JsonTypesAcc1}
+        ) ->
             {JsonWireTypeEncoder1_Acc2, JsonType} = encode_wire_type(JsonWireTypeEncoder1_Acc1, WireType),
             JsonTypesAcc2 = [{[{<<"name">>, TypeName}, {<<"type">>, JsonType}]} | JsonTypesAcc1],
             {JsonWireTypeEncoder1_Acc2, JsonTypesAcc2}
@@ -150,10 +155,10 @@ encode_record_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, #
 -spec encode_field_wire_type(JsonWireTypeEncoder, FieldWireType) -> {JsonWireTypeEncoder, JsonValue} when
     JsonWireTypeEncoder :: t(), FieldWireType :: argo_field_wire_type:t(), JsonValue :: argo_json:json_value().
 encode_field_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{}, #argo_field_wire_type{
-    name = Name, type = Type, omittable = Omittable
+    name = Name, 'of' = Of, omittable = Omittable
 }) ->
-    {JsonWireTypeEncoder2, JsonType} = encode_wire_type(JsonWireTypeEncoder1, Type),
-    {JsonWireTypeEncoder2, {[{<<"name">>, Name}, {<<"type">>, JsonType}, {<<"omittable">>, Omittable}]}}.
+    {JsonWireTypeEncoder2, JsonOf} = encode_wire_type(JsonWireTypeEncoder1, Of),
+    {JsonWireTypeEncoder2, {[{<<"name">>, Name}, {<<"of">>, JsonOf}, {<<"omittable">>, Omittable}]}}.
 
 %% @private
 -spec encode_desc_wire_type(JsonWireTypeEncoder) -> {JsonWireTypeEncoder, JsonValue} when
@@ -179,7 +184,7 @@ encode_error_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{stric
                 {[{<<"name">>, <<"column">>}, {<<"type">>, JsonVarintWireType}, {<<"omittable">>, false}]}
             ]}
         ]},
-    JsonLocationWireType =
+    JsonLocationsWireType =
         {[
             {<<"type">>, <<"ARRAY">>},
             {<<"of">>, JsonLocationRecordWireType}
@@ -189,7 +194,7 @@ encode_error_wire_type(JsonWireTypeEncoder1 = #argo_json_wire_type_encoder{stric
             {<<"type">>, <<"RECORD">>},
             {<<"fields">>, [
                 {[{<<"name">>, <<"message">>}, {<<"type">>, JsonStringWireType}, {<<"omittable">>, false}]},
-                {[{<<"name">>, <<"location">>}, {<<"type">>, JsonLocationWireType}, {<<"omittable">>, true}]},
+                {[{<<"name">>, <<"locations">>}, {<<"type">>, JsonLocationsWireType}, {<<"omittable">>, true}]},
                 {[{<<"name">>, <<"path">>}, {<<"type">>, JsonPathWireType}, {<<"omittable">>, true}]},
                 {[{<<"name">>, <<"extensions">>}, {<<"type">>, JsonExtensionsWireType}, {<<"omittable">>, true}]}
             ]}

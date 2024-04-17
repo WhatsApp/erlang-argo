@@ -123,3 +123,17 @@ distclean-erlfmt:
 
 format: $(ERLFMT)
 	$(verbose) $(MAKE) erlfmt
+
+.PHONY: lint lint-dialyzer lint-eqwalizer lint-format lint-xref
+
+lint:: lint-format lint-eqwalizer lint-xref lint-dialyzer
+
+lint-dialyzer:
+	$(verbose) rebar3 dialyzer
+
+lint-eqwalizer: eqwalizer
+
+lint-format: erlfmt-check
+
+lint-xref:
+	$(verbose) rebar3 xref
