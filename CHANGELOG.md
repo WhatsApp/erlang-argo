@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4 (2024-04-17)
+
+* Fixes
+  * Various fixes to conform with [Argo 1.1.4](https://msolomon.github.io/argo/versions/1.1/spec#sec-v1-1-4)).
+
 ## 1.0.3 (2024-02-14)
 
 * Enhancements
