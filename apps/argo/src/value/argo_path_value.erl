@@ -31,6 +31,7 @@
     push_field_name/2,
     push_list_index/2,
     size/1,
+    to_dotted_string/1,
     to_list/1,
     to_wire_path/2
 ]).
@@ -115,6 +116,20 @@ push_list_index(PathValue0 = #argo_path_value{}, Index) when ?is_usize(Index) ->
 -spec size(PathValue) -> non_neg_integer() when PathValue :: t().
 size(#argo_path_value{segments = Segments}) ->
     array:size(Segments).
+
+-spec to_dotted_string(PathValue) -> DottedString when PathValue :: t(), DottedString :: unicode:unicode_binary().
+to_dotted_string(PathValue = #argo_path_value{}) ->
+    erlang:iolist_to_binary(
+        lists:join(<<".">>, [
+            case Segment of
+                _ when is_binary(Segment) ->
+                    Segment;
+                _ when is_integer(Segment) ->
+                    integer_to_binary(Segment)
+            end
+         || Segment <- to_list(PathValue)
+        ])
+    ).
 
 -spec to_list(PathValue) -> SegmentList when PathValue :: t(), SegmentList :: segment_list().
 to_list(#argo_path_value{segments = Segments}) ->

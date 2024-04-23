@@ -21,6 +21,8 @@
 
 %% API
 -export([
+    filter/2,
+    filtermap/2,
     find/2,
     find_full/2,
     find_index/2,
@@ -44,6 +46,8 @@
     next/1,
     put/3,
     size/1,
+    sort/1,
+    sort/2,
     remove/2,
     remove_index/2,
     take/2,
@@ -58,6 +62,10 @@
 ]).
 
 %% Types
+-type filter_func() :: filter_func(index(), key(), value()).
+-type filter_func(Index, Key, Value) :: fun((Index, Key, Value) -> boolean()).
+-type filtermap_func() :: filtermap_func(index(), key(), value(), value()).
+-type filtermap_func(Index, Key, Value1, Value2) :: fun((Index, Key, Value1) -> boolean() | {true, Value2}).
 -type index() :: non_neg_integer().
 -type key() :: dynamic().
 -type value() :: dynamic().
@@ -76,6 +84,10 @@
 -type iterator_order_func(Key) :: fun((AIndex :: index(), AKey :: Key, BIndex :: index(), BKey :: Key) -> boolean()).
 
 -export_type([
+    filter_func/0,
+    filter_func/3,
+    filtermap_func/0,
+    filtermap_func/4,
     index/0,
     iterator/0,
     iterator/2,
@@ -92,6 +104,75 @@
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
+
+-spec filter(Predicate, IndexMap1) -> IndexMap2 when
+    Index :: index(),
+    Key :: key(),
+    Value :: value(),
+    Predicate :: filter_func(Index, Key, Value),
+    IndexMap1 :: t(Key, Value),
+    IndexMap2 :: t(Key, Value).
+filter(Predicate, IndexMap1 = #argo_index_map{}) when is_function(Predicate, 3) ->
+    Iterator = iterator(IndexMap1, ordered),
+    {Predicate, IndexMap2} = foldl_iterator(Iterator, fun filter_func_foldl/4, {Predicate, new()}),
+    IndexMap2;
+filter(Predicate, Iterator = {{_, _}, #argo_index_map{}}) when is_function(Predicate, 3) ->
+    {Predicate, IndexMap2} = foldl_iterator(Iterator, fun filter_func_foldl/4, {Predicate, new()}),
+    IndexMap2.
+
+%% @private
+-spec filter_func_foldl(Index, Key, Value, {Predicate, IndexMap1}) -> {Predicate, IndexMap2} when
+    Index :: index(),
+    Key :: key(),
+    Value :: value(),
+    Predicate :: filter_func(Index, Key, Value),
+    IndexMap1 :: t(Key, Value),
+    IndexMap2 :: t(Key, Value).
+filter_func_foldl(Index, Key, Value, {Predicate, IndexMap1}) ->
+    case Predicate(Index, Key, Value) of
+        false ->
+            {Predicate, IndexMap1};
+        true ->
+            IndexMap2 = put(Key, Value, IndexMap1),
+            {Predicate, IndexMap2}
+    end.
+
+-spec filtermap(Predicate, IndexMap1) -> IndexMap2 when
+    Index :: index(),
+    Key :: key(),
+    Value1 :: value(),
+    Value2 :: value(),
+    Predicate :: filtermap_func(Index, Key, Value1, Value2),
+    IndexMap1 :: t(Key, Value1),
+    IndexMap2 :: t(Key, Value2).
+filtermap(Predicate, IndexMap1 = #argo_index_map{}) when is_function(Predicate, 3) ->
+    Iterator = iterator(IndexMap1, ordered),
+    {Predicate, IndexMap2} = foldl_iterator(Iterator, fun filtermap_func_foldl/4, {Predicate, new()}),
+    IndexMap2;
+filtermap(Predicate, Iterator = {{_, _}, #argo_index_map{}}) when is_function(Predicate, 3) ->
+    {Predicate, IndexMap2} = foldl_iterator(Iterator, fun filtermap_func_foldl/4, {Predicate, new()}),
+    IndexMap2.
+
+%% @private
+-spec filtermap_func_foldl(Index, Key, Value1, {Predicate, IndexMap1}) -> {Predicate, IndexMap2} when
+    Index :: index(),
+    Key :: key(),
+    Value1 :: value(),
+    Value2 :: value(),
+    Predicate :: filtermap_func(Index, Key, Value1, Value2),
+    IndexMap1 :: t(Key, Value1),
+    IndexMap2 :: t(Key, Value2).
+filtermap_func_foldl(Index, Key, Value1, {Predicate, IndexMap1}) ->
+    case Predicate(Index, Key, Value1) of
+        false ->
+            {Predicate, IndexMap1};
+        true ->
+            IndexMap2 = put(Key, Value1, IndexMap1),
+            {Predicate, IndexMap2};
+        {true, Value2} ->
+            IndexMap2 = put(Key, Value2, IndexMap1),
+            {Predicate, IndexMap2}
+    end.
 
 -spec find(Key, IndexMap) -> {ok, Value} | error when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
 find(Key, IndexMap) ->
@@ -365,6 +446,38 @@ remove_index(Index, IndexMap1 = #argo_index_map{}) when is_integer(Index) andals
 -spec size(IndexMap) -> non_neg_integer() when IndexMap :: t().
 size(#argo_index_map{entries = Entries}) ->
     array:size(Entries).
+
+-spec sort(IndexMap1) -> IndexMap2 when
+    Key :: key(), Value :: value(), IndexMap1 :: t(Key, Value), IndexMap2 :: t(Key, Value).
+sort(IndexMap1 = #argo_index_map{}) ->
+    sort(fun sort_fun_default/4, IndexMap1).
+
+%% @private
+-spec sort_fun_default(AIndex, AKey, BIndex, BKey) -> boolean() when
+    AIndex :: index(), AKey :: key(), BIndex :: index(), BKey :: key().
+sort_fun_default(_AIndex, AKey, _BIndex, BKey) ->
+    AKey =< BKey.
+
+-spec sort(SortFun, IndexMap1) -> IndexMap2 when
+    SortFun :: iterator_order_func(Key),
+    Key :: key(),
+    Value :: value(),
+    IndexMap1 :: t(Key, Value),
+    IndexMap2 :: t(Key, Value).
+sort(SortFun, IndexMap1 = #argo_index_map{}) when is_function(SortFun, 4) ->
+    Iterator = iterator(IndexMap1, SortFun),
+    foldl_iterator(Iterator, fun sort_fun_foldl/4, new()).
+
+%% @private
+-spec sort_fun_foldl(Index, Key, Value, IndexMap1) -> IndexMap2 when
+    Index :: index(),
+    Key :: key(),
+    Value :: value(),
+    IndexMap1 :: t(Key, Value),
+    IndexMap2 :: t(Key, Value).
+sort_fun_foldl(_Index, Key, Value, IndexMap1 = #argo_index_map{}) ->
+    IndexMap2 = put(Key, Value, IndexMap1),
+    IndexMap2.
 
 -spec take(Key, IndexMap1) -> {Value, IndexMap2} | error when
     Key :: key(), Value :: value(), IndexMap1 :: t(Key, Value), IndexMap2 :: t(Key, Value).

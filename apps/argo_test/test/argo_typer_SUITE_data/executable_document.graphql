@@ -2,9 +2,9 @@
 
 query IncorrectTypeForFieldsInFragment {
   hero {
-    ... on Human {
-      name
-    }
+  ... on Human {
+    name
+  }
   }
 }
 
@@ -12,67 +12,67 @@ query IncorrectTypeForFieldsInFragment {
 
 query FieldOmittable($include: Boolean = false, $skip: Boolean = true) {
   root {
-    includeAlways: __typename @include(if: true)
-    includeNever: __typename @include(if: false)
-    includeVariable: __typename @include(if: $include)
-    skipAlways: __typename @skip(if: true)
-    skipNever: __typename @skip(if: false)
-    skipVariable: __typename @skip(if: $skip)
+  includeAlways: __typename @include(if: true)
+  includeNever: __typename @include(if: false)
+  includeVariable: __typename @include(if: $include)
+  skipAlways: __typename @skip(if: true)
+  skipNever: __typename @skip(if: false)
+  skipVariable: __typename @skip(if: $skip)
   }
 }
 
 query FragmentSpreadOmittable($include: Boolean = false, $skip: Boolean = true) {
   root {
-    __typename
-    ...RootFragmentUnreachable1 @include(if: false)
-    ...RootFragmentUnreachable2 @skip(if: true)
-    ...RootFragmentSimple1 @include(if: $include)
-    ...RootFragmentSimple2 @skip(if: $skip)
-    required {
-      ...RootFragmentSimple
-    }
-    includeFragmentAlways: required {
-      ...RootFragmentSimple @include(if: true)
-    }
-    includeFragmentVariable: required {
-      ...RootFragmentSimple @include(if: $include)
-    }
-    skipFragmentNever: required {
-      ...RootFragmentSimple @skip(if: false)
-    }
-    skipFragmentVariable: required {
-      ...RootFragmentSimple @skip(if: $skip)
-    }
+  __typename
+  ...RootFragmentUnreachable1 @include(if: false)
+  ...RootFragmentUnreachable2 @skip(if: true)
+  ...RootFragmentSimple1 @include(if: $include)
+  ...RootFragmentSimple2 @skip(if: $skip)
+  required {
+    ...RootFragmentSimple
+  }
+  includeFragmentAlways: required {
+    ...RootFragmentSimple @include(if: true)
+  }
+  includeFragmentVariable: required {
+    ...RootFragmentSimple @include(if: $include)
+  }
+  skipFragmentNever: required {
+    ...RootFragmentSimple @skip(if: false)
+  }
+  skipFragmentVariable: required {
+    ...RootFragmentSimple @skip(if: $skip)
+  }
   }
 }
 
 query InlineFragmentOmittable($include: Boolean = false, $skip: Boolean = true) {
   root {
-    __typename
-    ... @include(if: true) {
-      includeInlineAlways: __typename
-    }
-    ... @include(if: false) {
-      unreachable: __typename
-    }
-    ... @skip(if: false) {
-      skipInlineNever: __typename
-    }
-    ... @skip(if: true) {
-      unreachable: __typename
-    }
-    ... @include(if: $include) {
-      includeInlineVariable: __typename
-    }
-    ... @skip(if: $skip) {
-      skipInlineVariable: __typename
-    }
-    ... on Child {
-      typeConditionInlineMatch: __typename
-    }
-    ... on Object {
-      typeConditionInlineNoMatch: __typename
-    }
+  __typename
+  ... @include(if: true) {
+    includeInlineAlways: __typename
+  }
+  ... @include(if: false) {
+    unreachable: __typename
+  }
+  ... @skip(if: false) {
+    skipInlineNever: __typename
+  }
+  ... @skip(if: true) {
+    unreachable: __typename
+  }
+  ... @include(if: $include) {
+    includeInlineVariable: __typename
+  }
+  ... @skip(if: $skip) {
+    skipInlineVariable: __typename
+  }
+  ... on Child {
+    typeConditionInlineMatch: __typename
+  }
+  ... on Object {
+    typeConditionInlineNoMatch: __typename
+  }
   }
 }
 
@@ -103,7 +103,65 @@ fragment RootFragmentUnreachable2 on Child {
   ...RootFragmentUnreachable
 }
 
-query SimpleQuery {
-  x
-  y
+# See https://github.com/msolomon/argo/pull/19
+
+query FieldSelectionMergingQuery {
+  root {
+    __typename
+    ... on Child {
+      required {
+        __typename
+      }
+    }
+    ... on Object {
+      required {
+        __typename
+        object: __typename
+      }
+      properties {
+        x
+        y
+      }
+    }
+    ... on OtherObject {
+      required {
+        __typename
+        otherObject: __typename
+      }
+      properties {
+        x
+        z
+      }
+    }
+  }
+}
+
+query FieldSelectionMergingInvalidQuery {
+  root {
+    __typename
+    required {
+      optional {
+        ... on Object {
+          properties {
+            x
+            z: x
+          }
+        }
+        ... on OtherObject {
+          properties {
+            x
+            z
+          }
+        }
+      }
+    }
+  }
+}
+
+# Test: argo_typer_resolver
+
+query SimpleQueryWithRelayResolver {
+  hero {
+    strong_id__
+  }
 }

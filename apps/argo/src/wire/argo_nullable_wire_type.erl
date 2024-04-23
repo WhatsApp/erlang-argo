@@ -37,8 +37,8 @@
 %%%=============================================================================
 
 -spec new(Of) -> NullableWireType when Of :: argo_wire_type:t(), NullableWireType :: t().
-new(#argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}) ->
-    NullableWireType;
+new(#argo_wire_type{inner = #argo_nullable_wire_type{'of' = Of}}) ->
+    new(Of);
 new(Of = #argo_wire_type{}) ->
     #argo_nullable_wire_type{'of' = Of}.
 

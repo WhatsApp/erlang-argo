@@ -56,6 +56,12 @@ null(NullableWireType = #argo_nullable_wire_type{}) ->
 
 -spec non_null(NullableWireType, Value) -> NullableValue when
     NullableWireType :: argo_nullable_wire_type:t(), Value :: argo_value:t(), NullableValue :: t().
+non_null(
+    NullableWireType = #argo_nullable_wire_type{'of' = #argo_wire_type{inner = #argo_desc_wire_type{}}}, #argo_value{
+        inner = #argo_desc_value{inner = null}
+    }
+) ->
+    null(NullableWireType);
 non_null(NullableWireType = #argo_nullable_wire_type{}, Value = #argo_value{}) ->
     #argo_nullable_value{wire_type = NullableWireType, inner = {non_null, Value}}.
 

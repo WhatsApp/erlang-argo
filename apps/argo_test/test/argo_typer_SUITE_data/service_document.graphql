@@ -24,6 +24,23 @@ type Human implements Character {
 type Object implements Child {
   optional: Child
   required: Child!
+  properties: ObjectProperties!
+}
+
+type ObjectProperties {
+  x: Int!
+  y: String!
+}
+
+type OtherObject implements Child {
+  optional: Child
+  required: Child!
+  properties: OtherObjectProperties!
+}
+
+type OtherObjectProperties {
+  x: Int!
+  z: String!
 }
 
 type Query {

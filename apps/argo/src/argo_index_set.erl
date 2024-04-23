@@ -38,6 +38,8 @@
     new/0,
     next/1,
     size/1,
+    sort/1,
+    sort/2,
     take/2,
     take_full/2,
     take_index/2,

@@ -24,7 +24,9 @@
 %% API
 -export([
     derive_wire_type/3,
+    derive_wire_type/4,
     graphql_type_to_wire_type/2,
+    graphql_type_to_wire_type/3,
     path_to_wire_path/2,
     wire_path_to_path/2
 ]).
@@ -39,6 +41,15 @@
     field :: argo_graphql_field:t()
 }).
 
+%% Types
+-type options() :: #{
+    resolver => argo_typer_resolver:t()
+}.
+
+-export_type([
+    options/0
+]).
+
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
@@ -52,18 +63,36 @@
 derive_wire_type(
     ServiceDocument = #argo_graphql_service_document{},
     ExecutableDocument = #argo_graphql_executable_document{},
-    OptionOperationName1
-) when ?is_option_binary(OptionOperationName1) ->
+    OptionOperationName
+) when ?is_option_binary(OptionOperationName) ->
+    derive_wire_type(ServiceDocument, ExecutableDocument, OptionOperationName, #{}).
+
+-spec derive_wire_type(ServiceDocument, ExecutableDocument, OptionOperationName, Options) ->
+    {OptionOperationName, WireType}
+when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    ExecutableDocument :: argo_graphql_executable_document:t(),
+    OptionOperationName :: none | {some, OperationName},
+    Options :: options(),
+    OperationName :: argo_types:name(),
+    WireType :: argo_wire_type:t().
+derive_wire_type(
+    ServiceDocument = #argo_graphql_service_document{},
+    ExecutableDocument = #argo_graphql_executable_document{},
+    OptionOperationName1,
+    Options
+) when ?is_option_binary(OptionOperationName1) andalso is_map(Options) ->
     % "data" Field
     {OptionOperationName2, OperationDefinition} = argo_graphql_executable_document:get_operation_definition(
         ExecutableDocument, OptionOperationName1
     ),
-    DataTypeDefinition = get_data_type_definition(ServiceDocument, OperationDefinition),
+    DataTypeDefinition = get_data_type_definition(ServiceDocument, OperationDefinition, Options),
     DataWireType = collect_field_wire_types(
         ServiceDocument,
         ExecutableDocument,
         DataTypeDefinition,
-        OperationDefinition#argo_graphql_operation_definition.selection_set
+        OperationDefinition#argo_graphql_operation_definition.selection_set,
+        Options
     ),
     NullableDataWireType = argo_wire_type:nullable(argo_nullable_wire_type:new(DataWireType)),
     DataFieldWireType = argo_field_wire_type:new(<<"data">>, NullableDataWireType, false),
@@ -86,11 +115,21 @@ derive_wire_type(
     Type :: argo_graphql_type:t(),
     WireType :: argo_wire_type:t().
 graphql_type_to_wire_type(ServiceDocument = #argo_graphql_service_document{}, Type = #argo_graphql_type{}) ->
+    graphql_type_to_wire_type(ServiceDocument, Type, #{}).
+
+-spec graphql_type_to_wire_type(ServiceDocument, Type, Options) -> WireType when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    Type :: argo_graphql_type:t(),
+    Options :: options(),
+    WireType :: argo_wire_type:t().
+graphql_type_to_wire_type(ServiceDocument = #argo_graphql_service_document{}, Type = #argo_graphql_type{}, Options) when
+    is_map(Options)
+->
     BaseType = argo_graphql_type:get_base_type(Type),
     WireType1 =
         case BaseType of
             #argo_graphql_type{inner = TypeName} when is_binary(TypeName) ->
-                TypeDefinition = argo_graphql_service_document:get_type_definition(ServiceDocument, TypeName),
+                TypeDefinition = get_type_definition(ServiceDocument, TypeName, Options),
                 OptionCodec = get_argo_codec_directive_value(TypeDefinition),
                 OptionDeduplicate = get_argo_deduplicate_directive_value(TypeDefinition),
                 case TypeDefinition#argo_graphql_type_definition.kind of
@@ -135,7 +174,7 @@ graphql_type_to_wire_type(ServiceDocument = #argo_graphql_service_document{}, Ty
                         error_with_info(badarg, [ServiceDocument, Type], #{2 => {unsupported_graphql_type, TypeName}})
                 end;
             #argo_graphql_type{inner = #argo_graphql_list_type{type = Of}} ->
-                ArrayWireType = argo_array_wire_type:new(graphql_type_to_wire_type(ServiceDocument, Of)),
+                ArrayWireType = argo_array_wire_type:new(graphql_type_to_wire_type(ServiceDocument, Of, Options)),
                 argo_wire_type:array(ArrayWireType)
         end,
     WireType2 =
@@ -247,8 +286,10 @@ format_error_description(_Key, {custom_scalar_requires_argo_codec, TypeName}) ->
     ]);
 format_error_description(_Key, {deduplicate_not_supported, TypeName}) ->
     io_lib:format("directive @ArgoDeduplicate(deduplicate: true) is not supported for scalar type: ~0tp", [TypeName]);
-format_error_description(_Key, {field_selection_type_shape_mismatch, #{field_alias := FieldAlias}}) ->
-    io_lib:format("field selection type shape mismatch for alias: ~0tp", [FieldAlias]);
+format_error_description(_Key, {field_selection_type_shape_mismatch, #{field_alias := FieldAlias, path := Path}}) ->
+    io_lib:format("field selection type shape mismatch for alias: ~0tp (mismatch at ~ts)", [
+        FieldAlias, argo_path_value:to_dotted_string(Path)
+    ]);
 format_error_description(_Key, {invalid_field_index, Arg}) ->
     io_lib:format("invalid field index (expected usize integer): ~0tp", [Arg]);
 format_error_description(_Key, {invalid_field_name, Arg}) ->
@@ -271,35 +312,37 @@ format_error_description(_Key, Value) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
--spec get_data_type_definition(ServiceDocument, OperationDefinition) -> DataTypeDefinition when
+-spec get_data_type_definition(ServiceDocument, OperationDefinition, Options) -> DataTypeDefinition when
     ServiceDocument :: argo_graphql_service_document:t(),
     OperationDefinition :: argo_graphql_operation_definition:t(),
+    Options :: options(),
     DataTypeDefinition :: argo_graphql_type_definition:t().
 get_data_type_definition(
     ServiceDocument = #argo_graphql_service_document{},
-    _OperationDefinition = #argo_graphql_operation_definition{operation = Operation}
-) ->
+    _OperationDefinition = #argo_graphql_operation_definition{operation = Operation},
+    Options
+) when is_map(Options) ->
     case Operation of
         'query' ->
             case ServiceDocument of
                 #argo_graphql_service_document{'query' = none} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, <<"Query">>);
+                    get_type_definition(ServiceDocument, <<"Query">>, Options);
                 #argo_graphql_service_document{'query' = {some, QueryType}} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, QueryType)
+                    get_type_definition(ServiceDocument, QueryType, Options)
             end;
         'mutation' ->
             case ServiceDocument of
                 #argo_graphql_service_document{'mutation' = none} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, <<"Mutation">>);
+                    get_type_definition(ServiceDocument, <<"Mutation">>, Options);
                 #argo_graphql_service_document{'mutation' = {some, MutationType}} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, MutationType)
+                    get_type_definition(ServiceDocument, MutationType, Options)
             end;
         'subscription' ->
             case ServiceDocument of
                 #argo_graphql_service_document{'subscription' = none} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, <<"Subscription">>);
+                    get_type_definition(ServiceDocument, <<"Subscription">>, Options);
                 #argo_graphql_service_document{'subscription' = {some, SubscriptionType}} ->
-                    argo_graphql_service_document:get_type_definition(ServiceDocument, SubscriptionType)
+                    get_type_definition(ServiceDocument, SubscriptionType, Options)
             end
     end.
 
@@ -463,15 +506,16 @@ collect_fields_static(_ServiceDocument, _ExecutableDocument, [], VisitedFragment
     {GroupedFields1, VisitedFragments1}.
 
 %% @private
--spec collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefinition, SelectionSet) ->
+-spec collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefinition, SelectionSet, Options) ->
     WireType
 when
     ServiceDocument :: argo_graphql_service_document:t(),
     ExecutableDocument :: argo_graphql_executable_document:t(),
     SelectionTypeDefinition :: argo_graphql_type_definition:t(),
     SelectionSet :: argo_graphql_selection_set:t(),
+    Options :: options(),
     WireType :: argo_wire_type:t().
-collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefinition, SelectionSet) ->
+collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefinition, SelectionSet, Options) ->
     RecordWireType1 = argo_record_wire_type:new(),
     VisitedFragments1 = sets:new([{version, 2}]),
     {GroupedFields1, _VisitedFragments2} = collect_fields_static(
@@ -516,35 +560,34 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                                         TypeCondition ->
                                             {Omittable1, SelectionTypeDefinition};
                                         _ ->
-                                            {true,
-                                                argo_graphql_service_document:get_type_definition(
-                                                    ServiceDocument, TypeCondition
-                                                )}
+                                            {true, get_type_definition(ServiceDocument, TypeCondition, Options)}
                                     end
                             end,
                         Omittable3 =
                             Omittable2 orelse
                                 maybe_omit_selection(Selected#selected_field_node.field#argo_graphql_field.directives),
                         FieldName = Selected#selected_field_node.field#argo_graphql_field.name,
-                        FieldDefinition = argo_graphql_type_definition:get_field_definition(
-                            TypeConditionDefinition, FieldName, ServiceDocument
+                        FieldDefinition = get_field_definition(
+                            TypeConditionDefinition, FieldName, ServiceDocument, Options
                         ),
                         FieldSelectionSet = Selected#selected_field_node.field#argo_graphql_field.selection_set,
                         FieldType = FieldDefinition#argo_graphql_field_definition.type,
                         FieldWireType =
                             case length(FieldSelectionSet#argo_graphql_selection_set.selections) of
                                 0 ->
-                                    WireType = graphql_type_to_wire_type(ServiceDocument, FieldType),
+                                    WireType = graphql_type_to_wire_type(ServiceDocument, FieldType, Options),
                                     argo_field_wire_type:new(FieldAlias, WireType, Omittable3);
                                 _ ->
                                     FieldTypeName = argo_graphql_type:get_type_name(FieldType),
-                                    FieldTypeDefinition = argo_graphql_service_document:get_type_definition(
-                                        ServiceDocument, FieldTypeName
-                                    ),
+                                    FieldTypeDefinition = get_type_definition(ServiceDocument, FieldTypeName, Options),
                                     WireType = wrap_wire_type(
                                         FieldType,
                                         collect_field_wire_types(
-                                            ServiceDocument, ExecutableDocument, FieldTypeDefinition, FieldSelectionSet
+                                            ServiceDocument,
+                                            ExecutableDocument,
+                                            FieldTypeDefinition,
+                                            FieldSelectionSet,
+                                            Options
                                         )
                                     ),
                                     argo_field_wire_type:new(FieldAlias, WireType, Omittable3)
@@ -553,12 +596,27 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
                             case argo_record_wire_type:find(RecordWireType1_Acc1_Acc1, FieldAlias) of
                                 {ok, FieldWireType} ->
                                     RecordWireType1_Acc1_Acc1;
-                                {ok, _ExistingFieldWireType} ->
-                                    error_with_info(
-                                        badarg,
-                                        [ServiceDocument, SelectionTypeDefinition, SelectionSet],
-                                        #{3 => {field_selection_type_shape_mismatch, #{field_alias => FieldAlias}}}
-                                    );
+                                {ok, ExistingFieldWireType} ->
+                                    try
+                                        merge_field_wire_type(
+                                            argo_path_value:new(), ExistingFieldWireType, FieldWireType
+                                        )
+                                    of
+                                        MergedFieldWireType = #argo_field_wire_type{} ->
+                                            argo_record_wire_type:update(RecordWireType1_Acc1_Acc1, MergedFieldWireType)
+                                    catch
+                                        throw:{badshape, BadShapePath, _A, _B} ->
+                                            error_with_info(
+                                                badarg,
+                                                [ServiceDocument, SelectionTypeDefinition, SelectionSet],
+                                                #{
+                                                    3 =>
+                                                        {field_selection_type_shape_mismatch, #{
+                                                            field_alias => FieldAlias, path => BadShapePath
+                                                        }}
+                                                }
+                                            )
+                                    end;
                                 error ->
                                     argo_record_wire_type:insert(RecordWireType1_Acc1_Acc1, FieldWireType)
                             end,
@@ -573,6 +631,108 @@ collect_field_wire_types(ServiceDocument, ExecutableDocument, SelectionTypeDefin
         GroupedFields1
     ),
     argo_wire_type:record(RecordWireType2).
+
+%% @private
+-spec merge_field_wire_type(Path, A, B) -> C when
+    Path :: argo_path_value:t(),
+    A :: argo_field_wire_type:t(),
+    B :: argo_field_wire_type:t(),
+    C :: argo_field_wire_type:t().
+merge_field_wire_type(
+    _Path,
+    #argo_field_wire_type{name = Name, 'of' = Of, omittable = OmittableA},
+    #argo_field_wire_type{name = Name, 'of' = Of, omittable = OmittableB}
+) ->
+    argo_field_wire_type:new(Name, Of, OmittableA orelse OmittableB);
+merge_field_wire_type(
+    Path1,
+    #argo_field_wire_type{
+        name = Name, 'of' = #argo_wire_type{inner = RecordA = #argo_record_wire_type{}}, omittable = OmittableA
+    },
+    #argo_field_wire_type{
+        name = Name, 'of' = #argo_wire_type{inner = RecordB = #argo_record_wire_type{}}, omittable = OmittableB
+    }
+) ->
+    Path2 = argo_path_value:push_field_name(Path1, Name),
+    RecordC = merge_record_wire_type(Path2, RecordA, RecordB),
+    Of = argo_wire_type:record(RecordC),
+    argo_field_wire_type:new(Name, Of, OmittableA orelse OmittableB);
+merge_field_wire_type(Path, A = #argo_field_wire_type{}, B = #argo_field_wire_type{}) ->
+    throw({badshape, Path, A, B}).
+
+%% @private
+-spec merge_record_wire_type(Path, A, B) -> C when
+    Path :: argo_path_value:t(),
+    A :: argo_record_wire_type:t(),
+    B :: argo_record_wire_type:t(),
+    C :: argo_record_wire_type:t().
+merge_record_wire_type(
+    _Path,
+    Same = #argo_record_wire_type{},
+    Same = #argo_record_wire_type{}
+) ->
+    Same;
+merge_record_wire_type(
+    Path,
+    #argo_record_wire_type{fields = FieldsA},
+    #argo_record_wire_type{fields = FieldsB}
+) ->
+    FieldsC = merge_record_wire_type_fields(Path, argo_index_map:iterator(FieldsA), FieldsB, argo_index_map:new()),
+    RecordC = argo_record_wire_type:new(FieldsC),
+    RecordC.
+
+%% @private
+-spec merge_record_wire_type_fields(Path, FieldsBIterator, FieldsC) -> FieldsC when
+    Path :: argo_path_value:t(),
+    FieldsBIterator :: argo_index_map:iterator(Name, FieldWireType),
+    FieldsC :: argo_index_map:t(Name, FieldWireType),
+    Name :: argo_types:name(),
+    FieldWireType :: argo_field_wire_type:t().
+merge_record_wire_type_fields(Path1, FieldsBIterator1, FieldsC1) ->
+    case argo_index_map:next(FieldsBIterator1) of
+        none ->
+            FieldsC1;
+        {_Index, Name, FieldWireTypeB = #argo_field_wire_type{name = Name, 'of' = Of}, FieldsBIterator2} ->
+            case argo_index_map:find(Name, FieldsC1) of
+                {ok, _FieldWireTypeC = #argo_field_wire_type{name = Name, 'of' = Of}} ->
+                    merge_record_wire_type_fields(Path1, FieldsBIterator2, FieldsC1);
+                error ->
+                    FieldsC2 = argo_index_map:put(
+                        Name, FieldWireTypeB#argo_field_wire_type{omittable = true}, FieldsC1
+                    ),
+                    merge_record_wire_type_fields(Path1, FieldsBIterator2, FieldsC2)
+            end
+    end.
+
+%% @private
+-spec merge_record_wire_type_fields(Path, FieldsAIterator, FieldsB, FieldsC) -> FieldsC when
+    Path :: argo_path_value:t(),
+    FieldsAIterator :: argo_index_map:iterator(Name, FieldWireType),
+    FieldsB :: argo_index_map:t(Name, FieldWireType),
+    FieldsC :: argo_index_map:t(Name, FieldWireType),
+    Name :: argo_types:name(),
+    FieldWireType :: argo_field_wire_type:t().
+merge_record_wire_type_fields(Path1, FieldsAIterator1, FieldsB, FieldsC1) ->
+    case argo_index_map:next(FieldsAIterator1) of
+        none ->
+            merge_record_wire_type_fields(Path1, argo_index_map:iterator(FieldsB), FieldsC1);
+        {_Index, Name, FieldWireTypeA, FieldsAIterator2} ->
+            case argo_index_map:find(Name, FieldsB) of
+                {ok, FieldWireTypeA} ->
+                    FieldsC2 = argo_index_map:put(Name, FieldWireTypeA, FieldsC1),
+                    merge_record_wire_type_fields(Path1, FieldsAIterator2, FieldsB, FieldsC2);
+                {ok, FieldWireTypeB} ->
+                    Path2 = argo_path_value:push_field_name(Path1, Name),
+                    FieldWireTypeC = merge_field_wire_type(Path2, FieldWireTypeA, FieldWireTypeB),
+                    FieldsC2 = argo_index_map:put(Name, FieldWireTypeC, FieldsC1),
+                    merge_record_wire_type_fields(Path1, FieldsAIterator2, FieldsB, FieldsC2);
+                error ->
+                    FieldsC2 = argo_index_map:put(
+                        Name, FieldWireTypeA#argo_field_wire_type{omittable = true}, FieldsC1
+                    ),
+                    merge_record_wire_type_fields(Path1, FieldsAIterator2, FieldsB, FieldsC2)
+            end
+    end.
 
 %% @private
 -spec always_skip_selection(Directives) -> boolean() when Directives :: argo_graphql_directives:t().
@@ -733,6 +893,68 @@ get_argo_deduplicate_directive_value(#argo_graphql_type_definition{
     end;
 get_argo_deduplicate_directive_value(#argo_graphql_type_definition{}) ->
     none.
+
+%% @private
+-spec get_field_definition(TypeDefinition, FieldName, ServiceDocument, Options) -> FieldDefinition when
+    TypeDefinition :: argo_graphql_type_definition:t(),
+    FieldName :: argo_types:name(),
+    ServiceDocument :: argo_graphql_service_document:t(),
+    Options :: options(),
+    FieldDefinition :: argo_graphql_field_definition:t().
+get_field_definition(
+    TypeDefinition = #argo_graphql_type_definition{},
+    FieldName,
+    ServiceDocument = #argo_graphql_service_document{},
+    Options
+) when is_binary(FieldName) andalso is_map(Options) ->
+    try argo_graphql_type_definition:get_field_definition(TypeDefinition, FieldName, ServiceDocument) of
+        FieldDefinition = #argo_graphql_field_definition{} ->
+            FieldDefinition
+    catch
+        error:badarg:Stacktrace ->
+            case maps:find(resolver, Options) of
+                {ok, Resolver} when is_atom(Resolver) ->
+                    Result = argo_typer_resolver:find_field_definition(
+                        Resolver, TypeDefinition, FieldName, ServiceDocument
+                    ),
+                    case Result of
+                        {ok, FieldDefinition = #argo_graphql_field_definition{}} ->
+                            FieldDefinition;
+                        error ->
+                            erlang:raise(error, badarg, Stacktrace)
+                    end;
+                error ->
+                    erlang:raise(error, badarg, Stacktrace)
+            end
+    end.
+
+%% @private
+-spec get_type_definition(ServiceDocument, TypeName, Options) -> TypeDefinition when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    TypeName :: argo_types:name(),
+    Options :: options(),
+    TypeDefinition :: argo_graphql_type_definition:t().
+get_type_definition(ServiceDocument = #argo_graphql_service_document{}, TypeName, Options) when
+    is_binary(TypeName) andalso is_map(Options)
+->
+    try argo_graphql_service_document:get_type_definition(ServiceDocument, TypeName) of
+        TypeDefinition = #argo_graphql_type_definition{} ->
+            TypeDefinition
+    catch
+        error:badarg:Stacktrace ->
+            case maps:find(resolver, Options) of
+                {ok, Resolver} when is_atom(Resolver) ->
+                    Result = argo_typer_resolver:find_type_definition(Resolver, ServiceDocument, TypeName),
+                    case Result of
+                        {ok, TypeDefinition = #argo_graphql_type_definition{}} ->
+                            TypeDefinition;
+                        error ->
+                            erlang:raise(error, badarg, Stacktrace)
+                    end;
+                error ->
+                    erlang:raise(error, badarg, Stacktrace)
+            end
+    end.
 
 %% @private
 -compile({inline, [make_block/3]}).

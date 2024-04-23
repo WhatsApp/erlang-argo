@@ -39,7 +39,10 @@
     test_issue_7_incorrect_type_for_fields_in_fragment/1,
     test_issue_8_field_omittable/1,
     test_issue_8_fragment_spread_omittable/1,
-    test_issue_8_inline_fragment_omittable/1
+    test_issue_8_inline_fragment_omittable/1,
+    test_issue_19_field_selection_merging/1,
+    test_issue_19_field_selection_merging_invalid/1,
+    test_argo_typer_resolver/1
 ]).
 
 %%%=============================================================================
@@ -61,7 +64,10 @@ groups() ->
             test_issue_7_incorrect_type_for_fields_in_fragment,
             test_issue_8_field_omittable,
             test_issue_8_fragment_spread_omittable,
-            test_issue_8_inline_fragment_omittable
+            test_issue_8_inline_fragment_omittable,
+            test_issue_19_field_selection_merging,
+            test_issue_19_field_selection_merging_invalid,
+            test_argo_typer_resolver
         ]}
     ].
 
@@ -234,6 +240,76 @@ test_issue_8_inline_fragment_omittable(Config) ->
             "      skipInlineVariable?: STRING<String>\n"
             "      typeConditionInlineMatch: STRING<String>\n"
             "      typeConditionInlineNoMatch?: STRING<String>\n"
+            "    }?\n"
+            "  }?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
+            "}"
+        >>,
+    case Actual =:= Expected of
+        false ->
+            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
+        true ->
+            ok
+    end.
+
+test_issue_19_field_selection_merging(Config) ->
+    ServiceDocument = test_server:lookup_config(service_document, Config),
+    ExecutableDocument = test_server:lookup_config(executable_document, Config),
+    {_, WireType} = argo_typer:derive_wire_type(
+        ServiceDocument, ExecutableDocument, {some, <<"FieldSelectionMergingQuery">>}
+    ),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
+    Expected =
+        <<
+            "{\n"
+            "  data: {\n"
+            "    root: {\n"
+            "      __typename: STRING<String>\n"
+            "      required?: {\n"
+            "        __typename: STRING<String>\n"
+            "        object?: STRING<String>\n"
+            "        otherObject?: STRING<String>\n"
+            "      }\n"
+            "      properties?: {\n"
+            "        x: VARINT{Int}\n"
+            "        y?: STRING<String>\n"
+            "        z?: STRING<String>\n"
+            "      }\n"
+            "    }?\n"
+            "  }?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
+            "}"
+        >>,
+    case Actual =:= Expected of
+        false ->
+            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
+        true ->
+            ok
+    end.
+
+test_issue_19_field_selection_merging_invalid(Config) ->
+    SD = test_server:lookup_config(service_document, Config),
+    ED = test_server:lookup_config(executable_document, Config),
+    OpName = {some, <<"FieldSelectionMergingInvalidQuery">>},
+    ?assertError(badarg, argo_typer:derive_wire_type(SD, ED, OpName)),
+    ok.
+
+test_argo_typer_resolver(Config) ->
+    SD = test_server:lookup_config(service_document, Config),
+    ED = test_server:lookup_config(executable_document, Config),
+    OpName = {some, <<"SimpleQueryWithRelayResolver">>},
+    ?assertError(badarg, argo_typer:derive_wire_type(SD, ED, OpName)),
+    Options = #{resolver => argo_typer_relay_resolver},
+    {_, WireType} = argo_typer:derive_wire_type(SD, ED, OpName, Options),
+    Actual = erlang:iolist_to_binary(argo:format(WireType)),
+    Expected =
+        <<
+            "{\n"
+            "  data: {\n"
+            "    hero: {\n"
+            "      strong_id__: STRING<ID>?\n"
             "    }?\n"
             "  }?\n"
             "  errors?: ERROR[]\n"
