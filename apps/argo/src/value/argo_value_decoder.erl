@@ -323,7 +323,7 @@ decode_record_wire_type(
 decode_field_wire_type(
     ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, FieldWireType = #argo_field_wire_type{}
 ) ->
-    case FieldWireType#argo_field_wire_type.omittable of
+    case argo_field_wire_type:is_omittable(FieldWireType) of
         false ->
             {ValueDecoder2, Value} = decode_wire_type(ValueDecoder1, FieldWireType#argo_field_wire_type.'of'),
             FieldValue = argo_field_value:required(FieldWireType, Value),
@@ -865,7 +865,7 @@ decode_self_describing_record_wire_type_fields(
                 {ok, FieldValue} ->
                     argo_record_value:insert(RecordValueAcc, FieldValue);
                 error ->
-                    case FieldWireType#argo_field_wire_type.omittable of
+                    case argo_field_wire_type:is_omittable(FieldWireType) of
                         false ->
                             error_with_info(badarg, [ValueDecoder1, RecordWireType, 0, Map1], #{
                                 1 => {missing_required_field, FieldName}
@@ -893,7 +893,7 @@ decode_self_describing_record_wire_type_fields(
                 {ok, FieldWireType = #argo_field_wire_type{}} ->
                     ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
                     {ValueDecoder3, Value} = decode_wire_type(ValueDecoder2, FieldWireType#argo_field_wire_type.'of'),
-                    case FieldWireType#argo_field_wire_type.omittable of
+                    case argo_field_wire_type:is_omittable(FieldWireType) of
                         false ->
                             Map2 = maps:put(FieldName, argo_field_value:required(FieldWireType, Value), Map1),
                             decode_self_describing_record_wire_type_fields(

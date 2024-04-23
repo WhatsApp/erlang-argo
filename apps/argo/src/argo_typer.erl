@@ -643,7 +643,8 @@ merge_field_wire_type(
     #argo_field_wire_type{name = Name, 'of' = Of, omittable = OmittableA},
     #argo_field_wire_type{name = Name, 'of' = Of, omittable = OmittableB}
 ) ->
-    argo_field_wire_type:new(Name, Of, OmittableA orelse OmittableB);
+    OmittableC = merge_field_wire_type_omittable(OmittableA, OmittableB),
+    argo_field_wire_type:new(Name, Of, OmittableC);
 merge_field_wire_type(
     Path1,
     #argo_field_wire_type{
@@ -656,9 +657,18 @@ merge_field_wire_type(
     Path2 = argo_path_value:push_field_name(Path1, Name),
     RecordC = merge_record_wire_type(Path2, RecordA, RecordB),
     Of = argo_wire_type:record(RecordC),
-    argo_field_wire_type:new(Name, Of, OmittableA orelse OmittableB);
+    OmittableC = merge_field_wire_type_omittable(OmittableA, OmittableB),
+    argo_field_wire_type:new(Name, Of, OmittableC);
 merge_field_wire_type(Path, A = #argo_field_wire_type{}, B = #argo_field_wire_type{}) ->
     throw({badshape, Path, A, B}).
+
+%% @private
+-spec merge_field_wire_type_omittable(OmittableA, OmittableB) -> OmittableC when
+    OmittableA :: argo_field_wire_type:omittable(),
+    OmittableB :: argo_field_wire_type:omittable(),
+    OmittableC :: argo_field_wire_type:omittable().
+merge_field_wire_type_omittable(OmittableA, OmittableB) when is_boolean(OmittableA) andalso is_boolean(OmittableB) ->
+    OmittableA orelse OmittableB.
 
 %% @private
 -spec merge_record_wire_type(Path, A, B) -> C when
@@ -697,9 +707,9 @@ merge_record_wire_type_fields(Path1, FieldsBIterator1, FieldsC1) ->
                 {ok, _FieldWireTypeC = #argo_field_wire_type{name = Name, 'of' = Of}} ->
                     merge_record_wire_type_fields(Path1, FieldsBIterator2, FieldsC1);
                 error ->
-                    FieldsC2 = argo_index_map:put(
-                        Name, FieldWireTypeB#argo_field_wire_type{omittable = true}, FieldsC1
-                    ),
+                    OmittableC = true,
+                    FieldWireTypeC = FieldWireTypeB#argo_field_wire_type{omittable = OmittableC},
+                    FieldsC2 = argo_index_map:put(Name, FieldWireTypeC, FieldsC1),
                     merge_record_wire_type_fields(Path1, FieldsBIterator2, FieldsC2)
             end
     end.
@@ -727,9 +737,9 @@ merge_record_wire_type_fields(Path1, FieldsAIterator1, FieldsB, FieldsC1) ->
                     FieldsC2 = argo_index_map:put(Name, FieldWireTypeC, FieldsC1),
                     merge_record_wire_type_fields(Path1, FieldsAIterator2, FieldsB, FieldsC2);
                 error ->
-                    FieldsC2 = argo_index_map:put(
-                        Name, FieldWireTypeA#argo_field_wire_type{omittable = true}, FieldsC1
-                    ),
+                    OmittableC = true,
+                    FieldWireTypeC = FieldWireTypeA#argo_field_wire_type{omittable = OmittableC},
+                    FieldsC2 = argo_index_map:put(Name, FieldWireTypeC, FieldsC1),
                     merge_record_wire_type_fields(Path1, FieldsAIterator2, FieldsB, FieldsC2)
             end
     end.

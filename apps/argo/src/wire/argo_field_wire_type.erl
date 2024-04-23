@@ -27,19 +27,24 @@
 ]).
 
 %% Types
+-type omittable() :: boolean().
 -type t() :: #argo_field_wire_type{}.
 
 -export_type([
+    omittable/0,
     t/0
 ]).
+
+%% Macros
+-define(is_omittable(X), (is_boolean(X))).
 
 %%%=============================================================================
 %%% API functions
 %%%=============================================================================
 
 -spec new(Name, Of, Omittable) -> FieldWireType when
-    Name :: argo_types:name(), Of :: argo_wire_type:t(), Omittable :: boolean(), FieldWireType :: t().
-new(Name, Of = #argo_wire_type{}, Omittable) when is_binary(Name) andalso is_boolean(Omittable) ->
+    Name :: argo_types:name(), Of :: argo_wire_type:t(), Omittable :: omittable(), FieldWireType :: t().
+new(Name, Of = #argo_wire_type{}, Omittable) when is_binary(Name) andalso ?is_omittable(Omittable) ->
     #argo_field_wire_type{name = Name, 'of' = Of, omittable = Omittable}.
 
 -compile({inline, [is_labeled/1]}).

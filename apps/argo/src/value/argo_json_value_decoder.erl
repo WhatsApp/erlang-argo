@@ -326,7 +326,7 @@ decode_record_wire_type(
 decode_field_wire_type(
     JsonValueDecoder1 = #argo_json_value_decoder{}, FieldWireType = #argo_field_wire_type{name = Name}, JsonObject
 ) when ?is_json_object(JsonObject) ->
-    case FieldWireType#argo_field_wire_type.omittable of
+    case argo_field_wire_type:is_omittable(FieldWireType) of
         false ->
             case argo_json:object_find(Name, JsonObject) of
                 {ok, JsonValue} ->

@@ -155,7 +155,7 @@ print_field_wire_type(Printer1 = #argo_wire_type_printer{}, FieldWireType = #arg
     Printer2 = Printer1#argo_wire_type_printer{depth = Printer1#argo_wire_type_printer.depth + 1},
     Printer3 = indent(Printer2),
     Printer4 =
-        case FieldWireType#argo_field_wire_type.omittable of
+        case argo_field_wire_type:is_omittable(FieldWireType) of
             false ->
                 write(Printer3, "~ts: ", [FieldWireType#argo_field_wire_type.name]);
             true ->

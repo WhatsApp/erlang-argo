@@ -250,6 +250,36 @@ next(none) ->
 size(#argo_index_set{map = IndexMap}) ->
     argo_index_map:size(IndexMap).
 
+-spec sort(IndexSet1) -> IndexSet2 when
+    Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
+sort(IndexSet1 = #argo_index_set{}) ->
+    sort(fun sort_fun_default/4, IndexSet1).
+
+%% @private
+-spec sort_fun_default(AIndex, AItem, BIndex, BItem) -> boolean() when
+    AIndex :: index(), AItem :: element(), BIndex :: index(), BItem :: element().
+sort_fun_default(_AIndex, AItem, _BIndex, BItem) ->
+    AItem =< BItem.
+
+-spec sort(SortFun, IndexSet1) -> IndexSet2 when
+    SortFun :: iterator_order_func(Element),
+    Element :: element(),
+    IndexSet1 :: t(Element),
+    IndexSet2 :: t(Element).
+sort(SortFun, IndexSet1 = #argo_index_set{}) when is_function(SortFun, 4) ->
+    Iterator = iterator(IndexSet1, SortFun),
+    foldl_iterator(Iterator, fun sort_fun_foldl/3, new()).
+
+%% @private
+-spec sort_fun_foldl(Index, Element, IndexSet1) -> IndexSet2 when
+    Index :: index(),
+    Element :: element(),
+    IndexSet1 :: t(Element),
+    IndexSet2 :: t(Element).
+sort_fun_foldl(_Index, Element, IndexSet1 = #argo_index_set{}) ->
+    IndexSet2 = add_element(Element, IndexSet1),
+    IndexSet2.
+
 -spec take(Element, IndexSet1) -> {Element, IndexSet2} | error when
     Element :: element(), IndexSet1 :: t(Element), IndexSet2 :: t(Element).
 take(Element, IndexSet1 = #argo_index_set{}) ->

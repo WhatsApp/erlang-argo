@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.5 (2024-04-23)
+
+* Enhancements
+  * Add new functions to `argo_index_map`:
+    * `argo_index_map:filter/2`
+    * `argo_index_map:filtermap/2`
+    * `argo_index_map:sort/1`
+    * `argo_index_map:sort/2`
+  * Add new functions to `argo_index_set`:
+    * `argo_index_set:sort/1`
+    * `argo_index_set:sort/2`
+* Fixes
+  * Unwrap nested `NULLABLE(NULLABLE(...))` and treat a `NON_NULL(DESC(null))` the same as `NULL` (see [msolomon/argo#18](https://github.com/msolomon/argo/issues/18)).
+  * Implement "Field Selection Merging" from [GraphQL Spec: 5.3.2 Field Selection Merging](https://spec.graphql.org/draft/#sec-Field-Selection-Merging) (see [msolomon/argo#19](https://github.com/msolomon/argo/pull/19)).
+
 ## 1.0.4 (2024-04-17)
 
 * Fixes
