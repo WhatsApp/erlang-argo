@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.6 (2024-04-27)
+
+* Enhancements
+  * Add new functions to `argo_index_map`:
+    * `argo_index_map:groups_from_list/2`
+    * `argo_index_map:groups_from_list/3`
+  * Add new function to `argo_graphql_field`:
+    * `argo_graphql_field:get_response_key/1`
+  * Reorganize `argo_typer` to better match upstream.
+* Fixes
+  * Minor correction to "Field Selection Merging" from [GraphQL Spec: 5.3.2 Field Selection Merging](https://spec.graphql.org/draft/#sec-Field-Selection-Merging) (see [msolomon/argo#19](https://github.com/msolomon/argo/pull/19)).
+
 ## 1.0.5 (2024-04-23)
 
 * Enhancements

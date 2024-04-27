@@ -34,6 +34,7 @@
     add_selection/2,
     find_field/3,
     fold_fields/4,
+    get_response_key/1,
     get_shape/2,
     set_alias/2
 ]).
@@ -159,6 +160,12 @@ fold_fields(
     ExecutableDocument = #argo_graphql_executable_document{}
 ) when is_function(Fun, 3) ->
     argo_graphql_selection_set:fold_fields(SelectionSet, AccIn, Fun, ExecutableDocument).
+
+-spec get_response_key(Field) -> ResponseKey when Field :: t(), ResponseKey :: argo_types:name().
+get_response_key(#argo_graphql_field{'alias' = none, name = FieldName}) when is_binary(FieldName) ->
+    FieldName;
+get_response_key(#argo_graphql_field{'alias' = {some, FieldAlias}}) when is_binary(FieldAlias) ->
+    FieldAlias.
 
 -spec get_shape(Field, ExecutableDocument) -> Shape when
     Field :: t(),

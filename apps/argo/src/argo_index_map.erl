@@ -35,6 +35,8 @@
     get_full/2,
     get_index/2,
     get_index_of/2,
+    groups_from_list/2,
+    groups_from_list/3,
     is_index/2,
     is_key/2,
     iterator/1,
@@ -66,6 +68,10 @@
 -type filter_func(Index, Key, Value) :: fun((Index, Key, Value) -> boolean()).
 -type filtermap_func() :: filtermap_func(index(), key(), value(), value()).
 -type filtermap_func(Index, Key, Value1, Value2) :: fun((Index, Key, Value1) -> boolean() | {true, Value2}).
+-type groups_from_list_key_fun() :: groups_from_list_key_fun(dynamic(), key()).
+-type groups_from_list_key_fun(Elem, Key) :: fun((Elem) -> Key).
+-type groups_from_list_value_fun() :: groups_from_list_value_fun(dynamic(), value()).
+-type groups_from_list_value_fun(Elem, Value) :: fun((Elem) -> Value).
 -type index() :: non_neg_integer().
 -type key() :: dynamic().
 -type value() :: dynamic().
@@ -88,6 +94,10 @@
     filter_func/3,
     filtermap_func/0,
     filtermap_func/4,
+    groups_from_list_key_fun/0,
+    groups_from_list_key_fun/2,
+    groups_from_list_value_fun/0,
+    groups_from_list_value_fun/2,
     index/0,
     iterator/0,
     iterator/2,
@@ -292,6 +302,29 @@ get_index_of(Key, IndexMap = #argo_index_map{}) ->
         error ->
             erlang:error({badkey, Key}, [Key, IndexMap], [{error_info, #{module => ?MODULE}}])
     end.
+
+-spec groups_from_list(KeyFun, List) -> IndexMap when
+    KeyFun :: groups_from_list_key_fun(Elem, Key),
+    List :: [Elem],
+    Elem :: dynamic(),
+    Key :: key(),
+    Value :: value(),
+    IndexMap :: t(Key, Value).
+groups_from_list(KeyFun, List) when is_function(KeyFun, 1) andalso (is_list(List) andalso length(List) >= 0) ->
+    groups_from_list(KeyFun, fun identity/1, List).
+
+-spec groups_from_list(KeyFun, ValueFun, List) -> IndexMap when
+    KeyFun :: groups_from_list_key_fun(Elem, Key),
+    ValueFun :: groups_from_list_value_fun(Elem, Value),
+    List :: [Elem],
+    Elem :: dynamic(),
+    Key :: key(),
+    Value :: value(),
+    IndexMap :: t(Key, Value).
+groups_from_list(KeyFun, ValueFun, List) when
+    is_function(KeyFun, 1) andalso is_function(ValueFun, 1) andalso (is_list(List) andalso length(List) >= 0)
+->
+    groups_from_list_internal(KeyFun, ValueFun, List, new()).
 
 -spec is_index(Index, IndexMap) -> boolean() when Index :: index(), IndexMap :: t().
 is_index(Index, IndexMap = #argo_index_map{}) ->
@@ -706,6 +739,35 @@ foldr_iterator(Iterator, Function, Acc1, Entries1) ->
 -spec from_list({Key, Value}, IndexMap) -> IndexMap when Key :: key(), Value :: value(), IndexMap :: t(Key, Value).
 from_list({Key, Value}, IndexMap) ->
     ?MODULE:put(Key, Value, IndexMap).
+
+%% @private
+-spec groups_from_list_internal(KeyFun, ValueFun, List, IndexMap1) -> IndexMap2 when
+    KeyFun :: groups_from_list_key_fun(Elem, Key),
+    ValueFun :: groups_from_list_value_fun(Elem, Value),
+    List :: [Elem],
+    Elem :: dynamic(),
+    Key :: key(),
+    Value :: value(),
+    IndexMap1 :: t(Key, Value),
+    IndexMap2 :: t(Key, Value).
+groups_from_list_internal(_KeyFun, _ValueFun, [], IndexMap1) ->
+    IndexMap1;
+groups_from_list_internal(KeyFun, ValueFun, [Elem | List], IndexMap1) ->
+    Key = KeyFun(Elem),
+    Value = ValueFun(Elem),
+    IndexMap2 = update_with(
+        Key,
+        fun(_Index, Values) ->
+            Values ++ [Value]
+        end,
+        [Value],
+        IndexMap1
+    ),
+    groups_from_list_internal(KeyFun, ValueFun, List, IndexMap2).
+
+%% @private
+-spec identity(T) -> T when T :: dynamic().
+identity(T) -> T.
 
 %% @private
 -spec repair(Index, undefined | {Key, Value}, Acc) -> Acc when

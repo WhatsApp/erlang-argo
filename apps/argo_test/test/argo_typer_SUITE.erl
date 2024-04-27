@@ -266,7 +266,7 @@ test_issue_19_field_selection_merging(Config) ->
             "  data: {\n"
             "    root: {\n"
             "      __typename: STRING<String>\n"
-            "      required?: {\n"
+            "      required: {\n"
             "        __typename: STRING<String>\n"
             "        object?: STRING<String>\n"
             "        otherObject?: STRING<String>\n"
