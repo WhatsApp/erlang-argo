@@ -19,6 +19,7 @@
 
 %% Behaviour
 -callback init(Options) -> JsonScalarDecoder when Options :: options(), JsonScalarDecoder :: t().
+
 -callback decode_block_scalar(JsonScalarDecoder, BlockKey, BlockScalarHint, JsonValue) ->
     {ok, JsonScalarDecoder, BlockScalar} | {error, ErrorReason}
 when
@@ -28,6 +29,7 @@ when
     JsonValue :: argo_json:json_value(),
     BlockScalar :: argo_scalar_value:inner(),
     ErrorReason :: error_reason().
+
 -callback decode_desc_scalar(JsonScalarDecoder, DescHint, JsonValue) ->
     {ok, JsonScalarDecoder, DescScalar} | {error, ErrorReason}
 when
@@ -36,6 +38,7 @@ when
     JsonValue :: argo_json:json_value(),
     DescScalar :: argo_desc_value:inner_scalar(),
     ErrorReason :: error_reason().
+
 -callback decode_scalar(JsonScalarDecoder, ScalarHint, JsonValue) ->
     {ok, JsonScalarDecoder, Scalar} | {error, ErrorReason}
 when
@@ -49,7 +52,7 @@ when
 -type desc_hint() :: null | boolean | string | bytes | int | float.
 -type error_reason() :: invalid | type_mismatch | dynamic().
 -type options() :: dynamic().
--type scalar_hint() :: boolean | bytes | {fixed, argo_types:length()} | float64 | string | varint.
+-type scalar_hint() :: boolean | bytes | desc | {fixed, argo_types:length()} | float64 | string | varint.
 -type t() :: dynamic().
 
 -export_type([

@@ -1,3 +1,61 @@
+"""
+Specifies how to serialize and deserialize this scalar. Adding, changing, or removing this directive is typically a breaking change.
+"""
+enum ArgoCodecType {
+  """
+  Serialize and deserialize a scalar as a GraphQL String (UTF-8).
+  """
+  String
+  """
+  Serialize and deserialize a scalar as a GraphQL Int (32-bit signed integer).
+  """
+  Int
+  """
+  Serialize and deserialize a scalar as a GraphQL Float (IEEE 754 double-precision floating-point).
+  """
+  Float
+  """
+  Serialize and deserialize a scalar as a GraphQL Boolean.
+  """
+  Boolean
+  """
+  Serialize and deserialize a scalar as Argo BYTES: a variable-length length-prefixed byte array.
+  """
+  BYTES
+  """
+  Serialize and deserialize a scalar as Argo FIXED: a fixed-length byte array.
+  """
+  FIXED
+  """
+  Serialize and deserialize a scalar as Argo DESC: a flexible self-describing binary format (somewhat like JSON).
+  """
+  DESC
+}
+
+"""
+Specifies how to serialize and deserialize this scalar. This is necessary for custom scalars to work with Argo serialization. Adding, changing, or removing this directive is typically a breaking change.
+"""
+directive @ArgoCodec(
+  """
+  The codec to use to serialize and deserialize this scalar.
+  """
+  codec: ArgoCodecType!,
+  """
+  For the FIXED codec only: the length of the encoded value in bytes. Required for FIXED, and invalid for all other codecs.
+  """
+  fixedLength: Int
+) on SCALAR | ENUM
+
+"""
+Deduplicate values of this type. Adding or removing this directive is typically a breaking change.
+"""
+directive @ArgoDeduplicate(
+  """
+  Should values of this type be deduplicated?
+  """
+  deduplicate: Boolean! = true
+) on SCALAR | ENUM
+
 schema {
   query: Query
 }
@@ -45,7 +103,11 @@ type OtherObjectProperties {
 
 type Query {
   hero: Character
+  json: JSON
+  requiredJson: JSON!
   root: Child
   x: Int!
   y: Int
 }
+
+scalar JSON @ArgoCodec(codec: DESC)

@@ -26,7 +26,8 @@
 -export([
     new/0,
     new/2,
-    encode_value/2
+    encode_value/2,
+    encode_desc_value/2
 ]).
 
 %% Types
@@ -135,6 +136,8 @@ encode_block_value(
             {bytes, V} when is_binary(V) ->
                 JsonScalarEncoderModule:encode_block_scalar(JsonScalarEncoder1, BlockKey, BlockScalar);
             {fixed, V} when is_binary(V) ->
+                JsonScalarEncoderModule:encode_block_scalar(JsonScalarEncoder1, BlockKey, BlockScalar);
+            {desc, _V = #argo_desc_value{}} ->
                 JsonScalarEncoderModule:encode_block_scalar(JsonScalarEncoder1, BlockKey, BlockScalar)
         end,
     JsonValueEncoder2 =

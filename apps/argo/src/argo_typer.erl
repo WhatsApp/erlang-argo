@@ -1122,7 +1122,9 @@ get_argo_codec_directive_value(#argo_graphql_type_definition{
                                     value = #argo_graphql_value_const{inner = {int, FixedLength}}
                                 } when is_integer(FixedLength) andalso FixedLength >= 0 ->
                                     {some, argo_scalar_wire_type:fixed(FixedLength)}
-                            end
+                            end;
+                        <<"DESC">> ->
+                            {some, argo_scalar_wire_type:desc()}
                     end
             end;
         error ->

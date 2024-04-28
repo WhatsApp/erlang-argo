@@ -26,7 +26,8 @@
 -export([
     new/0,
     new/2,
-    decode_wire_type/3
+    decode_wire_type/3,
+    decode_desc_wire_type/2
 ]).
 
 %% Errors API
@@ -162,6 +163,10 @@ decode_scalar_wire_type(
             ScalarValue = argo_scalar_value:fixed(FixedValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, ScalarValue};
+        {ok, JsonScalarDecoder2, {desc, DescValue}} when ScalarHint =:= desc ->
+            ScalarValue = argo_scalar_value:desc(DescValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, ScalarValue};
         {ok, _JsonScalarDecoder2, Scalar} ->
             error_scalar_type_mismatch([JsonValueDecoder1, ScalarWireType, JsonValue], ScalarHint, Scalar);
         {error, type_mismatch} ->
@@ -226,6 +231,11 @@ decode_block_wire_type(
                 element(2, BlockScalarHint) =:= byte_size(FixedValue)
         ->
             ScalarValue = argo_scalar_value:fixed(FixedValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
+            {JsonValueDecoder2, BlockValue};
+        {ok, JsonScalarDecoder2, {desc, DescValue}} when BlockScalarHint =:= desc ->
+            ScalarValue = argo_scalar_value:desc(DescValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             JsonValueDecoder2 = maybe_update_json_scalar_decoder(JsonValueDecoder1, JsonScalarDecoder2),
             {JsonValueDecoder2, BlockValue};
@@ -605,6 +615,10 @@ error_scalar_type_mismatch(Args, ScalarHint, Scalar) ->
         {fixed, Length} ->
             error_with_info(badarg, Args, #{
                 3 => {mismatch, {expected_fixed, Length}, Scalar}
+            });
+        desc ->
+            error_with_info(badarg, Args, #{
+                3 => {mismatch, expected_desc, Scalar}
             })
     end.
 
@@ -623,6 +637,8 @@ format_error_description(_Key, expected_boolean) ->
     "expected JSON boolean";
 format_error_description(_Key, expected_bytes) ->
     "expected JSON bytes";
+format_error_description(_Key, expected_desc) ->
+    "expected JSON self-describing type";
 format_error_description(_Key, {expected_fixed, Length}) ->
     io_lib:format("expected JSON string of fixed-length ~w", [Length]);
 format_error_description(_Key, expected_float) ->

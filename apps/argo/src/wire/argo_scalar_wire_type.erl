@@ -24,6 +24,7 @@
 -export([
     boolean/0,
     bytes/0,
+    desc/0,
     fixed/1,
     float64/0,
     string/0,
@@ -35,6 +36,7 @@
     deduplicate_by_default/1,
     is_boolean/1,
     is_bytes/1,
+    is_desc/1,
     is_fixed/1,
     is_fixed_length/2,
     is_float64/1,
@@ -46,7 +48,7 @@
 ]).
 
 %% Types
--type inner() :: boolean | bytes | argo_fixed_wire_type:t() | float64 | string | varint.
+-type inner() :: boolean | bytes | desc | argo_fixed_wire_type:t() | float64 | string | varint.
 -type t() :: #argo_scalar_wire_type{}.
 
 -export_type([
@@ -63,6 +65,9 @@ boolean() -> #argo_scalar_wire_type{inner = boolean}.
 
 -spec bytes() -> ScalarWireType when ScalarWireType :: t().
 bytes() -> #argo_scalar_wire_type{inner = bytes}.
+
+-spec desc() -> ScalarWireType when ScalarWireType :: t().
+desc() -> #argo_scalar_wire_type{inner = desc}.
 
 -spec fixed(LengthOrFixedWireType) -> ScalarWireType when
     LengthOrFixedWireType :: argo_types:length() | argo_fixed_wire_type:t(), ScalarWireType :: t().
@@ -92,6 +97,9 @@ is_boolean(#argo_scalar_wire_type{inner = Inner}) -> Inner =:= boolean.
 
 -spec is_bytes(ScalarWireType) -> boolean() when ScalarWireType :: t().
 is_bytes(#argo_scalar_wire_type{inner = Inner}) -> Inner =:= bytes.
+
+-spec is_desc(ScalarWireType) -> boolean() when ScalarWireType :: t().
+is_desc(#argo_scalar_wire_type{inner = Inner}) -> Inner =:= desc.
 
 -spec is_fixed(ScalarWireType) -> boolean() when ScalarWireType :: t().
 is_fixed(#argo_scalar_wire_type{inner = #argo_fixed_wire_type{}}) -> true;
@@ -126,6 +134,8 @@ to_string(#argo_scalar_wire_type{inner = boolean}) ->
     "BOOLEAN";
 to_string(#argo_scalar_wire_type{inner = bytes}) ->
     "BYTES";
+to_string(#argo_scalar_wire_type{inner = desc}) ->
+    "DESC";
 to_string(#argo_scalar_wire_type{inner = #argo_fixed_wire_type{length = Length}}) ->
     io_lib:format("FIXED(~w)", [Length]);
 to_string(#argo_scalar_wire_type{inner = float64}) ->

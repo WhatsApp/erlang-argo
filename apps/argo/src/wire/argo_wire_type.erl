@@ -198,6 +198,8 @@ record(RecordWireType = #argo_record_wire_type{}) ->
     #argo_wire_type{inner = RecordWireType}.
 
 -spec scalar(ScalarWireType) -> WireType when ScalarWireType :: argo_scalar_wire_type:t(), WireType :: t().
+scalar(#argo_scalar_wire_type{inner = desc}) ->
+    desc();
 scalar(ScalarWireType = #argo_scalar_wire_type{}) ->
     #argo_wire_type{inner = ScalarWireType}.
 

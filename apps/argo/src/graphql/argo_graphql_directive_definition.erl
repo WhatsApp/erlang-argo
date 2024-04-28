@@ -80,19 +80,34 @@
 -spec builtin(DirectiveName) -> {ok, DirectiveDefinition} | error when
     DirectiveName :: argo_types:name(), DirectiveDefinition :: t().
 builtin(DirectiveName = <<"ArgoCodec">>) ->
-    % See: https://msolomon.github.io/argo/versions/1.0/spec#sec-Directives
+    % See: https://msolomon.github.io/argo/versions/1.2/spec#sec-Directives
     DirectiveDefinition1 = new(DirectiveName, false),
     CodecArgumentType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"ArgoCodecType">>)),
-    CodecArgumentDefinition = argo_graphql_input_value_definition:new(<<"codec">>, CodecArgumentType),
+    CodecArgumentDefinition1 = argo_graphql_input_value_definition:new(<<"codec">>, CodecArgumentType),
+    CodecArgumentDefinition2 = argo_graphql_input_value_definition:set_description(
+        CodecArgumentDefinition1, {some, <<"The codec to use to serialize and deserialize this scalar.">>}
+    ),
     FixedLengthArgumentType = argo_graphql_type:named_type(<<"Int">>),
-    FixedLengthArgumentDefinition = argo_graphql_input_value_definition:new(<<"fixedLength">>, FixedLengthArgumentType),
+    FixedLengthArgumentDefinition1 = argo_graphql_input_value_definition:new(
+        <<"fixedLength">>, FixedLengthArgumentType
+    ),
+    FixedLengthArgumentDefinition2 = argo_graphql_input_value_definition:set_description(
+        FixedLengthArgumentDefinition1,
+        {some,
+            <<"For the FIXED codec only: the length of the encoded value in bytes. Required for FIXED, and invalid for all other codecs.">>}
+    ),
     DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [
-        CodecArgumentDefinition, FixedLengthArgumentDefinition
+        CodecArgumentDefinition2, FixedLengthArgumentDefinition2
     ]),
     DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['SCALAR', 'ENUM']),
-    {ok, DirectiveDefinition3};
+    DirectiveDefinition4 = set_description(
+        DirectiveDefinition3,
+        {some,
+            <<"Specifies how to serialize and deserialize this scalar. This is necessary for custom scalars to work with Argo serialization. Adding, changing, or removing this directive is typically a breaking change.">>}
+    ),
+    {ok, DirectiveDefinition4};
 builtin(DirectiveName = <<"ArgoDeduplicate">>) ->
-    % See: https://msolomon.github.io/argo/versions/1.0/spec#sec-Directives
+    % See: https://msolomon.github.io/argo/versions/1.2/spec#sec-Directives
     DirectiveDefinition1 = new(DirectiveName, false),
     DeduplicateArgumentType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
     DeduplicateArgumentDefinition1 = argo_graphql_input_value_definition:new(
@@ -102,9 +117,16 @@ builtin(DirectiveName = <<"ArgoDeduplicate">>) ->
     DeduplicateArgumentDefinition2 = argo_graphql_input_value_definition:set_default_value(
         DeduplicateArgumentDefinition1, {some, DeduplicatDefaultValue}
     ),
-    DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [DeduplicateArgumentDefinition2]),
+    DeduplicateArgumentDefinition3 = argo_graphql_input_value_definition:set_description(
+        DeduplicateArgumentDefinition2, {some, <<"Should values of this type be deduplicated?">>}
+    ),
+    DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [DeduplicateArgumentDefinition3]),
     DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['SCALAR', 'ENUM']),
-    {ok, DirectiveDefinition3};
+    DirectiveDefinition4 = set_description(
+        DirectiveDefinition3,
+        {some, <<"Deduplicate values of this type. Adding or removing this directive is typically a breaking change.">>}
+    ),
+    {ok, DirectiveDefinition4};
 builtin(DirectiveName = <<"defer">>) ->
     % See: https://github.com/graphql/graphql-spec/pull/742
     DirectiveDefinition1 = new(DirectiveName, false),

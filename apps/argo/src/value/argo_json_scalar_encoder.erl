@@ -19,13 +19,16 @@
 
 %% Behaviour
 -callback init(Options) -> JsonScalarEncoder when Options :: options(), JsonScalarEncoder :: t().
+
 -callback encode_block_scalar(JsonScalarEncoder, BlockKey, BlockScalar) -> {JsonScalarEncoder, JsonValue} when
     JsonScalarEncoder :: t(),
     BlockKey :: argo_types:name(),
     BlockScalar :: argo_scalar_value:inner(),
     JsonValue :: argo_json:json_value().
+
 -callback encode_desc_scalar(JsonScalarEncoder, DescScalar) -> {JsonScalarEncoder, JsonValue} when
     JsonScalarEncoder :: t(), DescScalar :: argo_desc_value:inner_scalar(), JsonValue :: argo_json:json_value().
+
 -callback encode_scalar(JsonScalarEncoder, Scalar) -> {JsonScalarEncoder, JsonValue} when
     JsonScalarEncoder :: t(), Scalar :: argo_scalar_value:inner(), JsonValue :: argo_json:json_value().
 

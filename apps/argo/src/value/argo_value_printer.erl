@@ -392,7 +392,8 @@ print_scalar_value(Printer1 = #argo_value_printer{}, ScalarValue = #argo_scalar_
         {varint, Value} -> write(Printer1, "VARINT(~0tp)", [Value]);
         {float64, Value} -> write(Printer1, "FLOAT64(~0tp)", [Value]);
         {bytes, Value} -> write(Printer1, "BYTES(~0tp)", [Value]);
-        {fixed, Value} -> write(Printer1, "FIXED(~w, ~0tp)", [byte_size(Value), Value])
+        {fixed, Value} -> write(Printer1, "FIXED(~w, ~0tp)", [byte_size(Value), Value]);
+        {desc, Value} -> print_desc_value(Printer1, Value)
     end.
 
 %% @private

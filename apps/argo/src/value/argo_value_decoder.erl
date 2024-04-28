@@ -172,6 +172,10 @@ decode_scalar_wire_type(ValueDecoder1 = #argo_value_decoder{}, ScalarWireType = 
             {MessageDecoder2, Value} = argo_message_decoder:decode_block_fixed(MessageDecoder1, Length),
             ScalarValue = argo_scalar_value:fixed(Value),
             ValueDecoder3 = ValueDecoder2#argo_value_decoder{message = MessageDecoder2},
+            {ValueDecoder3, ScalarValue};
+        desc ->
+            {ValueDecoder3, DescValue} = decode_desc_wire_type(ValueDecoder2),
+            ScalarValue = argo_scalar_value:desc(DescValue),
             {ValueDecoder3, ScalarValue}
     end.
 
@@ -179,14 +183,22 @@ decode_scalar_wire_type(ValueDecoder1 = #argo_value_decoder{}, ScalarWireType = 
 -spec decode_block_wire_type(ValueDecoder, BlockWireType) -> {ValueDecoder, BlockValue} when
     ValueDecoder :: t(), BlockWireType :: argo_block_wire_type:t(), BlockValue :: argo_block_value:t().
 decode_block_wire_type(ValueDecoder1 = #argo_value_decoder{}, BlockWireType = #argo_block_wire_type{}) ->
-    ValueDecoder2 =
-        #argo_value_decoder{message = MessageDecoder1} = maybe_decode_self_describing_label_for_scalar(
-            ValueDecoder1, BlockWireType#argo_block_wire_type.'of'
-        ),
-    {MessageDecoder2, ScalarValue} = argo_message_decoder:decode_block_scalar(MessageDecoder1, BlockWireType),
-    BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
-    ValueDecoder3 = ValueDecoder2#argo_value_decoder{message = MessageDecoder2},
-    {ValueDecoder3, BlockValue}.
+    case argo_scalar_wire_type:is_desc(BlockWireType#argo_block_wire_type.'of') of
+        false ->
+            ValueDecoder2 =
+                #argo_value_decoder{message = MessageDecoder1} = maybe_decode_self_describing_label_for_scalar(
+                    ValueDecoder1, BlockWireType#argo_block_wire_type.'of'
+                ),
+            {MessageDecoder2, ScalarValue} = argo_message_decoder:decode_block_scalar(MessageDecoder1, BlockWireType),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            ValueDecoder3 = ValueDecoder2#argo_value_decoder{message = MessageDecoder2},
+            {ValueDecoder3, BlockValue};
+        true ->
+            {ValueDecoder2, DescValue} = decode_desc_wire_type(ValueDecoder1),
+            ScalarValue = argo_scalar_value:desc(DescValue),
+            BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
+            {ValueDecoder2, BlockValue}
+    end.
 
 %% @private
 -spec decode_nullable_wire_type(ValueDecoder, NullableWireType) -> {ValueDecoder, NullableValue} when
@@ -757,37 +769,42 @@ maybe_decode_self_describing_label_for_scalar(
 decode_self_describing_label_for_scalar(
     ValueDecoder1 = #argo_value_decoder{message = MessageDecoder1}, ScalarWireType = #argo_scalar_wire_type{}
 ) ->
-    {MessageDecoder2, Label} = argo_message_decoder:read_core_label(MessageDecoder1),
-    ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
-    case ScalarWireType#argo_scalar_wire_type.inner of
-        string when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING ->
-            ValueDecoder2;
-        boolean when
-            (Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_FALSE orelse
-                Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_TRUE)
-        ->
-            % rollback read_core_label for boolean
-            ValueDecoder1;
-        varint when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT ->
-            ValueDecoder2;
-        float64 when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_FLOAT ->
-            ValueDecoder2;
-        bytes when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES ->
-            ValueDecoder2;
-        #argo_fixed_wire_type{} when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES ->
-            ValueDecoder2;
-        string ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_string_label, Label}});
-        boolean ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_boolean_label, Label}});
-        varint ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_varint_label, Label}});
-        float64 ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_float64_label, Label}});
-        bytes ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_bytes_label, Label}});
-        #argo_fixed_wire_type{} ->
-            error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_fixed_label, Label}})
+    case argo_scalar_wire_type:is_desc(ScalarWireType) of
+        false ->
+            {MessageDecoder2, Label} = argo_message_decoder:read_core_label(MessageDecoder1),
+            ValueDecoder2 = ValueDecoder1#argo_value_decoder{message = MessageDecoder2},
+            case ScalarWireType#argo_scalar_wire_type.inner of
+                string when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_STRING ->
+                    ValueDecoder2;
+                boolean when
+                    (Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_FALSE orelse
+                        Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_TRUE)
+                ->
+                    % rollback read_core_label for boolean
+                    ValueDecoder1;
+                varint when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_INT ->
+                    ValueDecoder2;
+                float64 when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_FLOAT ->
+                    ValueDecoder2;
+                bytes when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES ->
+                    ValueDecoder2;
+                #argo_fixed_wire_type{} when Label =:= ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES ->
+                    ValueDecoder2;
+                string ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_string_label, Label}});
+                boolean ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_boolean_label, Label}});
+                varint ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_varint_label, Label}});
+                float64 ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_float64_label, Label}});
+                bytes ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_bytes_label, Label}});
+                #argo_fixed_wire_type{} ->
+                    error_with_info(badarg, [ValueDecoder1, ScalarWireType], #{1 => {invalid_fixed_label, Label}})
+            end;
+        true ->
+            ValueDecoder1
     end.
 
 %% @private

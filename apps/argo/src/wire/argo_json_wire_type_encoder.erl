@@ -109,7 +109,9 @@ encode_scalar_wire_type(
         bytes ->
             {JsonWireTypeEncoder1, {[{<<"type">>, <<"BYTES">>}]}};
         #argo_fixed_wire_type{length = Length} ->
-            {JsonWireTypeEncoder1, {[{<<"type">>, <<"FIXED">>}, {<<"length">>, Length}]}}
+            {JsonWireTypeEncoder1, {[{<<"type">>, <<"FIXED">>}, {<<"length">>, Length}]}};
+        desc ->
+            {JsonWireTypeEncoder1, {[{<<"type">>, <<"DESC">>}]}}
     end.
 
 %% @private

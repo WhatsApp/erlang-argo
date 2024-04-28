@@ -88,16 +88,47 @@
 builtin(TypeName = <<"ArgoCodecType">>) ->
     % See: https://msolomon.github.io/argo/versions/1.0/spec#sec-Directives
     EnumTypeDefinition1 = argo_graphql_enum_type_definition:new(),
+    MakeEnumValueDefinition = fun(EnumValue, OptionDescription) ->
+        EnumValueDefinition1 = argo_graphql_enum_value_definition:new(EnumValue),
+        EnumValueDefinition2 = argo_graphql_enum_value_definition:set_description(
+            EnumValueDefinition1, OptionDescription
+        ),
+        EnumValueDefinition2
+    end,
     EnumTypeDefinition2 = argo_graphql_enum_type_definition:add_enum_value_definitions(EnumTypeDefinition1, [
-        argo_graphql_enum_value_definition:new(<<"String">>),
-        argo_graphql_enum_value_definition:new(<<"Int">>),
-        argo_graphql_enum_value_definition:new(<<"Float">>),
-        argo_graphql_enum_value_definition:new(<<"Boolean">>),
-        argo_graphql_enum_value_definition:new(<<"BYTES">>),
-        argo_graphql_enum_value_definition:new(<<"FIXED">>)
+        MakeEnumValueDefinition(
+            <<"String">>, {some, <<"Serialize and deserialize a scalar as a GraphQL String (UTF-8).">>}
+        ),
+        MakeEnumValueDefinition(
+            <<"Int">>, {some, <<"Serialize and deserialize a scalar as a GraphQL Int (32-bit signed integer).">>}
+        ),
+        MakeEnumValueDefinition(
+            <<"Float">>,
+            {some,
+                <<"Serialize and deserialize a scalar as a GraphQL Float (IEEE 754 double-precision floating-point).">>}
+        ),
+        MakeEnumValueDefinition(<<"Boolean">>, {some, <<"Serialize and deserialize a scalar as a GraphQL Boolean.">>}),
+        MakeEnumValueDefinition(
+            <<"BYTES">>,
+            {some,
+                <<"Serialize and deserialize a scalar as Argo BYTES: a variable-length length-prefixed byte array.">>}
+        ),
+        MakeEnumValueDefinition(
+            <<"FIXED">>, {some, <<"Serialize and deserialize a scalar as Argo FIXED: a fixed-length byte array.">>}
+        ),
+        MakeEnumValueDefinition(
+            <<"DESC">>,
+            {some,
+                <<"Serialize and deserialize a scalar as Argo DESC: a flexible self-describing binary format (somewhat like JSON).">>}
+        )
     ]),
-    TypeDefinition = enum_type_definition(TypeName, EnumTypeDefinition2),
-    {ok, TypeDefinition};
+    TypeDefinition1 = enum_type_definition(TypeName, EnumTypeDefinition2),
+    TypeDefinition2 = set_description(
+        TypeDefinition1,
+        {some,
+            <<"Specifies how to serialize and deserialize this scalar. Adding, changing, or removing this directive is typically a breaking change.">>}
+    ),
+    {ok, TypeDefinition2};
 builtin(TypeName) when ?is_builtin_scalar(TypeName) ->
     % See: https://spec.graphql.org/draft/#sec-Scalars.Built-in-Scalars
     ScalarTypeDefinition = argo_graphql_scalar_type_definition:new(),

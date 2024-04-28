@@ -199,7 +199,8 @@ add_argo_directives(TypeDefinition1 = #argo_graphql_type_definition{kind = Kind}
             {float, none},
             {boolean, none},
             {bytes, option(oneof([default, true, false]))},
-            {{fixed, non_neg_integer()}, none}
+            {{fixed, non_neg_integer()}, none},
+            {desc, none}
         ]),
         begin
             ArgoCodecType2 =
@@ -215,7 +216,9 @@ add_argo_directives(TypeDefinition1 = #argo_graphql_type_definition{kind = Kind}
                     bytes ->
                         <<"BYTES">>;
                     {fixed, _} ->
-                        <<"FIXED">>
+                        <<"FIXED">>;
+                    desc ->
+                        <<"DESC">>
                 end,
             ArgoCodec1 = argo_graphql_directive_const:new(<<"ArgoCodec">>),
             ArgoCodec2 = argo_graphql_directive_const:add_argument_const(

@@ -111,7 +111,9 @@ encode_scalar_wire_type(
                 ME1 = MessageEncoder1,
                 ME2 = argo_message_encoder:write_core_label(ME1, ?ARGO_LABEL_WIRE_TYPE_MARKER_FIXED),
                 ME3 = argo_message_encoder:write_core_length(ME2, Length),
-                ME3
+                ME3;
+            desc ->
+                argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_WIRE_TYPE_MARKER_DESC)
         end,
     WireTypeEncoder2 = WireTypeEncoder1#argo_wire_type_encoder{message = MessageEncoder2},
     WireTypeEncoder2.

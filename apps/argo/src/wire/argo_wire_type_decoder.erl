@@ -144,7 +144,9 @@ decode_scalar_wire_type(WireTypeDecoder1 = #argo_wire_type_decoder{message = Mes
         ?ARGO_LABEL_WIRE_TYPE_MARKER_FIXED ->
             {MessageDecoder3, Length} = argo_message_decoder:read_core_length(MessageDecoder2),
             WireTypeDecoder3 = WireTypeDecoder2#argo_wire_type_decoder{message = MessageDecoder3},
-            {WireTypeDecoder3, argo_scalar_wire_type:fixed(Length)}
+            {WireTypeDecoder3, argo_scalar_wire_type:fixed(Length)};
+        ?ARGO_LABEL_WIRE_TYPE_MARKER_DESC ->
+            {WireTypeDecoder2, argo_scalar_wire_type:desc()}
     end.
 
 -spec decode_wire_type_store(WireTypeDecoder) -> {WireTypeDecoder, WireTypeStore} when

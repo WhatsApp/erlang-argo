@@ -118,7 +118,7 @@ when
     JsonValue :: argo_json:json_value(),
     Scalar :: argo_scalar_value:inner(),
     ErrorReason :: argo_json_scalar_decoder:error_reason().
-decode_scalar(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{}, ScalarHint, JsonValue) ->
+decode_scalar(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{mode = Mode}, ScalarHint, JsonValue) ->
     case ScalarHint of
         string when is_binary(JsonValue) ->
             {ok, JsonScalarDecoder1, {string, JsonValue}};
@@ -142,6 +142,12 @@ decode_scalar(JsonScalarDecoder1 = #argo_json_scalar_decoder_base64{}, ScalarHin
                 DecodeBytesError = {error, _Reason} ->
                     DecodeBytesError
             end;
+        desc ->
+            JsonValueDecoder1 = argo_json_value_decoder:new(?MODULE, #{mode => Mode}),
+            {_JsonValueDecoder2, DescValue} = argo_json_value_decoder:decode_desc_wire_type(
+                JsonValueDecoder1, JsonValue
+            ),
+            {ok, JsonScalarDecoder1, {desc, DescValue}};
         _ ->
             {error, type_mismatch}
     end.

@@ -193,7 +193,8 @@ print_scalar_wire_type(Printer1 = #argo_wire_type_printer{}, ScalarWireType = #a
         varint -> write(Printer1, "VARINT", []);
         float64 -> write(Printer1, "FLOAT64", []);
         bytes -> write(Printer1, "BYTES", []);
-        #argo_fixed_wire_type{length = Length} -> write(Printer1, "FIXED(~w)", [Length])
+        #argo_fixed_wire_type{length = Length} -> write(Printer1, "FIXED(~w)", [Length]);
+        desc -> write(Printer1, "DESC", [])
     end.
 
 %% @private

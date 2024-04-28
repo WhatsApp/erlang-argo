@@ -114,10 +114,18 @@ encode_scalar_value(ValueEncoder1 = #argo_value_encoder{}, ScalarValue = #argo_s
             {varint, Value} -> argo_message_encoder:encode_block_varint(MessageEncoder1, Value);
             {float64, Value} -> argo_message_encoder:encode_block_float64(MessageEncoder1, Value);
             {bytes, Value} -> argo_message_encoder:encode_block_bytes(MessageEncoder1, Value);
-            {fixed, Value} -> argo_message_encoder:encode_block_fixed(MessageEncoder1, Value)
+            {fixed, Value} -> argo_message_encoder:encode_block_fixed(MessageEncoder1, Value);
+            {desc, _Value} -> MessageEncoder1
         end,
     ValueEncoder3 = ValueEncoder2#argo_value_encoder{message = MessageEncoder2},
-    ValueEncoder3.
+    ValueEncoder4 =
+        case ScalarValue#argo_scalar_value.inner of
+            {desc, DescValue} ->
+                encode_desc_value(ValueEncoder3, DescValue);
+            _ ->
+                ValueEncoder3
+        end,
+    ValueEncoder4.
 
 %% @private
 -spec encode_block_value(ValueEncoder, BlockValue) -> ValueEncoder when
@@ -127,9 +135,22 @@ encode_block_value(ValueEncoder1 = #argo_value_encoder{}, BlockValue = #argo_blo
         #argo_value_encoder{message = MessageEncoder1} = maybe_encode_self_describing_label_for_scalar(
             ValueEncoder1, BlockValue#argo_block_value.value
         ),
-    MessageEncoder2 = argo_message_encoder:encode_block_type(MessageEncoder1, BlockValue),
+    MessageEncoder2 =
+        case argo_scalar_value:is_desc(BlockValue#argo_block_value.value) of
+            false ->
+                argo_message_encoder:encode_block_type(MessageEncoder1, BlockValue);
+            true ->
+                MessageEncoder1
+        end,
     ValueEncoder3 = ValueEncoder2#argo_value_encoder{message = MessageEncoder2},
-    ValueEncoder3.
+    ValueEncoder4 =
+        case BlockValue#argo_block_value.value#argo_scalar_value.inner of
+            {desc, DescValue} ->
+                encode_desc_value(ValueEncoder3, DescValue);
+            _ ->
+                ValueEncoder3
+        end,
+    ValueEncoder4.
 
 %% @private
 -spec encode_nullable_value(ValueEncoder, NullableValue) -> ValueEncoder when
@@ -607,7 +628,9 @@ encode_self_describing_label_for_scalar(
             {bytes, _} ->
                 argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES);
             {fixed, _} ->
-                argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES)
+                argo_message_encoder:write_core_label(MessageEncoder1, ?ARGO_LABEL_SELF_DESCRIBING_MARKER_BYTES);
+            {desc, _} ->
+                MessageEncoder1
         end,
     ValueEncoder2 = ValueEncoder1#argo_value_encoder{message = MessageEncoder2},
     ValueEncoder2.

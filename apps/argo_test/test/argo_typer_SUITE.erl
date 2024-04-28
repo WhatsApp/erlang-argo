@@ -42,7 +42,8 @@
     test_issue_8_inline_fragment_omittable/1,
     test_issue_19_field_selection_merging/1,
     test_issue_19_field_selection_merging_invalid/1,
-    test_argo_typer_resolver/1
+    test_argo_typer_resolver/1,
+    test_argo_1_2_json/1
 ]).
 
 %%%=============================================================================
@@ -67,7 +68,8 @@ groups() ->
             test_issue_8_inline_fragment_omittable,
             test_issue_19_field_selection_merging,
             test_issue_19_field_selection_merging_invalid,
-            test_argo_typer_resolver
+            test_argo_typer_resolver,
+            test_argo_1_2_json
         ]}
     ].
 
@@ -83,7 +85,24 @@ init_per_group(static, Config) ->
     ExecutableDocumentFileName = filename:join([DataDir, "executable_document.graphql"]),
     ServiceDocument = argo_graphql_service_document:from_file(ServiceDocumentFileName),
     ExecutableDocument = argo_graphql_executable_document:from_file(ExecutableDocumentFileName),
-    [{service_document, ServiceDocument}, {executable_document, ExecutableDocument} | Config];
+    JsonResponses = filelib:fold_files(
+        filename:join([DataDir, "responses"]),
+        ".*\\.json",
+        false,
+        fun(File, Acc) ->
+            {ok, JsonEncoded} = file:read_file(File),
+            JsonValue = argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple}])),
+            Key = argo_types:unicode_binary(filename:basename(File, ".json")),
+            Acc#{Key => JsonValue}
+        end,
+        maps:new()
+    ),
+    [
+        {service_document, ServiceDocument},
+        {executable_document, ExecutableDocument},
+        {json_responses, JsonResponses}
+        | Config
+    ];
 init_per_group(_Group, Config) ->
     Config.
 
@@ -139,12 +158,8 @@ test_issue_7_incorrect_type_for_fields_in_fragment(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
 
 test_issue_8_field_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
@@ -166,12 +181,8 @@ test_issue_8_field_omittable(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
 
 test_issue_8_fragment_spread_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
@@ -214,12 +225,8 @@ test_issue_8_fragment_spread_omittable(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
 
 test_issue_8_inline_fragment_omittable(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
@@ -246,12 +253,8 @@ test_issue_8_inline_fragment_omittable(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
 
 test_issue_19_field_selection_merging(Config) ->
     ServiceDocument = test_server:lookup_config(service_document, Config),
@@ -282,12 +285,8 @@ test_issue_19_field_selection_merging(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
 
 test_issue_19_field_selection_merging_invalid(Config) ->
     SD = test_server:lookup_config(service_document, Config),
@@ -316,12 +315,88 @@ test_argo_typer_resolver(Config) ->
             "  extensions?: EXTENSIONS\n"
             "}"
         >>,
-    case Actual =:= Expected of
-        false ->
-            ct:fail("Expected:~n~ts~nActual:~n~ts~n", [Expected, Actual]);
-        true ->
-            ok
-    end.
+    ?assertEqual(Expected, Actual),
+    ok.
+
+test_argo_1_2_json(Config) ->
+    SD = test_server:lookup_config(service_document, Config),
+    ED = test_server:lookup_config(executable_document, Config),
+    Op = <<"Argo_1_2_JSON">>,
+    #{Op := JsonValue} = test_server:lookup_config(json_responses, Config),
+    {_, WireType} = argo_typer:derive_wire_type(SD, ED, {some, Op}),
+    ActualWireType = erlang:iolist_to_binary(argo:format(WireType)),
+    ExpectedWireType =
+        <<
+            "{\n"
+            "  data: {\n"
+            "    json: DESC{JSON}?\n"
+            "    nullJson: DESC{JSON}?\n"
+            "    requiredJson: DESC{JSON}\n"
+            "    nullRequiredJson: DESC{JSON}\n"
+            "  }?\n"
+            "  errors?: ERROR[]\n"
+            "  extensions?: EXTENSIONS\n"
+            "}"
+        >>,
+    ?assertEqual(ExpectedWireType, ActualWireType),
+    Value = argo_value:from_json(WireType, JsonValue),
+    ActualValue = erlang:iolist_to_binary(argo:format(Value)),
+    ExpectedValue =
+        <<
+            "{\n"
+            "  data: NON_NULL({\n"
+            "    json: NON_NULL(DESC({\n"
+            "      <<\"name\">>: DESC(STRING(<<\"John Doe\">>))\n"
+            "      <<\"age\">>: DESC(INT(30))\n"
+            "      <<\"score\">>: DESC(FLOAT(-10.1))\n"
+            "      <<\"eligible\">>: DESC(BOOLEAN(false))\n"
+            "      <<\"null\">>: DESC(NULL)\n"
+            "      <<\"entries\">>: DESC([\n"
+            "        DESC({\n"
+            "          <<\"name\">>: DESC(STRING(<<\"Entry 1\">>))\n"
+            "          <<\"value\">>: DESC(INT(10))\n"
+            "        }),\n"
+            "        DESC({\n"
+            "          <<\"name\">>: DESC(STRING(<<\"Entry 2\">>))\n"
+            "          <<\"value\">>: DESC(INT(20))\n"
+            "        }),\n"
+            "      ])\n"
+            "    }){JSON})\n"
+            "    nullJson: NULL\n"
+            "    requiredJson: DESC({\n"
+            "      <<\"name\">>: DESC(STRING(<<\"John Doe\">>))\n"
+            "      <<\"age\">>: DESC(INT(30))\n"
+            "      <<\"score\">>: DESC(FLOAT(-10.1))\n"
+            "      <<\"eligible\">>: DESC(BOOLEAN(false))\n"
+            "      <<\"null\">>: DESC(NULL)\n"
+            "      <<\"entries\">>: DESC([\n"
+            "        DESC({\n"
+            "          <<\"name\">>: DESC(STRING(<<\"Entry 1\">>))\n"
+            "          <<\"value\">>: DESC(INT(10))\n"
+            "        }),\n"
+            "        DESC({\n"
+            "          <<\"name\">>: DESC(STRING(<<\"Entry 2\">>))\n"
+            "          <<\"value\">>: DESC(INT(20))\n"
+            "        }),\n"
+            "      ])\n"
+            "    }){JSON}\n"
+            "    nullRequiredJson: DESC(NULL){JSON}\n"
+            "  })\n"
+            "  errors?: ABSENT\n"
+            "  extensions?: ABSENT\n"
+            "}"
+        >>,
+    ?assertEqual(ExpectedValue, ActualValue),
+    ArgoEncoded = argo_value:to_writer(Value),
+    ?assertMatch({<<>>, Value}, argo_value:from_reader(WireType, ArgoEncoded)),
+    ArgoSelfDescribingHeader = argo_header:new(#{self_describing => true}),
+    ArgoSelfDescribingEncoded = argo_value:to_writer(Value, ArgoSelfDescribingHeader),
+    ?assertMatch({<<>>, Value}, argo_value:from_reader(WireType, ArgoSelfDescribingEncoded)),
+    ExpectedJson = jsone:encode(JsonValue),
+    ArgoEncodedJson = argo_value:to_json(Value),
+    ActualJson = jsone:encode(ArgoEncodedJson),
+    ?assertEqual(ExpectedJson, ActualJson),
+    ok.
 
 %%%-----------------------------------------------------------------------------
 %%% Internal functions

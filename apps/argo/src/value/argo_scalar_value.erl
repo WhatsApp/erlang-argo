@@ -24,6 +24,7 @@
 -export([
     boolean/1,
     bytes/1,
+    desc/1,
     fixed/1,
     float64/1,
     string/1,
@@ -35,6 +36,7 @@
     deduplicate_by_default/1,
     is_boolean/1,
     is_bytes/1,
+    is_desc/1,
     is_fixed/1,
     is_fixed_length/2,
     is_float64/1,
@@ -49,6 +51,7 @@
 -type inner() ::
     {boolean, boolean()}
     | {bytes, binary()}
+    | {desc, argo_desc_value:t()}
     | {fixed, binary()}
     | {float64, float()}
     | {string, unicode:unicode_binary()}
@@ -69,6 +72,9 @@ boolean(V) when erlang:is_boolean(V) -> #argo_scalar_value{inner = {boolean, V}}
 
 -spec bytes(binary()) -> ScalarValue when ScalarValue :: t().
 bytes(V) when is_binary(V) -> #argo_scalar_value{inner = {bytes, V}}.
+
+-spec desc(argo_desc_value:t()) -> ScalarValue when ScalarValue :: t().
+desc(V = #argo_desc_value{}) -> #argo_scalar_value{inner = {desc, V}}.
 
 -spec fixed(binary()) -> ScalarValue when ScalarValue :: t().
 fixed(V) when is_binary(V) -> #argo_scalar_value{inner = {fixed, V}}.
@@ -93,13 +99,20 @@ deduplicate_by_default(#argo_scalar_value{}) -> false.
 
 -spec is_boolean(ScalarValue) -> boolean() when ScalarValue :: t().
 is_boolean(#argo_scalar_value{inner = {T, _}}) -> T =:= boolean.
+
 -spec is_bytes(ScalarValue) -> boolean() when ScalarValue :: t().
 is_bytes(#argo_scalar_value{inner = {T, _}}) -> T =:= bytes.
+
+-spec is_desc(ScalarValue) -> boolean() when ScalarValue :: t().
+is_desc(#argo_scalar_value{inner = {T, _}}) -> T =:= desc.
+
 -spec is_fixed(ScalarValue) -> boolean() when ScalarValue :: t().
 is_fixed(#argo_scalar_value{inner = {T, _}}) -> T =:= fixed.
+
 -spec is_fixed_length(ScalarValue, Length) -> boolean() when ScalarValue :: t(), Length :: argo_types:length().
 is_fixed_length(#argo_scalar_value{inner = {fixed, V}}, Length) -> byte_size(V) =:= Length;
 is_fixed_length(#argo_scalar_value{}, _Length) -> false.
+
 -spec is_float64(ScalarValue) -> boolean() when ScalarValue :: t().
 is_float64(#argo_scalar_value{inner = {T, _}}) -> T =:= float64.
 
@@ -126,6 +139,8 @@ to_scalar_wire_type(#argo_scalar_value{inner = {boolean, _}}) ->
     argo_scalar_wire_type:boolean();
 to_scalar_wire_type(#argo_scalar_value{inner = {bytes, _}}) ->
     argo_scalar_wire_type:bytes();
+to_scalar_wire_type(#argo_scalar_value{inner = {desc, _}}) ->
+    argo_scalar_wire_type:desc();
 to_scalar_wire_type(#argo_scalar_value{inner = {fixed, Fixed}}) ->
     argo_scalar_wire_type:fixed(byte_size(Fixed));
 to_scalar_wire_type(#argo_scalar_value{inner = {float64, _}}) ->

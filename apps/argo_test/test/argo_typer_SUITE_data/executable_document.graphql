@@ -165,3 +165,12 @@ query SimpleQueryWithRelayResolver {
     strong_id__
   }
 }
+
+# Test: Argo 1.2 - https://github.com/msolomon/argo/commit/4ab303b6c3fd433f44bc2b0389dc685265c362df
+
+query Argo_1_2_JSON {
+  json
+  nullJson: json
+  requiredJson
+  nullRequiredJson: requiredJson
+}

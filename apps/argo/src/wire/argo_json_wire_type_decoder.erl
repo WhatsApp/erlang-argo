@@ -268,6 +268,10 @@ decode_scalar_wire_type(JsonWireTypeDecoder1 = #argo_json_wire_type_decoder{}, J
                         2 => {invalid_length, JsonLengthNumber}
                     })
             end;
+        <<"DESC">> ->
+            ok = check_for_unknown_keys(JsonObject, #{<<"type">> => []}),
+            ScalarWireType = argo_scalar_wire_type:desc(),
+            {JsonWireTypeDecoder1, ScalarWireType};
         JsonTypeString when is_binary(JsonTypeString) ->
             error_with_info(badarg, [JsonWireTypeDecoder1, JsonValue], #{2 => {invalid_type, JsonTypeString}})
     end.

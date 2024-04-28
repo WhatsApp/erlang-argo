@@ -93,7 +93,7 @@ encode_desc_scalar(JsonScalarEncoder = #argo_json_scalar_encoder_base64{}, DescS
 
 -spec encode_scalar(JsonScalarEncoder, Scalar) -> {JsonScalarEncoder, JsonValue} when
     JsonScalarEncoder :: t(), Scalar :: argo_scalar_value:inner(), JsonValue :: argo_json:json_value().
-encode_scalar(JsonScalarEncoder = #argo_json_scalar_encoder_base64{}, Scalar) ->
+encode_scalar(JsonScalarEncoder = #argo_json_scalar_encoder_base64{mode = Mode}, Scalar) ->
     case Scalar of
         {string, V} ->
             {JsonScalarEncoder, argo_json:string(V)};
@@ -106,7 +106,11 @@ encode_scalar(JsonScalarEncoder = #argo_json_scalar_encoder_base64{}, Scalar) ->
         {bytes, V} ->
             encode_bytes(JsonScalarEncoder, false, V);
         {fixed, V} ->
-            encode_bytes(JsonScalarEncoder, false, V)
+            encode_bytes(JsonScalarEncoder, false, V);
+        {desc, V} ->
+            JsonValueEncoder1 = argo_json_value_encoder:new(?MODULE, #{mode => Mode}),
+            {_JsonValueEncoder2, JsonValue} = argo_json_value_encoder:encode_desc_value(JsonValueEncoder1, V),
+            {JsonScalarEncoder, JsonValue}
     end.
 
 %%%=============================================================================

@@ -452,6 +452,8 @@ scalar_value(#argo_scalar_wire_type{inner = boolean}) ->
     ?LET(Value, boolean(), argo_scalar_value:boolean(Value));
 scalar_value(#argo_scalar_wire_type{inner = bytes}) ->
     ?LET(Value, bytes(), argo_scalar_value:bytes(Value));
+scalar_value(#argo_scalar_wire_type{inner = desc}) ->
+    ?LET(Value, desc_value(), argo_scalar_value:desc(Value));
 scalar_value(#argo_scalar_wire_type{inner = #argo_fixed_wire_type{length = Length}}) ->
     ?LET(Value, fixed(Length), argo_scalar_value:fixed(Value));
 scalar_value(#argo_scalar_wire_type{inner = float64}) ->
@@ -612,7 +614,8 @@ scalar_wire_type() ->
         exactly(argo_scalar_wire_type:float64()),
         exactly(argo_scalar_wire_type:string()),
         exactly(argo_scalar_wire_type:bytes()),
-        ?LET(Length, non_neg_integer(), argo_scalar_wire_type:fixed(Length))
+        ?LET(Length, non_neg_integer(), argo_scalar_wire_type:fixed(Length)),
+        exactly(argo_scalar_wire_type:desc())
     ]).
 
 -spec wire_type() -> proper_types:type().
