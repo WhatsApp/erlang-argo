@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.7 (2024-04-28)
+
+* Enhancements
+  * Support `DESC` type for scalars as described in [Argo 1.2.0](https://msolomon.github.io/argo/versions/1.2/spec#sec-v1-2-0)).
+
 ## 1.0.6 (2024-04-27)
 
 * Enhancements

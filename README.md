@@ -4,7 +4,7 @@
 
 `argo` is a compact binary serialization format for [GraphQL](https://spec.graphql.org/).
 
-This library provides support for [Erlang](https://www.erlang.org/) and [Elixir](https://elixir-lang.org/) following the [Argo 1.1.4 specifications](https://msolomon.github.io/argo/versions/1.1/spec#sec-v1-1-4).
+This library provides support for [Erlang](https://www.erlang.org/) and [Elixir](https://elixir-lang.org/) following the [Argo 1.2.0 specifications](https://msolomon.github.io/argo/versions/1.2/spec#sec-v1-2-0).
 
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
