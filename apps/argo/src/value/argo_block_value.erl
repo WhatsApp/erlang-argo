@@ -23,6 +23,7 @@
 %% API
 -export([
     new/2,
+    is_null/1,
     key/1,
     to_block_wire_type/1
 ]).
@@ -42,6 +43,10 @@
     BlockWireType :: argo_block_wire_type:t(), ScalarValue :: argo_scalar_value:t(), BlockValue :: t().
 new(BlockWireType = #argo_block_wire_type{}, Value = #argo_scalar_value{}) ->
     #argo_block_value{wire_type = BlockWireType, value = Value}.
+
+-spec is_null(BlockValue) -> boolean() when BlockValue :: t().
+is_null(#argo_block_value{value = ScalarValue}) ->
+    argo_scalar_value:is_null(ScalarValue).
 
 -compile({inline, [key/1]}).
 -spec key(BlockValue) -> Key when BlockValue :: t(), Key :: argo_types:name().

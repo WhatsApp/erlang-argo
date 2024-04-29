@@ -34,6 +34,8 @@
 
 %% Test Cases
 -export([
+    issue_18_non_null_desc_null/0,
+    issue_18_non_null_desc_null/1,
     prop_roundtrip_encoder_and_decoder/0,
     prop_roundtrip_encoder_and_decoder/1,
     prop_roundtrip_json_encoder_and_json_decoder/0,
@@ -54,6 +56,7 @@ all() ->
 groups() ->
     [
         {value, [parallel], [
+            issue_18_non_null_desc_null,
             prop_roundtrip_encoder_and_decoder,
             prop_roundtrip_json_encoder_and_json_decoder,
             prop_to_wire_type
@@ -81,6 +84,60 @@ end_per_testcase(_TestCase, _Config) ->
 %%%=============================================================================
 %%% Test Cases
 %%%=============================================================================
+
+issue_18_non_null_desc_null() ->
+    [
+        {doc, "Edge case where NON_NULL(DESC(NULL)) occurs. See https://github.com/msolomon/argo/issues/18"},
+        {timetrap, {seconds, 60}}
+    ].
+
+issue_18_non_null_desc_null(_Config) ->
+    InlineHeader = argo_header:new(#{inline_everything => true}),
+    InlineSelfDescribingHeader = argo_header:new(#{inline_everything => true, self_describing => true}),
+    SelfDescribingHeader = argo_header:new(#{self_describing => true}),
+
+    ScalarWireType = argo_scalar_wire_type:desc(),
+    BlockWireType = argo_block_wire_type:new(ScalarWireType, <<"JSON">>, false),
+    NullableWireType = argo_nullable_wire_type:new(argo_wire_type:block(BlockWireType)),
+    WireType = argo_wire_type:nullable(NullableWireType),
+
+    DescValueNull = argo_desc_value:null(),
+    ScalarValueNull = argo_scalar_value:desc(DescValueNull),
+    BlockValueNull = argo_block_value:new(BlockWireType, ScalarValueNull),
+    NullableValueNull = argo_nullable_value:non_null(NullableWireType, argo_value:block(BlockValueNull)),
+    ValueNull = argo_value:nullable(NullableValueNull),
+
+    ValueNullDefaultEncoded = argo_value:to_writer(ValueNull),
+    ?assertEqual({<<>>, ValueNull}, argo_value:from_reader(WireType, ValueNullDefaultEncoded)),
+
+    ValueNullInlineEncoded = argo_value:to_writer(ValueNull, InlineHeader),
+    ?assertEqual({<<>>, ValueNull}, argo_value:from_reader(WireType, ValueNullInlineEncoded)),
+
+    ValueNullInlineSelfDescribingEncoded = argo_value:to_writer(ValueNull, InlineSelfDescribingHeader),
+    ?assertEqual({<<>>, ValueNull}, argo_value:from_reader(WireType, ValueNullInlineSelfDescribingEncoded)),
+
+    ValueNullSelfDescribingEncoded = argo_value:to_writer(ValueNull, SelfDescribingHeader),
+    ?assertEqual({<<>>, ValueNull}, argo_value:from_reader(WireType, ValueNullSelfDescribingEncoded)),
+
+    DescValueNonNull = argo_desc_value:string(<<>>),
+    ScalarValueNonNull = argo_scalar_value:desc(DescValueNonNull),
+    BlockValueNonNull = argo_block_value:new(BlockWireType, ScalarValueNonNull),
+    NullableValueNonNull = argo_nullable_value:non_null(NullableWireType, argo_value:block(BlockValueNonNull)),
+    ValueNonNull = argo_value:nullable(NullableValueNonNull),
+
+    ValueNonNullDefaultEncoded = argo_value:to_writer(ValueNonNull),
+    ?assertEqual({<<>>, ValueNonNull}, argo_value:from_reader(WireType, ValueNonNullDefaultEncoded)),
+
+    ValueNonNullInlineEncoded = argo_value:to_writer(ValueNonNull, InlineHeader),
+    ?assertEqual({<<>>, ValueNonNull}, argo_value:from_reader(WireType, ValueNonNullInlineEncoded)),
+
+    ValueNonNullInlineSelfDescribingEncoded = argo_value:to_writer(ValueNonNull, InlineSelfDescribingHeader),
+    ?assertEqual({<<>>, ValueNonNull}, argo_value:from_reader(WireType, ValueNonNullInlineSelfDescribingEncoded)),
+
+    ValueNonNullSelfDescribingEncoded = argo_value:to_writer(ValueNonNull, SelfDescribingHeader),
+    ?assertEqual({<<>>, ValueNonNull}, argo_value:from_reader(WireType, ValueNonNullSelfDescribingEncoded)),
+
+    ok.
 
 prop_roundtrip_encoder_and_decoder() ->
     [

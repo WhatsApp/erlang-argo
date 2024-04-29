@@ -41,6 +41,7 @@
     is_fixed_length/2,
     is_float64/1,
     is_labeled/1,
+    is_null/1,
     is_string/1,
     is_varint/1,
     supports_deduplication/1,
@@ -121,6 +122,12 @@ is_labeled(#argo_scalar_value{inner = {string, _}}) -> true;
 is_labeled(#argo_scalar_value{inner = {boolean, _}}) -> true;
 is_labeled(#argo_scalar_value{inner = {bytes, _}}) -> true;
 is_labeled(#argo_scalar_value{}) -> false.
+
+-spec is_null(ScalarValue) -> boolean() when ScalarValue :: t().
+is_null(#argo_scalar_value{inner = {desc, DescValue}}) ->
+    argo_desc_value:is_null(DescValue);
+is_null(#argo_scalar_value{}) ->
+    false.
 
 -spec is_string(ScalarValue) -> boolean() when ScalarValue :: t().
 is_string(#argo_scalar_value{inner = {T, _}}) -> T =:= string.

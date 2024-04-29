@@ -61,6 +61,7 @@
     is_error/1,
     is_extensions/1,
     is_labeled/1,
+    is_null/1,
     is_nullable/1,
     is_path/1,
     is_record/1,
@@ -258,6 +259,18 @@ is_labeled(#argo_value{inner = #argo_nullable_value{}}) ->
 is_labeled(#argo_value{inner = #argo_array_value{}}) ->
     true;
 is_labeled(#argo_value{}) ->
+    false.
+
+-spec is_null(Value) -> boolean() when Value :: t().
+is_null(#argo_value{inner = BlockValue = #argo_block_value{}}) ->
+    argo_block_value:is_null(BlockValue);
+is_null(#argo_value{inner = DescValue = #argo_desc_value{}}) ->
+    argo_desc_value:is_null(DescValue);
+is_null(#argo_value{inner = NullableValue = #argo_nullable_value{}}) ->
+    argo_nullable_value:is_null(NullableValue);
+is_null(#argo_value{inner = ScalarValue = #argo_scalar_value{}}) ->
+    argo_scalar_value:is_null(ScalarValue);
+is_null(#argo_value{}) ->
     false.
 
 -spec is_nullable(Value) -> boolean() when Value :: t().
