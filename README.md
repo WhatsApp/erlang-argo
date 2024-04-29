@@ -28,6 +28,53 @@ Add `argo_graphql` to your project's dependencies in your `Makefile` for [`erlan
 ]}.
 ```
 
+## Usage
+
+Using the ["Introduction to GraphQL" example](https://graphql.org/learn/):
+
+```erlang
+% Load the GraphQL Service Document.
+SD = argo_graphql_service_document:from_string("
+  type Query {
+    me: User
+  }
+
+  type User {
+    id: ID
+    name: String
+  }
+"),
+% Load the GraphQL Executable Document.
+ED = argo_graphql_executable_document:from_string("
+  query MyQuery {
+    me {
+      name
+    }
+  }
+"),
+% Derive the Argo Wire Type based on the GraphQL Service Document
+% and the GraphQL Executable Document.
+{{some, <<"MyQuery">>}, ArgoWireType} = argo_typer:derive_wire_type(SD, ED, none).
+
+% Convert a JSON response to an Argo Value.
+JsonValue = #{<<"data">> => #{<<"me">> => #{<<"name">> => <<"Luke Skywalker">>}}},
+ArgoValue = argo_value:from_json(ArgoWireType, JsonValue),
+% Encode Argo Value using default settings.
+ArgoEncoded = argo_value:to_writer(ArgoValue),
+% Compare output size to the JSON encoding.
+JsonEncoded = jsone:encode(JsonValue),
+41 = byte_size(JsonEncoded),
+22 = byte_size(ArgoEncoded),
+% Argo encoding is roughly 46% smaller than JSON encoding in this case.
+46 = trunc((1 - (byte_size(ArgoEncoded) / byte_size(JsonEncoded))) * 100).
+
+% For decoding, use the Argo Wire Type and the Argo encoding bytes.
+{<<>>, ArgoValue} = argo_value:from_reader(ArgoWireType, ArgoEncoded).
+
+% Optionally convert back to JSON representation.
+JsonResponse = argo_value:to_json(ArgoValue).
+```
+
 ## License
 
 `argo` is MIT licensed, as found in the [LICENSE](LICENSE.md) file.
