@@ -75,6 +75,32 @@ JsonEncoded = jsone:encode(JsonValue),
 JsonResponse = argo_value:to_json(ArgoValue).
 ```
 
+Use `argo:display/1` or `argo:display_with_lines/1` to inspect Argo Wire Types, Argo Values, and GraphQL related data structures:
+
+```erlang
+argo:display(ArgoWireType).
+% {
+%   data: {
+%     me: {
+%       name: STRING<String>?
+%     }?
+%   }?
+%   errors?: ERROR[]
+%   extensions?: EXTENSIONS
+% }
+
+argo:display(ArgoValue).
+% {
+%   data: NON_NULL({
+%     me: NON_NULL({
+%       name: NON_NULL(STRING(<<"Luke Skywalker">>)<String>)
+%     })
+%   })
+%   errors?: ABSENT
+%   extensions?: ABSENT
+% }
+```
+
 ## License
 
 `argo` is MIT licensed, as found in the [LICENSE](LICENSE.md) file.
