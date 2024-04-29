@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 (2024-04-29)
+
+* Fixes
+  * Fix edge case where `NON_NULL(DESC(NULL))` is the same as `NULL` (see [msolomon/argo#18](https://github.com/msolomon/argo/issues/18)).
+
 ## 1.0.7 (2024-04-28)
 
 * Enhancements
