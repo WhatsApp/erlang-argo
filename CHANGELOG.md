@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.9 (2024-05-10)
+
+* Enhancements
+  * Add `argo_limits` and `argo_varbit` for controlling the maximum number of bits supported in `HasUserFlags` (defaults to 700-bits).
+  * Add new functions to `argo_header`:
+    * `argo_header:from_http_argo_mode/1` and `argo_header:to_http_argo_mode/1`
+      * For use with HTTP header `Argo-Mode`.
+      * For example:
+        ```
+        Argo-Mode: InlineEverything;SelfDescribing;OutOfBandFieldErrors;SelfDescribingErrors;NullTerminatedStrings;NoDeduplication;HasUserFlags:10
+        ```
+    * `argo_header:from_u64/1` and `argo_header:to_u64/1`
+      * For use with encode/decode of `ArgoHeader` to an unsigned 64-bit integer.
+      * For example:
+        ```erlang
+        argo_header:from_u64(32640).
+        ```
+    * `argo_header:from_uint/1` and `argo_header:to_uint/1`
+      * For use with encode/decode of `ArgoHeader` to an unsigned integer (may be larger than 64-bits).
+      * For example:
+        ```erlang
+        argo_header:from_uint(2586086763326778769917682175246592).
+        ```
+
 ## 1.0.8 (2024-04-29)
 
 * Fixes
