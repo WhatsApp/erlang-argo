@@ -17,11 +17,18 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
+-include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_header.hrl").
 
 %% Codec API
 -export([
+    from_http_argo_mode/1,
     from_reader/1,
+    from_u64/1,
+    from_uint/1,
+    to_http_argo_mode/1,
+    to_u64/1,
+    to_uint/1,
     to_writer/1
 ]).
 
@@ -69,27 +76,63 @@
     t/0
 ]).
 
+%% Macros
+-define(LC(C),
+    case C of
+        $A -> $a;
+        $B -> $b;
+        $C -> $c;
+        $D -> $d;
+        $E -> $e;
+        $F -> $f;
+        $G -> $g;
+        $H -> $h;
+        $I -> $i;
+        $J -> $j;
+        $K -> $k;
+        $L -> $l;
+        $M -> $m;
+        $N -> $n;
+        $O -> $o;
+        $P -> $p;
+        $Q -> $q;
+        $R -> $r;
+        $S -> $s;
+        $T -> $t;
+        $U -> $u;
+        $V -> $v;
+        $W -> $w;
+        $X -> $x;
+        $Y -> $y;
+        $Z -> $z;
+        _ -> C
+    end
+).
+
 %%%=============================================================================
 %%% Codec API functions
 %%%=============================================================================
 
+-spec from_http_argo_mode(HttpArgoMode) -> Header when HttpArgoMode :: binary(), Header :: t().
+from_http_argo_mode(HttpArgoMode) when is_binary(HttpArgoMode) ->
+    try from_http_argo_mode(binary:split(HttpArgoMode, <<";">>, [global, trim_all]), from_uint(0)) of
+        Header = #argo_header{} ->
+            Header
+    catch
+        throw:Cause ->
+            error_with_info(badarg, [HttpArgoMode], #{1 => Cause})
+    end.
+
 -spec from_reader(Reader) -> {Reader, Header} when Reader :: binary(), Header :: t().
 from_reader(
-    Reader1 =
-        <<0:1, HasUserFlags1:1, NoDeduplication:1, NullTerminatedStrings:1, SelfDescribingErrors:1,
-            OutOfBandFieldErrors:1, SelfDescribing:1, InlineEverything:1, Reader2/bits>>
+    <<0:1, HasUserFlags1:1, NoDeduplication:1, NullTerminatedStrings:1, SelfDescribingErrors:1, OutOfBandFieldErrors:1,
+        SelfDescribing:1, InlineEverything:1, Reader2/bits>>
 ) ->
     HasUserFlags2 = decode_bit(HasUserFlags1),
     {Reader3, UserFlags} =
         case HasUserFlags2 of
             true ->
-                try decode_varbit(Reader2, <<>>) of
-                    {R3, UFlags} ->
-                        {R3, UFlags}
-                catch
-                    throw:not_enough_data ->
-                        error_with_info(badarg, [Reader1], #{1 => not_enough_data})
-                end;
+                argo_varbit:read_varbit(Reader2);
             false ->
                 {Reader2, undefined}
         end,
@@ -107,20 +150,55 @@ from_reader(
 from_reader(Reader) when is_bitstring(Reader) ->
     error_with_info(badarg, [Reader], #{1 => not_enough_data}).
 
-%% @private
--spec decode_bit(0 | 1) -> boolean().
-decode_bit(0) -> false;
-decode_bit(1) -> true.
+-spec from_u64(U64) -> Header when U64 :: argo_types:u64(), Header :: t().
+from_u64(U64) when ?is_u64(U64) ->
+    from_uint(U64).
 
-%% @private
-%% TODO: T169479375 limit decoding to X number of bits
--spec decode_varbit(Reader, Varbit) -> {Reader, Varbit} when Reader :: binary(), Varbit :: bitstring().
-decode_varbit(<<Head:7/bits, 1:1, Rest/bits>>, Varbit) ->
-    decode_varbit(Rest, <<Varbit/bits, Head:7/bits>>);
-decode_varbit(<<Head:7/bits, 0:1, Rest/bits>>, Varbit) ->
-    {Rest, <<Varbit/bits, Head:7/bits>>};
-decode_varbit(<<>>, _Varbit) ->
-    throw(not_enough_data).
+-spec from_uint(UInt) -> Header when UInt :: non_neg_integer(), Header :: t().
+from_uint(UInt) when is_integer(UInt) andalso UInt >= 0 ->
+    case from_reader(binary:encode_unsigned(UInt, big)) of
+        {<<>>, Header} ->
+            Header;
+        {TrailingData, _BadHeader} ->
+            error_with_info(badarg, [UInt], #{1 => {invalid_uint_trailing_data, TrailingData}})
+    end.
+
+-spec to_http_argo_mode(Header) -> HttpArgoMode when Header :: t(), HttpArgoMode :: binary().
+to_http_argo_mode(H = #argo_header{}) ->
+    erlang:iolist_to_binary(
+        lists:join(<<";">>, [
+            ArgoModeFlag
+         || ArgoModeFlag <- [
+                inline_everything(H) andalso <<"InlineEverything">>,
+                self_describing(H) andalso <<"SelfDescribing">>,
+                out_of_band_field_errors(H) andalso <<"OutOfBandFieldErrors">>,
+                self_describing_errors(H) andalso <<"SelfDescribingErrors">>,
+                null_terminated_strings(H) andalso <<"NullTerminatedStrings">>,
+                no_deduplication(H) andalso <<"NoDeduplication">>,
+                has_user_flags(H) andalso
+                    <<"HasUserFlags",
+                        (case user_flags(H) of
+                            undefined -> <<>>;
+                            UserFlags -> <<$:, (<<<<(UserFlag + $0):8>> || <<UserFlag:1>> <= UserFlags>>)/bytes>>
+                        end)/bytes>>
+            ],
+            ArgoModeFlag =/= false
+        ])
+    ).
+
+-spec to_u64(Header) -> U64 when Header :: t(), U64 :: argo_types:u64().
+to_u64(Header = #argo_header{}) ->
+    case to_writer(Header) of
+        HeaderEncoded when bit_size(HeaderEncoded) =< 64 ->
+            binary:decode_unsigned(HeaderEncoded, big);
+        HeaderEncoded ->
+            error_with_info(badarg, [Header], #{1 => {header_too_large_for_u64, HeaderEncoded}})
+    end.
+
+-spec to_uint(Header) -> UInt when Header :: t(), UInt :: non_neg_integer().
+to_uint(Header = #argo_header{}) ->
+    HeaderEncoded = to_writer(Header),
+    binary:decode_unsigned(HeaderEncoded, big).
 
 -spec to_writer(Header) -> Writer when Header :: t(), Writer :: binary().
 to_writer(H = #argo_header{}) ->
@@ -133,36 +211,8 @@ to_writer(H = #argo_header{}) ->
         (encode_bit(out_of_band_field_errors(H))):1/bits,
         (encode_bit(self_describing(H))):1/bits,
         (encode_bit(inline_everything(H))):1/bits,
-        (encode_varbit(user_flags(H)))/bits
+        (argo_varbit:write_varbit(user_flags(H)))/bits
     >>.
-
-%% @private
--spec encode_bit(boolean()) -> bitstring().
-encode_bit(false) -> <<0:1>>;
-encode_bit(true) -> <<1:1>>.
-
-%% @private
--spec encode_varbit(undefined | bitstring()) -> binary().
-encode_varbit(undefined) ->
-    <<>>;
-encode_varbit(<<Chunk:7/bits>>) ->
-    <<Chunk:7/bits, 0:1>>;
-encode_varbit(<<Chunk:6/bits>>) ->
-    <<Chunk:6/bits, 0:2>>;
-encode_varbit(<<Chunk:5/bits>>) ->
-    <<Chunk:5/bits, 0:3>>;
-encode_varbit(<<Chunk:4/bits>>) ->
-    <<Chunk:4/bits, 0:4>>;
-encode_varbit(<<Chunk:3/bits>>) ->
-    <<Chunk:3/bits, 0:5>>;
-encode_varbit(<<Chunk:2/bits>>) ->
-    <<Chunk:2/bits, 0:6>>;
-encode_varbit(<<Chunk:1/bits>>) ->
-    <<Chunk:1/bits, 0:7>>;
-encode_varbit(<<>>) ->
-    <<0:8>>;
-encode_varbit(<<Chunk:7/bits, Rest/bits>>) ->
-    <<Chunk:7/bits, 1:1, (encode_varbit(Rest))/bits>>.
 
 %%%=============================================================================
 %%% API functions
@@ -310,7 +360,92 @@ format_error(_Reason, [{_M, _F, _As, Info} | _]) ->
 
 %% @private
 -spec format_error_description(dynamic(), dynamic()) -> dynamic().
+format_error_description(_Key, {header_too_large_for_u64, HeaderEncoded}) ->
+    io_lib:format("encoded header is larger than 64-bits: ~0tp", [HeaderEncoded]);
+format_error_description(_Key, {invalid_uint_trailing_data, TrailingData}) ->
+    io_lib:format("decoded header for unsigned integer has non-empty trailing data: ~0tp", [TrailingData]);
 format_error_description(_Key, not_enough_data) ->
     "not enough data";
+format_error_description(_Key, {unknown_http_argo_mode, ArgoModeFlag}) ->
+    io_lib:format("unknown HTTP header Argo-Mode flag: ~0tp", [ArgoModeFlag]);
 format_error_description(_Key, Value) ->
     Value.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec decode_bit(0 | 1) -> boolean().
+decode_bit(0) -> false;
+decode_bit(1) -> true.
+
+%% @private
+-spec encode_bit(boolean()) -> bitstring().
+encode_bit(false) -> <<0:1>>;
+encode_bit(true) -> <<1:1>>.
+
+%% @private
+-spec from_http_argo_mode(Flags, Header) -> Header when Flags :: [Flag], Flag :: binary(), Header :: t().
+from_http_argo_mode([], Header1) ->
+    Header1;
+from_http_argo_mode([Flag | Flags], Header1) ->
+    case from_http_argo_mode_flag_name(Flag, <<>>) of
+        {<<"inlineeverything">>, <<>>} ->
+            {Header2, _} = set_inline_everything(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"selfdescribing">>, <<>>} ->
+            {Header2, _} = set_self_describing(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"outofbandfielderrors">>, <<>>} ->
+            {Header2, _} = set_out_of_band_field_errors(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"selfdescribingerrors">>, <<>>} ->
+            {Header2, _} = set_self_describing_errors(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"nullterminatedstrings">>, <<>>} ->
+            {Header2, _} = set_null_terminated_strings(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"nodeduplication">>, <<>>} ->
+            {Header2, _} = set_no_deduplication(Header1, true),
+            from_http_argo_mode(Flags, Header2);
+        {<<"hasuserflags">>, <<>>} ->
+            from_http_argo_mode(Flags, Header1);
+        {<<"hasuserflags">>, UserFlagsString} ->
+            case from_http_argo_mode_user_flags(UserFlagsString, <<>>) of
+                {ok, UserFlagsBits} ->
+                    {Header2, _} = set_user_flags(Header1, UserFlagsBits),
+                    from_http_argo_mode(Flags, Header2);
+                error ->
+                    throw({unknown_http_argo_mode, Flag})
+            end;
+        {_, _} ->
+            throw({unknown_http_argo_mode, Flag})
+    end.
+
+%% @private
+-spec from_http_argo_mode_flag_name(Rest, Name) -> {Name, Rest} when Rest :: binary(), Name :: binary().
+from_http_argo_mode_flag_name(Rest, Name) when byte_size(Name) >= 21 ->
+    % Largest flag is 21-bytes: "NullTerminatedStrings"
+    % Anything else is either invalid or is the bitmap following "HasUserFlags"
+    {Name, Rest};
+from_http_argo_mode_flag_name(<<$:, Rest/bytes>>, Name) ->
+    % If ":" is encountered, return with the name as-is.
+    {Name, Rest};
+from_http_argo_mode_flag_name(<<C:8, Rest/bytes>>, Name) when (C >= $A andalso C =< $Z) ->
+    from_http_argo_mode_flag_name(Rest, <<Name/bytes, (?LC(C)):8>>);
+from_http_argo_mode_flag_name(<<C:8, Rest/bytes>>, Name) when (C >= $a andalso C =< $z) ->
+    from_http_argo_mode_flag_name(Rest, <<Name/bytes, C:8>>);
+from_http_argo_mode_flag_name(Rest, Name) ->
+    % Anything outside of [A-z] is invalid, return as-is.
+    {Name, Rest}.
+
+%% @private
+-spec from_http_argo_mode_user_flags(UserFlagsString, UserFlagsBits) -> {ok, UserFlagsBits} | error when
+    UserFlagsString :: binary(), UserFlagsBits :: bitstring().
+from_http_argo_mode_user_flags(<<>>, UserFlagsBits) ->
+    {ok, UserFlagsBits};
+from_http_argo_mode_user_flags(<<C:8, UserFlagsString/bytes>>, UserFlagsBits) when C =:= $0 orelse C =:= $1 ->
+    from_http_argo_mode_user_flags(UserFlagsString, <<UserFlagsBits/bits, (C - $0):1>>);
+from_http_argo_mode_user_flags(_UserFlagsString, _UserFlagsBits) ->
+    error.

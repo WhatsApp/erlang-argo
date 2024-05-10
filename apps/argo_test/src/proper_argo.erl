@@ -42,7 +42,8 @@
 
 %% Header API
 -export([
-    header/0
+    header/0,
+    header_user_flags/0
 ]).
 
 %% Value API
@@ -185,18 +186,25 @@ header() ->
             SelfDescribingErrors,
             NullTerminatedStrings,
             NoDeduplication,
-            HasUserFlags,
-            UserFlags
+            {HasUserFlags, UserFlags}
         },
         {
             boolean(),
             boolean(),
-            exactly(true),
             boolean(),
             boolean(),
             boolean(),
-            exactly(false),
-            exactly(undefined)
+            boolean(),
+            ?LET(
+                HasUserFlags,
+                boolean(),
+                case HasUserFlags of
+                    false ->
+                        {HasUserFlags, undefined};
+                    true ->
+                        {HasUserFlags, header_user_flags()}
+                end
+            )
         },
         #argo_header{
             inline_everything = InlineEverything,
@@ -208,6 +216,27 @@ header() ->
             has_user_flags = HasUserFlags,
             user_flags = UserFlags
         }
+    ).
+
+% Rounds the UserFlags to the nearest 7-bit by padding the end with zeroes.
+-spec header_user_flags() -> proper_types:type().
+header_user_flags() ->
+    ?SUCHTHAT(
+        UserFlags,
+        ?LET(
+            UserFlags,
+            non_empty(bitstring()),
+            case bit_size(UserFlags) rem 7 of
+                0 -> UserFlags;
+                1 -> <<UserFlags/bits, 0:6>>;
+                2 -> <<UserFlags/bits, 0:5>>;
+                3 -> <<UserFlags/bits, 0:4>>;
+                4 -> <<UserFlags/bits, 0:3>>;
+                5 -> <<UserFlags/bits, 0:2>>;
+                6 -> <<UserFlags/bits, 0:1>>
+            end
+        ),
+        bit_size(UserFlags) =< argo_limits:varbit_limit()
     ).
 
 %%%=============================================================================
