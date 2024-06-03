@@ -25,6 +25,7 @@
 %% New API
 -export([
     builtin/1,
+    builtin_query/1,
     from_language/1,
     new/2
 ]).
@@ -56,8 +57,23 @@ builtin(FieldName = <<"__typename">>) ->
     Type = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"String">>)),
     FieldDefinition = new(FieldName, Type),
     {ok, FieldDefinition};
-builtin(FieldDefinition) when is_binary(FieldDefinition) ->
+builtin(FieldName) when is_binary(FieldName) ->
     error.
+
+-spec builtin_query(FieldName) -> {ok, FieldDefinition} | error when
+    FieldName :: argo_types:name(), FieldDefinition :: t().
+builtin_query(FieldName = <<"__schema">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    Type = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Schema">>)),
+    FieldDefinition = new(FieldName, Type),
+    {ok, FieldDefinition};
+builtin_query(FieldName = <<"__type">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    Type = argo_graphql_type:named_type(<<"__Type">>),
+    FieldDefinition = new(FieldName, Type),
+    {ok, FieldDefinition};
+builtin_query(FieldName) when is_binary(FieldName) ->
+    builtin(FieldName).
 
 -spec from_language(LanguageFieldDefinition) -> FieldDefinition when
     LanguageFieldDefinition :: argo_graphql_language_field_definition:t(), FieldDefinition :: t().

@@ -40,6 +40,7 @@
     add_root_operation_type_definition/3,
     add_type_definition/2,
     find_directive_definition/2,
+    find_root_operation_type_definition/2,
     find_type_definition/2,
     get_directive_definition/2,
     get_input_type_definition/2,
@@ -605,6 +606,41 @@ find_directive_definition(
             argo_graphql_directive_definition:builtin(DirectiveName)
     end.
 
+-spec find_root_operation_type_definition(ServiceDocument, RootOperationType) ->
+    {ok, RootOperationTypeDefinition} | error
+when
+    ServiceDocument :: t(),
+    RootOperationType :: operation_type(),
+    RootOperationTypeDefinition :: argo_graphql_type_definition:t().
+find_root_operation_type_definition(ServiceDocument = #argo_graphql_service_document{}, RootOperationType) when
+    ?is_operation_type(RootOperationType)
+->
+    OptionRootOperationTypeName =
+        case {RootOperationType, ServiceDocument} of
+            {'query', #argo_graphql_service_document{'query' = {some, RootQueryTypeName}}} ->
+                {some, RootQueryTypeName};
+            {'mutation', #argo_graphql_service_document{'mutation' = {some, RootMutationTypeName}}} ->
+                {some, RootMutationTypeName};
+            {'subscription', #argo_graphql_service_document{'subscription' = {some, RootSubscriptionTypeName}}} ->
+                {some, RootSubscriptionTypeName};
+            _ ->
+                none
+        end,
+    case OptionRootOperationTypeName of
+        {some, RootOperationTypeName} ->
+            case find_type_definition(ServiceDocument, RootOperationTypeName) of
+                {ok,
+                    RootOperationTypeDefinition = #argo_graphql_type_definition{
+                        kind = #argo_graphql_object_type_definition{}
+                    }} ->
+                    {ok, RootOperationTypeDefinition};
+                _ ->
+                    error
+            end;
+        none ->
+            error
+    end.
+
 -spec find_type_definition(ServiceDocument, TypeName) -> {ok, TypeDefinition} | error when
     ServiceDocument :: t(), TypeName :: argo_types:name(), TypeDefinition :: argo_graphql_type_definition:t().
 find_type_definition(#argo_graphql_service_document{type_definitions = TypeDefinitions}, TypeName) when
@@ -760,48 +796,37 @@ get_interface_type_definition(ServiceDocument = #argo_graphql_service_document{}
     ServiceDocument :: t(),
     RootOperationType :: operation_type(),
     RootOperationTypeDefinition :: argo_graphql_type_definition:t().
-get_root_operation_type_definition(
-    ServiceDocument = #argo_graphql_service_document{'query' = {some, RootOperationTypeName}},
-    RootOperationType = 'query'
-) ->
-    case get_type_definition(ServiceDocument, RootOperationTypeName) of
-        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
-            RootOperationTypeDefinition;
-        _ ->
-            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
-                2 => {invalid_root_operation_type, RootOperationType}
-            })
-    end;
-get_root_operation_type_definition(
-    ServiceDocument = #argo_graphql_service_document{'mutation' = {some, RootOperationTypeName}},
-    RootOperationType = 'mutation'
-) ->
-    case get_type_definition(ServiceDocument, RootOperationTypeName) of
-        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
-            RootOperationTypeDefinition;
-        _ ->
-            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
-                2 => {invalid_root_operation_type, RootOperationType}
-            })
-    end;
-get_root_operation_type_definition(
-    ServiceDocument = #argo_graphql_service_document{'subscription' = {some, RootOperationTypeName}},
-    RootOperationType = 'subscription'
-) ->
-    case get_type_definition(ServiceDocument, RootOperationTypeName) of
-        RootOperationTypeDefinition = #argo_graphql_type_definition{kind = #argo_graphql_object_type_definition{}} ->
-            RootOperationTypeDefinition;
-        _ ->
-            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
-                2 => {invalid_root_operation_type, RootOperationType}
-            })
-    end;
 get_root_operation_type_definition(ServiceDocument = #argo_graphql_service_document{}, RootOperationType) when
     ?is_operation_type(RootOperationType)
 ->
-    error_with_info(badarg, [ServiceDocument, RootOperationType], #{
-        2 => {missing_root_operation_type, RootOperationType}
-    }).
+    OptionRootOperationTypeName =
+        case {RootOperationType, ServiceDocument} of
+            {'query', #argo_graphql_service_document{'query' = {some, RootQueryTypeName}}} ->
+                {some, RootQueryTypeName};
+            {'mutation', #argo_graphql_service_document{'mutation' = {some, RootMutationTypeName}}} ->
+                {some, RootMutationTypeName};
+            {'subscription', #argo_graphql_service_document{'subscription' = {some, RootSubscriptionTypeName}}} ->
+                {some, RootSubscriptionTypeName};
+            _ ->
+                none
+        end,
+    case OptionRootOperationTypeName of
+        {some, RootOperationTypeName} ->
+            case get_type_definition(ServiceDocument, RootOperationTypeName) of
+                RootOperationTypeDefinition = #argo_graphql_type_definition{
+                    kind = #argo_graphql_object_type_definition{}
+                } ->
+                    RootOperationTypeDefinition;
+                _ ->
+                    error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+                        2 => {invalid_root_operation_type, RootOperationType}
+                    })
+            end;
+        none ->
+            error_with_info(badarg, [ServiceDocument, RootOperationType], #{
+                2 => {missing_root_operation_type, RootOperationType}
+            })
+    end.
 
 -spec get_shape(ServiceDocument, TypeName) -> Shape when
     ServiceDocument :: t(), TypeName :: argo_types:name(), Shape :: argo_graphql_type_definition:shape().

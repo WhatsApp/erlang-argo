@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.10 (2024-06-03)
+
+* Enhancements
+  * Add support for [GraphQL Inspection](https://spec.graphql.org/draft/#sec-Introspection).
+  * Add `argo_graphql_field_definition:builtin_query/1` which includes support for `__schema` and `__type` implicit root query fields.
+
 ## 1.0.9 (2024-05-10)
 
 * Enhancements

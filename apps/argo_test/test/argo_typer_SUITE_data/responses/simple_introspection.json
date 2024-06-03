@@ -1,0 +1,37 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": {
+        "name": "Q"
+      },
+      "mutationType": null,
+      "subscriptionType": null,
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Q",
+          "description": null,
+          "fields": [
+            {
+              "name": "q",
+              "description": null,
+              "args": [],
+              "type": {
+                "kind": "OBJECT",
+                "name": "Q",
+                "ofType": null
+              },
+              "isDeprecated": false,
+              "deprecationReason": null
+            }
+          ],
+          "inputFields": null,
+          "interfaces": [],
+          "enumValues": null,
+          "possibleTypes": null
+        }
+      ],
+      "directives": []
+    }
+  }
+}

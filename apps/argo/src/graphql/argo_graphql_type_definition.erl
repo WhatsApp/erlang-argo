@@ -134,6 +134,360 @@ builtin(TypeName) when ?is_builtin_scalar(TypeName) ->
     ScalarTypeDefinition = argo_graphql_scalar_type_definition:new(),
     TypeDefinition = scalar_type_definition(TypeName, ScalarTypeDefinition),
     {ok, TypeDefinition};
+builtin(TypeName = <<"__Schema">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    TypesFieldType = argo_graphql_type:non_null_type(
+        argo_graphql_non_null_type:new(
+            argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)))
+        )
+    ),
+    TypesFieldDefinition = argo_graphql_field_definition:new(<<"types">>, TypesFieldType),
+    QueryTypeFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)),
+    QueryTypeFieldDefinition = argo_graphql_field_definition:new(<<"queryType">>, QueryTypeFieldType),
+    MutationTypeFieldType = argo_graphql_type:named_type(<<"__Type">>),
+    MutationTypeFieldDefinition = argo_graphql_field_definition:new(<<"mutationType">>, MutationTypeFieldType),
+    SubscriptionTypeFieldType = argo_graphql_type:named_type(<<"__Type">>),
+    SubscriptionTypeFieldDefinition = argo_graphql_field_definition:new(
+        <<"subscriptionType">>, SubscriptionTypeFieldType
+    ),
+    DirectivesFieldType = argo_graphql_type:non_null_type(
+        argo_graphql_non_null_type:new(
+            argo_graphql_list_type:new(
+                argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Directive">>))
+            )
+        )
+    ),
+    DirectivesFieldDefinition = argo_graphql_field_definition:new(<<"directives">>, DirectivesFieldType),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, TypesFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, QueryTypeFieldDefinition
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, MutationTypeFieldDefinition
+    ),
+    ObjectTypeDefinition6 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition5, SubscriptionTypeFieldDefinition
+    ),
+    ObjectTypeDefinition7 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition6, DirectivesFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition7),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__Type">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    IncludeDeprecatedType = argo_graphql_type:named_type(<<"Boolean">>),
+    IncludeDeprecatedDefaultValue = argo_graphql_value_const:boolean(false),
+    IncludeDeprecatedInputValue1 = argo_graphql_input_value_definition:new(
+        <<"includeDeprecated">>, IncludeDeprecatedType
+    ),
+    IncludeDeprecatedInputValue2 = argo_graphql_input_value_definition:set_default_value(
+        IncludeDeprecatedInputValue1, {some, IncludeDeprecatedDefaultValue}
+    ),
+    KindFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__TypeKind">>)),
+    KindFieldDefinition = argo_graphql_field_definition:new(<<"kind">>, KindFieldType),
+    NameFieldType = argo_graphql_type:named_type(<<"String">>),
+    NameFieldDefinition = argo_graphql_field_definition:new(<<"name">>, NameFieldType),
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    FieldsFieldType = argo_graphql_type:list_type(
+        argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Field">>)))
+    ),
+    FieldsFieldDefinition1 = argo_graphql_field_definition:new(<<"fields">>, FieldsFieldType),
+    FieldsFieldDefinition2 = argo_graphql_field_definition:add_argument_definition(
+        FieldsFieldDefinition1, IncludeDeprecatedInputValue2
+    ),
+    InterfacesFieldType = argo_graphql_type:list_type(
+        argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)))
+    ),
+    InterfacesFieldDefinition = argo_graphql_field_definition:new(<<"interfaces">>, InterfacesFieldType),
+    PossibleTypesFieldType = argo_graphql_type:list_type(
+        argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)))
+    ),
+    PossibleTypesFieldDefinition = argo_graphql_field_definition:new(<<"possibleTypes">>, PossibleTypesFieldType),
+    EnumValuesFieldType = argo_graphql_type:list_type(
+        argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__EnumValue">>)))
+    ),
+    EnumValuesFieldDefinition1 = argo_graphql_field_definition:new(<<"enumValues">>, EnumValuesFieldType),
+    EnumValuesFieldDefinition2 = argo_graphql_field_definition:add_argument_definition(
+        EnumValuesFieldDefinition1, IncludeDeprecatedInputValue2
+    ),
+    InputFieldsFieldType = argo_graphql_type:list_type(
+        argo_graphql_list_type:new(argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__InputValue">>)))
+    ),
+    InputFieldsFieldDefinition1 = argo_graphql_field_definition:new(<<"inputFields">>, InputFieldsFieldType),
+    InputFieldsFieldDefinition2 = argo_graphql_field_definition:add_argument_definition(
+        InputFieldsFieldDefinition1, IncludeDeprecatedInputValue2
+    ),
+    OfTypeFieldType = argo_graphql_type:named_type(<<"__Type">>),
+    OfTypeFieldDefinition = argo_graphql_field_definition:new(<<"ofType">>, OfTypeFieldType),
+    SpecifiedByURLFieldType = argo_graphql_type:named_type(<<"String">>),
+    SpecifiedByURLFieldDefinition = argo_graphql_field_definition:new(<<"specifiedByURL">>, SpecifiedByURLFieldType),
+    IsOneOfFieldType = argo_graphql_type:named_type(<<"Boolean">>),
+    IsOneOfFieldDefinition = argo_graphql_field_definition:new(<<"isOneOf">>, IsOneOfFieldType),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, KindFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, NameFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, FieldsFieldDefinition2
+    ),
+    ObjectTypeDefinition6 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition5, InterfacesFieldDefinition
+    ),
+    ObjectTypeDefinition7 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition6, PossibleTypesFieldDefinition
+    ),
+    ObjectTypeDefinition8 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition7, EnumValuesFieldDefinition2
+    ),
+    ObjectTypeDefinition9 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition8, InputFieldsFieldDefinition2
+    ),
+    ObjectTypeDefinition10 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition9, OfTypeFieldDefinition
+    ),
+    ObjectTypeDefinition11 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition10, SpecifiedByURLFieldDefinition
+    ),
+    ObjectTypeDefinition12 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition11, IsOneOfFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition12),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__TypeKind">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    ScalarEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"SCALAR">>),
+    ObjectEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"OBJECT">>),
+    InterfaceEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"INTERFACE">>),
+    UnionEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"UNION">>),
+    EnumEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"ENUM">>),
+    InputObjectEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"INPUT_OBJECT">>),
+    ListEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"LIST">>),
+    NonNullEnumValueDefinition = argo_graphql_enum_value_definition:new(<<"NON_NULL">>),
+    EnumTypeDefinition1 = argo_graphql_enum_type_definition:new(),
+    EnumTypeDefinition2 = argo_graphql_enum_type_definition:add_enum_value_definitions(EnumTypeDefinition1, [
+        ScalarEnumValueDefinition,
+        ObjectEnumValueDefinition,
+        InterfaceEnumValueDefinition,
+        UnionEnumValueDefinition,
+        EnumEnumValueDefinition,
+        InputObjectEnumValueDefinition,
+        ListEnumValueDefinition,
+        NonNullEnumValueDefinition
+    ]),
+    TypeDefinition = enum_type_definition(TypeName, EnumTypeDefinition2),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__Field">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    IncludeDeprecatedType = argo_graphql_type:named_type(<<"Boolean">>),
+    IncludeDeprecatedDefaultValue = argo_graphql_value_const:boolean(false),
+    IncludeDeprecatedInputValue1 = argo_graphql_input_value_definition:new(
+        <<"includeDeprecated">>, IncludeDeprecatedType
+    ),
+    IncludeDeprecatedInputValue2 = argo_graphql_input_value_definition:set_default_value(
+        IncludeDeprecatedInputValue1, {some, IncludeDeprecatedDefaultValue}
+    ),
+    NameFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"String">>)),
+    NameFieldDefinition = argo_graphql_field_definition:new(<<"name">>, NameFieldType),
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    ArgsFieldType = argo_graphql_type:non_null_type(
+        argo_graphql_non_null_type:new(
+            argo_graphql_list_type:new(
+                argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__InputValue">>))
+            )
+        )
+    ),
+    ArgsFieldDefinition1 = argo_graphql_field_definition:new(<<"args">>, ArgsFieldType),
+    ArgsFieldDefinition2 = argo_graphql_field_definition:add_argument_definition(
+        ArgsFieldDefinition1, IncludeDeprecatedInputValue2
+    ),
+    TypeFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)),
+    TypeFieldDefinition = argo_graphql_field_definition:new(<<"type">>, TypeFieldType),
+    IsDeprecatedFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IsDeprecatedFieldDefinition = argo_graphql_field_definition:new(<<"isDeprecated">>, IsDeprecatedFieldType),
+    DeprecationReasonFieldType = argo_graphql_type:named_type(<<"String">>),
+    DeprecationReasonFieldDefinition = argo_graphql_field_definition:new(
+        <<"deprecationReason">>, DeprecationReasonFieldType
+    ),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, NameFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, ArgsFieldDefinition2
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, TypeFieldDefinition
+    ),
+    ObjectTypeDefinition6 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition5, IsDeprecatedFieldDefinition
+    ),
+    ObjectTypeDefinition7 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition6, DeprecationReasonFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition7),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__InputValue">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    NameFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"String">>)),
+    NameFieldDefinition = argo_graphql_field_definition:new(<<"name">>, NameFieldType),
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    TypeFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__Type">>)),
+    TypeFieldDefinition = argo_graphql_field_definition:new(<<"type">>, TypeFieldType),
+    DefaultValueFieldType = argo_graphql_type:named_type(<<"String">>),
+    DefaultValueFieldDefinition = argo_graphql_field_definition:new(<<"defaultValue">>, DefaultValueFieldType),
+    IsDeprecatedFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IsDeprecatedFieldDefinition = argo_graphql_field_definition:new(<<"isDeprecated">>, IsDeprecatedFieldType),
+    DeprecationReasonFieldType = argo_graphql_type:named_type(<<"String">>),
+    DeprecationReasonFieldDefinition = argo_graphql_field_definition:new(
+        <<"deprecationReason">>, DeprecationReasonFieldType
+    ),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, NameFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, TypeFieldDefinition
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, DefaultValueFieldDefinition
+    ),
+    ObjectTypeDefinition6 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition5, IsDeprecatedFieldDefinition
+    ),
+    ObjectTypeDefinition7 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition6, DeprecationReasonFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition7),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__EnumValue">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    NameFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"String">>)),
+    NameFieldDefinition = argo_graphql_field_definition:new(<<"name">>, NameFieldType),
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    IsDeprecatedFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IsDeprecatedFieldDefinition = argo_graphql_field_definition:new(<<"isDeprecated">>, IsDeprecatedFieldType),
+    DeprecationReasonFieldType = argo_graphql_type:named_type(<<"String">>),
+    DeprecationReasonFieldDefinition = argo_graphql_field_definition:new(
+        <<"deprecationReason">>, DeprecationReasonFieldType
+    ),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, NameFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, IsDeprecatedFieldDefinition
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, DeprecationReasonFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition5),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__Directive">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    IncludeDeprecatedType = argo_graphql_type:named_type(<<"Boolean">>),
+    IncludeDeprecatedDefaultValue = argo_graphql_value_const:boolean(false),
+    IncludeDeprecatedInputValue1 = argo_graphql_input_value_definition:new(
+        <<"includeDeprecated">>, IncludeDeprecatedType
+    ),
+    IncludeDeprecatedInputValue2 = argo_graphql_input_value_definition:set_default_value(
+        IncludeDeprecatedInputValue1, {some, IncludeDeprecatedDefaultValue}
+    ),
+    NameFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"String">>)),
+    NameFieldDefinition = argo_graphql_field_definition:new(<<"name">>, NameFieldType),
+    DescriptionFieldType = argo_graphql_type:named_type(<<"String">>),
+    DescriptionFieldDefinition = argo_graphql_field_definition:new(<<"description">>, DescriptionFieldType),
+    LocationsFieldType = argo_graphql_type:non_null_type(
+        argo_graphql_non_null_type:new(
+            argo_graphql_list_type:new(
+                argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__DirectiveLocation">>))
+            )
+        )
+    ),
+    LocationsFieldDefinition = argo_graphql_field_definition:new(<<"locations">>, LocationsFieldType),
+    ArgsFieldType = argo_graphql_type:non_null_type(
+        argo_graphql_non_null_type:new(
+            argo_graphql_list_type:new(
+                argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"__InputValue">>))
+            )
+        )
+    ),
+    ArgsFieldDefinition1 = argo_graphql_field_definition:new(<<"args">>, ArgsFieldType),
+    ArgsFieldDefinition2 = argo_graphql_field_definition:add_argument_definition(
+        ArgsFieldDefinition1, IncludeDeprecatedInputValue2
+    ),
+    IsRepeatableFieldType = argo_graphql_type:non_null_type(argo_graphql_non_null_type:new(<<"Boolean">>)),
+    IsRepeatableFieldDefinition = argo_graphql_field_definition:new(<<"isRepeatable">>, IsRepeatableFieldType),
+    ObjectTypeDefinition1 = argo_graphql_object_type_definition:new(),
+    ObjectTypeDefinition2 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition1, NameFieldDefinition
+    ),
+    ObjectTypeDefinition3 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition2, DescriptionFieldDefinition
+    ),
+    ObjectTypeDefinition4 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition3, LocationsFieldDefinition
+    ),
+    ObjectTypeDefinition5 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition4, ArgsFieldDefinition2
+    ),
+    ObjectTypeDefinition6 = argo_graphql_object_type_definition:add_field_definition(
+        ObjectTypeDefinition5, IsRepeatableFieldDefinition
+    ),
+    TypeDefinition = object_type_definition(TypeName, ObjectTypeDefinition6),
+    {ok, TypeDefinition};
+builtin(TypeName = <<"__DirectiveLocation">>) ->
+    % See: https://spec.graphql.org/draft/#sec-Schema-Introspection
+    EnumTypeDefinition1 = argo_graphql_enum_type_definition:new(),
+    EnumTypeDefinition2 = argo_graphql_enum_type_definition:add_enum_value_definitions(EnumTypeDefinition1, [
+        argo_graphql_enum_value_definition:new(<<"QUERY">>),
+        argo_graphql_enum_value_definition:new(<<"MUTATION">>),
+        argo_graphql_enum_value_definition:new(<<"SUBSCRIPTION">>),
+        argo_graphql_enum_value_definition:new(<<"FIELD">>),
+        argo_graphql_enum_value_definition:new(<<"FRAGMENT_DEFINITION">>),
+        argo_graphql_enum_value_definition:new(<<"FRAGMENT_SPREAD">>),
+        argo_graphql_enum_value_definition:new(<<"INLINE_FRAGMENT">>),
+        argo_graphql_enum_value_definition:new(<<"VARIABLE_DEFINITION">>),
+        argo_graphql_enum_value_definition:new(<<"SCHEMA">>),
+        argo_graphql_enum_value_definition:new(<<"SCALAR">>),
+        argo_graphql_enum_value_definition:new(<<"OBJECT">>),
+        argo_graphql_enum_value_definition:new(<<"FIELD_DEFINITION">>),
+        argo_graphql_enum_value_definition:new(<<"ARGUMENT_DEFINITION">>),
+        argo_graphql_enum_value_definition:new(<<"INTERFACE">>),
+        argo_graphql_enum_value_definition:new(<<"UNION">>),
+        argo_graphql_enum_value_definition:new(<<"ENUM">>),
+        argo_graphql_enum_value_definition:new(<<"ENUM_VALUE">>),
+        argo_graphql_enum_value_definition:new(<<"INPUT_OBJECT">>),
+        argo_graphql_enum_value_definition:new(<<"INPUT_FIELD_DEFINITION">>)
+    ]),
+    TypeDefinition = enum_type_definition(TypeName, EnumTypeDefinition2),
+    {ok, TypeDefinition};
 builtin(TypeName) when is_binary(TypeName) ->
     error.
 
@@ -278,7 +632,12 @@ find_field_definition(
                 {ok, FieldDefinition} ->
                     {ok, FieldDefinition};
                 error ->
-                    argo_graphql_field_definition:builtin(FieldName)
+                    case argo_graphql_service_document:find_root_operation_type_definition(ServiceDocument, 'query') of
+                        {ok, TypeDefinition} ->
+                            argo_graphql_field_definition:builtin_query(FieldName);
+                        _ ->
+                            argo_graphql_field_definition:builtin(FieldName)
+                    end
             end;
         #argo_graphql_interface_type_definition{fields = Fields} ->
             case argo_index_map:find(FieldName, Fields) of

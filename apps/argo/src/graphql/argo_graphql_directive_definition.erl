@@ -165,6 +165,11 @@ builtin(DirectiveName = <<"include">>) ->
     DirectiveDefinition2 = add_argument_definitions(DirectiveDefinition1, [IfArgumentDefinition]),
     DirectiveDefinition3 = add_directive_locations(DirectiveDefinition2, ['FIELD', 'FRAGMENT_SPREAD', 'INLINE_FRAGMENT']),
     {ok, DirectiveDefinition3};
+builtin(DirectiveName = <<"oneOf">>) ->
+    % See: https://github.com/graphql/graphql-spec/pull/825
+    DirectiveDefinition1 = new(DirectiveName, false),
+    DirectiveDefinition2 = add_directive_locations(DirectiveDefinition1, ['INPUT_OBJECT']),
+    {ok, DirectiveDefinition2};
 builtin(DirectiveName = <<"skip">>) ->
     % See: https://spec.graphql.org/draft/#sec--skip
     DirectiveDefinition1 = new(DirectiveName, false),
