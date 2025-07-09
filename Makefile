@@ -12,21 +12,42 @@ include erlang.mk
 
 .PHONY: eqwalizer distclean-eqwalizer
 
+# Arch detection.
+
+ifeq ($(ARCH),)
+UNAME_M := $(shell uname -m)
+
+ifeq ($(UNAME_M),amd64)
+ARCH = x86_64
+else ifeq ($(UNAME_M),x86_64)
+ARCH = x86_64
+else ifeq ($(UNAME_M),arm64)
+ARCH = aarch64
+else ifeq ($(UNAME_M),aarch64)
+ARCH = aarch64
+else
+$(error Unable to detect architecture. Please open a ticket with the output of uname -s.)
+endif
+
+export ARCH
+endif
+
 # Configuration.
-EQWALIZER_VERSION ?= 0.25.3
+ELP_VERSION ?= 2025-07-08
+ELP_OTP_VERSION ?= 27.3
 
 ELP ?= $(CURDIR)/elp
 export ELP
 
 ifeq ($(PLATFORM),darwin)
-	EQWALIZER_URL ?= https://github.com/WhatsApp/eqwalizer/releases/download/v$(EQWALIZER_VERSION)/elp-macos.tar.gz
+	ELP_URL ?= https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-macos-${ARCH}-apple-darwin-otp-${ELP_OTP_VERSION}.tar.gz
 else
-	EQWALIZER_URL ?= https://github.com/WhatsApp/eqwalizer/releases/download/v$(EQWALIZER_VERSION)/elp-linux.tar.gz
+	ELP_URL ?= https://github.com/WhatsApp/erlang-language-platform/releases/download/${ELP_VERSION}/elp-linux-${ARCH}-unknown-linux-gnu-otp-${ELP_OTP_VERSION}.tar.gz
 endif
 
-EQWALIZER_OPTS ?=
-EQWALIZER_BUILD_DIR ?= $(CURDIR)/_eqwalizer_build
-EQWALIZER_ARCHIVE = $(EQWALIZER_VERSION).tar.gz
+ELP_OPTS ?=
+ELP_BUILD_DIR ?= $(CURDIR)/_elp_build
+ELP_ARCHIVE = elp-$(ELP_VERSION).tar.gz
 
 # Core targets.
 
@@ -40,14 +61,14 @@ distclean:: distclean-eqwalizer
 # Plugin-specific targets.
 
 $(ELP):
-	$(verbose) mkdir -p $(EQWALIZER_BUILD_DIR)
-	$(verbose) echo "Downloading eqwalizer from: "$(EQWALIZER_URL)
-	$(verbose) $(call core_http_get,$(EQWALIZER_BUILD_DIR)/$(EQWALIZER_ARCHIVE),$(EQWALIZER_URL))
-	$(verbose) cd $(EQWALIZER_BUILD_DIR) && \
-		tar -xzf $(EQWALIZER_ARCHIVE)
-	$(gen_verbose) cp $(EQWALIZER_BUILD_DIR)/elp $(ELP)
+	$(verbose) mkdir -p $(ELP_BUILD_DIR)
+	$(verbose) echo "Downloading eqwalizer from: "$(ELP_URL)
+	$(verbose) $(call core_http_get,$(ELP_BUILD_DIR)/$(ELP_ARCHIVE),$(ELP_URL))
+	$(verbose) cd $(ELP_BUILD_DIR) && \
+		tar -xzf $(ELP_ARCHIVE)
+	$(gen_verbose) cp $(ELP_BUILD_DIR)/elp $(ELP)
 	$(verbose) chmod +x $(ELP)
-	$(verbose) rm -rf $(EQWALIZER_BUILD_DIR)
+	$(verbose) rm -rf $(ELP_BUILD_DIR)
 
 eqwalizer: $(ELP)
 	$(verbose) $(ELP) eqwalize-all
@@ -58,7 +79,7 @@ distclean-eqwalizer:
 .PHONY: erlfmt erlfmt-check distclean-erlfmt format
 
 # Configuration.
-ERLFMT_VERSION ?= 1.3.0
+ERLFMT_VERSION ?= 1.7.0
 
 ERLFMT ?= $(CURDIR)/erlfmt
 export ERLFMT
