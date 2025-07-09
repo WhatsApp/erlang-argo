@@ -23,6 +23,7 @@
 %% API
 -export([
     new/2,
+    size/1,
     to_array_wire_type/1
 ]).
 
@@ -41,6 +42,10 @@
     ArrayWireType :: argo_array_wire_type:t(), Items :: [argo_value:t()], ArrayValue :: t().
 new(ArrayWireType = #argo_array_wire_type{}, Items) when is_list(Items) ->
     #argo_array_value{wire_type = ArrayWireType, items = Items}.
+
+-spec size(ArrayWireType) -> Size when ArrayWireType :: t(), Size :: non_neg_integer().
+size(#argo_array_value{items = Items}) ->
+    length(Items).
 
 -spec to_array_wire_type(ArrayValue) -> ArrayWireType when ArrayValue :: t(), ArrayWireType :: argo_array_wire_type:t().
 to_array_wire_type(#argo_array_value{wire_type = ArrayWireType = #argo_array_wire_type{}}) ->

@@ -83,6 +83,11 @@
     inner :: argo_scalar_value:inner()
 }).
 
+-record(argo_term_value_decoder, {
+    decoder_module :: module(),
+    decoder_state :: argo_term_value_decoder:state()
+}).
+
 -record(argo_value, {
     inner :: argo_value:inner()
 }).
