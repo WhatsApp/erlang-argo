@@ -10,7 +10,7 @@ PROJECT_VERSION = 1.0.0
 
 include erlang.mk
 
-.PHONY: eqwalizer distclean-eqwalizer
+.PHONY: eqwalize eqwalize-all distclean-elp
 
 # Arch detection.
 
@@ -53,10 +53,11 @@ ELP_ARCHIVE = elp-$(ELP_VERSION).tar.gz
 
 help::
 	$(verbose) printf "%s\n" "" \
-		"eqwalizer targets:" \
-		"  eqwalizer    Run 'elp eqwalize-all' on the current project"
+		"elp targets:" \
+		"  eqwalize     Run 'elp eqwalize-app argo' on the current project" \
+		"  eqwalize-all Run 'elp eqwalize-all' on the current project"
 
-distclean:: distclean-eqwalizer
+distclean:: distclean-elp
 
 # Plugin-specific targets.
 
@@ -70,10 +71,13 @@ $(ELP):
 	$(verbose) chmod +x $(ELP)
 	$(verbose) rm -rf $(ELP_BUILD_DIR)
 
-eqwalizer: $(ELP)
+eqwalize: $(ELP)
+	$(verbose) $(ELP) eqwalize $(PROJECT)
+
+eqwalize-all: $(ELP)
 	$(verbose) $(ELP) eqwalize-all
 
-distclean-eqwalizer:
+distclean-elp:
 	$(gen_verbose) rm -rf $(ELP)
 
 .PHONY: erlfmt erlfmt-check distclean-erlfmt format
@@ -152,7 +156,7 @@ lint:: lint-format lint-eqwalizer lint-xref lint-dialyzer
 lint-dialyzer:
 	$(verbose) rebar3 dialyzer
 
-lint-eqwalizer: eqwalizer
+lint-eqwalizer: eqwalize
 
 lint-format: erlfmt-check
 

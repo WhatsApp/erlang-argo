@@ -31,19 +31,19 @@ jobs:
 
       - name: (Erlang) Check Formatting
         if: ${{ matrix.lint }}
-        run: make erlfmt-check
+        run: make lint-format
 
       - name: (Erlang) eqWAlizer
         if: ${{ matrix.lint }}
-        run: make eqwalizer
+        run: make lint-eqwalizer
 
       - name: (Erlang) Dialyzer
         if: ${{ matrix.lint }}
-        run: rebar3 dialyzer
+        run: make lint-dialyzer
 
       - name: (Erlang) Xref
         if: ${{ matrix.lint }}
-        run: rebar3 xref
+        run: make lint-xref
 
       - name: (Erlang) Tests
         run: |
