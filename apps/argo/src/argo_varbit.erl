@@ -22,6 +22,10 @@
     read_varbit/1,
     write_varbit/1
 ]).
+%% NOTE: remove export once https://github.com/erlang/otp/pull/10048 is available
+-export([
+    write_varbit_chunks/1
+]).
 %% Errors API
 -export([
     format_error/2
