@@ -92,7 +92,8 @@
 -spec array_value_hint(ArrayValue, Index) -> ArrayValueHint when
     ArrayValue :: argo_array_value:t(), Index :: argo_types:index(), ArrayValueHint :: array_value_hint().
 array_value_hint(ArrayValue = #argo_array_value{}, Index) when ?is_usize(Index) ->
-    (array_wire_type_hint(ArrayValue))#{size => argo_array_value:size(ArrayValue), index => Index}.
+    #{'of' := WireTypeHint} = array_wire_type_hint(ArrayValue),
+    #{'of' => WireTypeHint, size => argo_array_value:size(ArrayValue), index => Index}.
 
 -spec array_wire_type_hint(ArrayValue | ArrayWireType) -> ArrayWireTypeHint when
     ArrayValue :: argo_array_value:t(),
