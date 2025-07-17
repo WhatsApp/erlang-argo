@@ -17,12 +17,6 @@
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
--compile(
-    {inline, [
-        error_with_info/3
-    ]}
-).
-
 -include_lib("argo/include/argo_common.hrl").
 -include_lib("argo/include/argo_label.hrl").
 -include_lib("argo/include/argo_message.hrl").
@@ -878,10 +872,10 @@ decode_self_describing_record_wire_type_fields(
 ) ->
     RecordValue = argo_index_map:foldl(
         fun(_Index, FieldName, FieldWireType, RecordValueAcc) ->
-            case maps:find(FieldName, Map1) of
-                {ok, FieldValue} ->
+            case Map1 of
+                #{FieldName := FieldValue} ->
                     argo_record_value:insert(RecordValueAcc, FieldValue);
-                error ->
+                #{} ->
                     case argo_field_wire_type:is_omittable(FieldWireType) of
                         false ->
                             error_with_info(badarg, [ValueDecoder1, RecordWireType, 0, Map1], #{
@@ -936,6 +930,7 @@ decode_self_describing_record_wire_type_fields(
 %%%=============================================================================
 
 %% @private
+-compile({inline, [error_with_info/3]}).
 -spec error_with_info(dynamic(), dynamic(), dynamic()) -> no_return().
 error_with_info(Reason, Args, Cause) ->
     erlang:error(Reason, Args, [{error_info, #{module => ?MODULE, cause => Cause}}]).

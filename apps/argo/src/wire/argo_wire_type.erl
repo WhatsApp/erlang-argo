@@ -294,6 +294,8 @@ xform(T1, Acc1, Fun) when is_function(Fun, 2) ->
                     {T3, Acc3};
                 #argo_fixed_wire_type{} ->
                     {T2, Acc2};
+                #argo_location_wire_type{} ->
+                    {T2, Acc2};
                 #argo_nullable_wire_type{'of' = WireType1} ->
                     {WireType2, Acc3} = xform(WireType1, Acc2, Fun),
                     T3 = T2#argo_nullable_wire_type{'of' = WireType2},

@@ -36,6 +36,7 @@
 -type i16() :: -16#8000..16#7FFF.
 -type i32() :: -16#80000000..16#7FFFFFFF.
 -type i64() :: -16#8000000000000000..16#7FFFFFFFFFFFFFFF.
+-type index() :: usize().
 -type isize() :: i64().
 -type label() :: i64().
 -type length() :: usize().
@@ -54,6 +55,7 @@
     i16/0,
     i32/0,
     i64/0,
+    index/0,
     isize/0,
     label/0,
     length/0,

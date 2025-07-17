@@ -83,11 +83,21 @@
 -type iterator() :: iterator(key(), value()).
 -opaque iterator(KeyType, ValueType) ::
     none
-    | {{ordered, index()} | {reversed, index()} | {custom, [{index(), {KeyType, ValueType}}]}, t(KeyType, ValueType)}.
--type iterator_order() :: iterator_order(key()).
+    | {
+        {ordered, index()}
+        | {reversed, index()}
+        | {custom, [{index(), {KeyType, ValueType}}]},
+        t(KeyType, ValueType)
+    }.
+-type iterator_order() :: iterator_order(key(), value()).
 -type iterator_order(Key) ::
     ordered | reversed | iterator_order_func(Key).
+-type iterator_order(Key, Value) ::
+    ordered | reversed | iterator_order_func(Key) | iterator_order_func(Key, Value).
 -type iterator_order_func(Key) :: fun((AIndex :: index(), AKey :: Key, BIndex :: index(), BKey :: Key) -> boolean()).
+%% erlfmt-ignore
+-type iterator_order_func(Key, Value) ::
+    fun((AIndex :: index(), AKey :: Key, AValue :: Value, BIndex :: index(), BKey :: Key, BValue :: Value) -> boolean()).
 
 -export_type([
     filter_func/0,
@@ -103,7 +113,9 @@
     iterator/2,
     iterator_order/0,
     iterator_order/1,
+    iterator_order/2,
     iterator_order_func/1,
+    iterator_order_func/2,
     key/0,
     t/0,
     t/1,
@@ -343,13 +355,13 @@ iterator(IndexMap = #argo_index_map{}) ->
     Key :: key(),
     Value :: value(),
     IndexMap :: t(Key, Value),
-    Order :: iterator_order(Key),
+    Order :: iterator_order(Key, Value),
     Iterator :: iterator(Key, Value).
 iterator(IndexMap = #argo_index_map{}, ordered) ->
     {{ordered, 0}, IndexMap};
 iterator(IndexMap = #argo_index_map{}, reversed) ->
     {{reversed, ?MODULE:size(IndexMap)}, IndexMap};
-iterator(IndexMap = #argo_index_map{}, OrderFun) when is_function(OrderFun, 4) ->
+iterator(IndexMap = #argo_index_map{}, OrderFun) when is_function(OrderFun, 4) orelse is_function(OrderFun, 6) ->
     IteratorInternal = iterator_internal(IndexMap, OrderFun),
     {{custom, IteratorInternal}, IndexMap}.
 
@@ -358,12 +370,19 @@ iterator(IndexMap = #argo_index_map{}, OrderFun) when is_function(OrderFun, 4) -
     Key :: key(),
     Value :: value(),
     IndexMap :: t(Key, Value),
-    OrderFun :: iterator_order_func(Key),
+    OrderFun :: iterator_order_func(Key) | iterator_order_func(Key, Value),
     InternalIterator :: [{index(), {Key, Value}}].
 iterator_internal(_IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_function(OrderFun, 4) ->
     lists:sort(
         fun({AIndex, {AKey, _AValue}}, {BIndex, {BKey, _BValue}}) ->
             OrderFun(AIndex, AKey, BIndex, BKey)
+        end,
+        array:to_orddict(Entries)
+    );
+iterator_internal(_IndexMap = #argo_index_map{entries = Entries}, OrderFun) when is_function(OrderFun, 6) ->
+    lists:sort(
+        fun({AIndex, {AKey, AValue}}, {BIndex, {BKey, BValue}}) ->
+            OrderFun(AIndex, AKey, AValue, BIndex, BKey, BValue)
         end,
         array:to_orddict(Entries)
     ).
@@ -532,7 +551,8 @@ take_full(Key, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entries
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = argo_types:dynamic_cast(Entries3)},
+            Entries4 = shrink(Entries3),
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = Entries4},
             {{Index, Key, Value}, IndexMap2};
         error ->
             error
@@ -551,7 +571,8 @@ take_index(Index, IndexMap1 = #argo_index_map{indices = Indices1, entries = Entr
             OldSize = array:size(Entries1),
             NewSize = OldSize - 1,
             {halt, Indices3, Entries3} = array:foldr(fun repair/3, {cont, Indices2, Entries2, NewSize}, Entries2),
-            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = argo_types:dynamic_cast(Entries3)},
+            Entries4 = shrink(Entries3),
+            IndexMap2 = IndexMap1#argo_index_map{indices = Indices3, entries = Entries4},
             {{Key, Value}, IndexMap2};
         false ->
             error
@@ -788,3 +809,13 @@ repair(Index, {Key, Value}, {cont, Indices1, Entries1, NewSize}) ->
     {cont, Indices2, Entries2, NewSize};
 repair(_Index, {_Key, _Value}, Acc = {halt, _Indices, _Entries}) ->
     Acc.
+
+%% @private
+-spec shrink(Entries) -> Entries when
+    Entries :: array:array(undefined | {Key, Value}),
+    Key :: key(),
+    Value :: value().
+shrink(Entries) ->
+    %% TODO: make this less expensive, maybe upstream fix
+    List = array:to_list(Entries),
+    argo_types:dynamic_cast(array:fix(array:from_list(List, undefined))).

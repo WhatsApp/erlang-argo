@@ -4,32 +4,22 @@
 %%%
 %%% This source code is licensed under the MIT license found in the
 %%% LICENSE.md file in the root directory of this source tree.
-%%%
-%%% @author Andrew Bennett <potatosaladx@meta.com>
-%%% @copyright (c) Meta Platforms, Inc. and affiliates.
-%%% @doc
-%%%
-%%% @end
-%%% Created :  10 Nov 2023 by Andrew Bennett <potatosaladx@meta.com>
 %%%-----------------------------------------------------------------------------
 %%% % @format
 -module(argo_term_value_decoder).
+-moduledoc """
+
+""".
+-moduledoc #{author => ["Andrew Bennett <potatosaladx@meta.com>"]}.
+-moduledoc #{created => "2025-05-13", modified => "2025-07-15"}.
+-moduledoc #{copyright => "Meta Platforms, Inc. and affiliates."}.
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 
 -include_lib("argo/include/argo_common.hrl").
--include_lib("argo/include/argo_index_map.hrl").
 -include_lib("argo/include/argo_value.hrl").
 -include_lib("argo/include/argo_wire_type.hrl").
 
-%% Hint API
--export([
-    block_wire_type_hint/1,
-    field_wire_type_hint/1,
-    record_wire_type_hint/1,
-    scalar_wire_type_hint/1,
-    wire_type_hint/1
-]).
 %% New API
 -export([
     new/2
@@ -42,6 +32,7 @@
     decode_error_wire_type/2,
     decode_extensions_wire_type/2,
     decode_field_wire_type/3,
+    decode_location_wire_type/2,
     decode_nullable_wire_type/3,
     decode_path_wire_type/2,
     decode_record_wire_type/3,
@@ -54,388 +45,342 @@
     format_error/2
 ]).
 
-%% Hint Types
--type block_wire_type_hint() :: {Of :: scalar_wire_type_hint(), Key :: argo_types:name(), Dedupe :: boolean()}.
--type desc_container_hint() :: list | object.
--type desc_hint() :: desc_container_hint() | desc_scalar_hint().
--type desc_scalar_hint() :: null | boolean | string | bytes | int | float.
--type field_wire_type_hint() :: {Of :: wire_type_hint(), Name :: argo_types:name(), Omittable :: boolean()}.
--type record_wire_type_hint() :: [argo_types:name()].
--type scalar_wire_type_hint() :: boolean | bytes | desc | {fixed, argo_types:length()} | float64 | string | varint.
--type wire_type_hint() ::
-    array
-    | {block, block_wire_type_hint()}
-    | desc
-    | error
-    | extensions
-    | nullable
-    | path
-    | {record, record_wire_type_hint()}
-    | {scalar, scalar_wire_type_hint()}.
-
--export_type([
-    block_wire_type_hint/0,
-    desc_container_hint/0,
-    desc_hint/0,
-    desc_scalar_hint/0,
-    field_wire_type_hint/0,
-    record_wire_type_hint/0,
-    scalar_wire_type_hint/0,
-    wire_type_hint/0
-]).
-
 %% Types
 -type error_reason() :: invalid | type_mismatch | dynamic().
 -type options() :: dynamic().
+-type result(Ok, Error) :: {ok, Ok} | {error, Error}.
 -type state() :: dynamic().
 -type t() :: #argo_term_value_decoder{}.
 
 -export_type([
     error_reason/0,
     options/0,
+    result/2,
     state/0,
     t/0
 ]).
 
 %% Behaviour
--callback init(Options) -> State when Options :: options(), State :: state().
+-callback init(Options) -> DecoderState when Options :: options(), DecoderState :: state().
 
--callback decode_array(State, WireTypeHint, TermValue) ->
-    {ok, State, ArrayTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    WireTypeHint :: wire_type_hint(),
+-callback decode_array(DecoderState, ArrayWireTypeHint, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    ArrayWireTypeHint :: argo_term:array_wire_type_hint(),
     TermValue :: argo_term:term_value(),
+    Result :: result(ArrayTermValue, ErrorReason),
     ArrayTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_array_next(State, WireTypeHint, Index, ArrayTermValue) ->
-    {ok, State, ArrayTermValue, OptionItemTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    WireTypeHint :: wire_type_hint(),
-    Index :: non_neg_integer(),
+-callback decode_array_next(DecoderState, Index, ArrayWireTypeHint, ArrayTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
+    ArrayWireTypeHint :: argo_term:array_wire_type_hint(),
     ArrayTermValue :: argo_term:term_value(),
+    Result :: result({ArrayTermValue, OptionItemTermValue}, ErrorReason),
     OptionItemTermValue :: argo_types:option(ItemTermValue),
     ItemTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_array_stop(State, ArrayTermValue, ArrayValue) ->
-    {ok, State, ArrayValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_array_stop(DecoderState, ArrayTermValue, ArrayValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ArrayTermValue :: argo_term:term_value(),
     ArrayValue :: argo_array_value:t(),
+    Result :: result(ArrayValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_block(State, BlockWireTypeHint, TermValue) ->
-    {ok, State, BlockTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    BlockWireTypeHint :: block_wire_type_hint(),
+-callback decode_block(DecoderState, BlockWireTypeHint, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    BlockWireTypeHint :: argo_term:block_wire_type_hint(),
     TermValue :: argo_term:term_value(),
+    Result :: result(BlockTermValue, ErrorReason),
     BlockTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_desc(State, TermValue) ->
-    {ok, State, DescTermValue, DescHint} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_desc(DecoderState, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     TermValue :: argo_term:term_value(),
+    Result :: result({DescTermValue, DescValueHint}, ErrorReason),
     DescTermValue :: argo_term:term_value(),
-    DescHint :: desc_hint(),
+    DescValueHint :: argo_term:desc_value_hint(),
     ErrorReason :: error_reason().
 
--callback decode_desc_list_next(State, Index, DescListTermValue) ->
-    {ok, State, DescListTermValue, OptionItemTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    Index :: non_neg_integer(),
+-callback decode_desc_list_next(DecoderState, Index, DescListTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
     DescListTermValue :: argo_term:term_value(),
+    Result :: result({DescListTermValue, OptionItemTermValue}, ErrorReason),
     OptionItemTermValue :: argo_types:option(ItemTermValue),
     ItemTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_desc_list_stop(State, DescListTermValue, DescValue) ->
-    {ok, State, DescValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_desc_list_stop(DecoderState, DescListTermValue, DescValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     DescListTermValue :: argo_term:term_value(),
     DescValue :: argo_desc_value:t(),
+    Result :: result(DescValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_desc_object_next(State, Index, DescObjectTermValue) ->
-    {ok, State, DescObjectTermValue, OptionEntry} | {error, ErrorReason}
-when
-    State :: state(),
-    Index :: non_neg_integer(),
+-callback decode_desc_object_next(DecoderState, Index, DescObjectTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
     DescObjectTermValue :: argo_term:term_value(),
+    Result :: result({DescObjectTermValue, OptionEntry}, ErrorReason),
     OptionEntry :: argo_types:option({ObjectKey, ObjectTermValue}),
     ObjectKey :: unicode:unicode_binary(),
     ObjectTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_desc_object_stop(State, DescObjectTermValue, DescValue) ->
-    {ok, State, DescValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_desc_object_stop(DecoderState, DescObjectTermValue, DescValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     DescObjectTermValue :: argo_term:term_value(),
     DescValue :: argo_desc_value:t(),
+    Result :: result(DescValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_desc_scalar(State, DescScalarHint, TermValue) ->
-    {ok, State, DescScalar} | {error, ErrorReason}
-when
-    State :: state(),
-    DescScalarHint :: desc_scalar_hint(),
-    TermValue :: argo_term:term_value(),
+-callback decode_desc_scalar(DecoderState, DescValueScalarHint, DescScalarTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    DescValueScalarHint :: argo_term:desc_value_scalar_hint(),
+    DescScalarTermValue :: argo_term:term_value(),
+    Result :: result({DescScalarTermValue, DescScalar}, ErrorReason),
     DescScalar :: argo_desc_value:inner_scalar(),
     ErrorReason :: error_reason().
 
--callback decode_error(State, TermValue) ->
-    {ok, State, ErrorTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_desc_scalar_stop(DecoderState, DescScalarTermValue, DescValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    DescScalarTermValue :: argo_term:term_value(),
+    DescValue :: argo_desc_value:t(),
+    Result :: result(DescValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_error(DecoderState, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     TermValue :: argo_term:term_value(),
+    Result :: result(ErrorTermValue, ErrorReason),
     ErrorTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_error_extensions(State, ErrorTermValue) ->
-    {ok, State, ErrorTermValue, OptionExtensionsTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_error_extensions(DecoderState, ErrorTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ErrorTermValue :: argo_term:term_value(),
+    Result :: result({ErrorTermValue, OptionExtensionsTermValue}, ErrorReason),
     OptionExtensionsTermValue :: argo_types:option(ExtensionsTermValue),
     ExtensionsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_error_location_column(State, LocationTermValue) ->
-    {ok, State, LocationTermValue, OptionColumn} | {error, ErrorReason}
-when
-    State :: state(),
-    LocationTermValue :: argo_term:term_value(),
-    OptionColumn :: argo_types:option(Column),
-    Column :: integer(),
-    ErrorReason :: error_reason().
-
--callback decode_error_location_line(State, LocationTermValue) ->
-    {ok, State, LocationTermValue, OptionLine} | {error, ErrorReason}
-when
-    State :: state(),
-    LocationTermValue :: argo_term:term_value(),
-    OptionLine :: argo_types:option(Line),
-    Line :: integer(),
-    ErrorReason :: error_reason().
-
--callback decode_error_location_stop(State, LocationTermValue, LocationValue) ->
-    {ok, State, LocationValue} | {error, ErrorReason}
-when
-    State :: state(),
-    LocationTermValue :: argo_term:term_value(),
-    LocationValue :: argo_location_value:t(),
-    ErrorReason :: error_reason().
-
--callback decode_error_locations(State, ErrorTermValue) ->
-    {ok, State, ErrorTermValue, OptionLocationsTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_error_locations(DecoderState, ErrorTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ErrorTermValue :: argo_term:term_value(),
+    Result :: result({ErrorTermValue, OptionLocationsTermValue}, ErrorReason),
     OptionLocationsTermValue :: argo_types:option(LocationsTermValue),
     LocationsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_error_locations_next(State, Index, LocationsTermValue) ->
-    {ok, State, LocationsTermValue, OptionLocationTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    Index :: non_neg_integer(),
-    LocationsTermValue :: argo_term:term_value(),
-    OptionLocationTermValue :: argo_types:option(LocationTermValue),
-    LocationTermValue :: argo_term:term_value(),
-    ErrorReason :: error_reason().
-
--callback decode_error_locations_stop(State, LocationsTermValue, LocationValueList) ->
-    {ok, State, LocationValueList} | {error, ErrorReason}
-when
-    State :: state(),
-    LocationsTermValue :: argo_term:term_value(),
-    LocationValueList :: [LocationValue],
-    LocationValue :: argo_location_value:t(),
-    ErrorReason :: error_reason().
-
--callback decode_error_message(State, ErrorTermValue) ->
-    {ok, State, ErrorTermValue, OptionMessageTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_error_message(DecoderState, ErrorTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ErrorTermValue :: argo_term:term_value(),
+    Result :: result({ErrorTermValue, OptionMessageTermValue}, ErrorReason),
     OptionMessageTermValue :: argo_types:option(MessageTermValue),
     MessageTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_error_path(State, ErrorTermValue) ->
-    {ok, State, ErrorTermValue, OptionPathTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_error_path(DecoderState, ErrorTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ErrorTermValue :: argo_term:term_value(),
+    Result :: result({ErrorTermValue, OptionPathTermValue}, ErrorReason),
     OptionPathTermValue :: argo_types:option(PathTermValue),
     PathTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_error_stop(State, ErrorTermValue, ErrorValue) ->
-    {ok, State, ErrorValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_error_stop(DecoderState, ErrorTermValue, ErrorValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ErrorTermValue :: argo_term:term_value(),
     ErrorValue :: argo_error_value:t(),
+    Result :: result(ErrorValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_extensions(State, TermValue) ->
-    {ok, State, ExtensionsTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_extensions(DecoderState, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     TermValue :: argo_term:term_value(),
+    Result :: result(ExtensionsTermValue, ErrorReason),
     ExtensionsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_extensions_next(State, Index, ExtensionsTermValue) ->
-    {ok, State, ExtensionsTermValue, OptionEntry} | {error, ErrorReason}
-when
-    State :: state(),
-    Index :: non_neg_integer(),
+-callback decode_extensions_next(DecoderState, Index, ExtensionsTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
     ExtensionsTermValue :: argo_term:term_value(),
+    Result :: result({ExtensionsTermValue, OptionEntry}, ErrorReason),
     OptionEntry :: argo_types:option({ObjectKey, ObjectTermValue}),
     ObjectKey :: unicode:unicode_binary(),
     ObjectTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_extensions_stop(State, ExtensionsTermValue, ExtensionsValue) ->
-    {ok, State, ExtensionsValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_extensions_stop(DecoderState, ExtensionsTermValue, ExtensionsValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     ExtensionsTermValue :: argo_term:term_value(),
     ExtensionsValue :: argo_extensions_value:t(),
+    Result :: result(ExtensionsValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_nullable(State, WireTypeHint, TermValue) ->
-    {ok, State, NullableTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    WireTypeHint :: wire_type_hint(),
+-callback decode_location(DecoderState, LocationTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationTermValue :: argo_term:term_value(),
+    Result :: result(LocationTermValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_location_column(DecoderState, LocationTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationTermValue :: argo_term:term_value(),
+    Result :: result({LocationTermValue, OptionColumn}, ErrorReason),
+    OptionColumn :: argo_types:option(Column),
+    Column :: integer(),
+    ErrorReason :: error_reason().
+
+-callback decode_location_line(DecoderState, LocationTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationTermValue :: argo_term:term_value(),
+    Result :: result({LocationTermValue, OptionLine}, ErrorReason),
+    OptionLine :: argo_types:option(Line),
+    Line :: integer(),
+    ErrorReason :: error_reason().
+
+-callback decode_location_stop(DecoderState, LocationTermValue, LocationValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationTermValue :: argo_term:term_value(),
+    LocationValue :: argo_location_value:t(),
+    Result :: result(LocationValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_locations(DecoderState, LocationsTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationsTermValue :: argo_term:term_value(),
+    Result :: result(LocationsTermValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_locations_next(DecoderState, Index, LocationsTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
+    LocationsTermValue :: argo_term:term_value(),
+    Result :: result({LocationsTermValue, OptionLocationTermValue}, ErrorReason),
+    OptionLocationTermValue :: argo_types:option(LocationTermValue),
+    LocationTermValue :: argo_term:term_value(),
+    ErrorReason :: error_reason().
+
+-callback decode_locations_stop(DecoderState, LocationsTermValue, LocationValueList) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    LocationsTermValue :: argo_term:term_value(),
+    LocationValueList :: [LocationValue],
+    LocationValue :: argo_location_value:t(),
+    Result :: result(LocationValueList, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_nullable(DecoderState, NullableWireTypeHint, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
     TermValue :: argo_term:term_value(),
-    NullableTermValue :: null | {non_null, NonNullTermValue},
+    Result :: result(NullableTermValue, ErrorReason),
+    NullableTermValue :: null | {non_null, NonNullTermValue} | {field_errors, FieldErrorsTermValue},
     NonNullTermValue :: argo_term:term_value(),
+    FieldErrorsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_path(State, TermValue) ->
-    {ok, State, PathTermValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_nullable_field_errors(DecoderState, NullableWireTypeHint, FieldErrorsTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    Result :: result(FieldErrorsTermValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_nullable_field_errors_next(DecoderState, Index, NullableWireTypeHint, FieldErrorsTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
+    NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    Result :: result({FieldErrorsTermValue, OptionFieldErrorTermValue}, ErrorReason),
+    OptionFieldErrorTermValue :: argo_types:option(FieldErrorTermValue),
+    FieldErrorTermValue :: argo_term:term_value(),
+    ErrorReason :: error_reason().
+
+-callback decode_nullable_field_errors_stop(DecoderState, FieldErrorsTermValue, FieldErrorsValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    FieldErrorsValue :: [FieldErrorValue],
+    FieldErrorValue :: argo_error_value:t(),
+    Result :: result(FieldErrorValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_nullable_stop(DecoderState, NullableValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    NullableValue :: argo_nullable_value:t(),
+    Result :: result(NullableValue, ErrorReason),
+    ErrorReason :: error_reason().
+
+-callback decode_path(DecoderState, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     TermValue :: argo_term:term_value(),
+    Result :: result(PathTermValue, ErrorReason),
     PathTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_path_next(State, Index, PathTermValue) ->
-    {ok, State, PathTermValue, OptionSegment} | {error, ErrorReason}
-when
-    State :: state(),
-    Index :: non_neg_integer(),
+-callback decode_path_next(DecoderState, Index, PathTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    Index :: argo_types:index(),
     PathTermValue :: argo_term:term_value(),
+    Result :: result({PathTermValue, OptionSegment}, ErrorReason),
     OptionSegment :: argo_types:option(FieldName | ListIndex),
     FieldName :: argo_types:name(),
-    ListIndex :: non_neg_integer(),
+    ListIndex :: argo_types:index(),
     ErrorReason :: error_reason().
 
--callback decode_path_stop(State, PathTermValue, PathValue) ->
-    {ok, State, PathValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_path_stop(DecoderState, PathTermValue, PathValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     PathTermValue :: argo_term:term_value(),
     PathValue :: argo_path_value:t(),
+    Result :: result(PathValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_record(State, RecordWireTypeHint, TermValue) ->
-    {ok, State, RecordTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    RecordWireTypeHint :: record_wire_type_hint(),
+-callback decode_record(DecoderState, RecordWireTypeHint, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    RecordWireTypeHint :: argo_term:record_wire_type_hint(),
     TermValue :: argo_term:term_value(),
+    Result :: result(RecordTermValue, ErrorReason),
     RecordTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_record_next(State, FieldWireTypeHint, Index, RecordTermValue) ->
-    {ok, State, RecordTermValue, OptionFieldTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    FieldWireTypeHint :: field_wire_type_hint(),
-    Index :: non_neg_integer(),
+-callback decode_record_next(DecoderState, Index, FieldWireTypeHint, RecordTermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    FieldWireTypeHint :: argo_term:field_wire_type_hint(),
+    Index :: argo_types:index(),
     RecordTermValue :: argo_term:term_value(),
+    Result :: result({RecordTermValue, OptionFieldTermValue}, ErrorReason),
     OptionFieldTermValue :: argo_types:option(FieldTermValue),
     FieldTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_record_stop(State, RecordTermValue, RecordValue) ->
-    {ok, State, RecordValue} | {error, ErrorReason}
-when
-    State :: state(),
+-callback decode_record_stop(DecoderState, RecordTermValue, RecordValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
     RecordTermValue :: argo_term:term_value(),
     RecordValue :: argo_record_value:t(),
+    Result :: result(RecordValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_scalar(State, ScalarWireTypeHint, TermValue) ->
-    {ok, State, ScalarTermValue} | {error, ErrorReason}
-when
-    State :: state(),
-    ScalarWireTypeHint :: scalar_wire_type_hint(),
+-callback decode_scalar(DecoderState, ScalarWireTypeHint, TermValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    ScalarWireTypeHint :: argo_term:scalar_wire_type_hint(),
     TermValue :: argo_term:term_value(),
-    ScalarTermValue :: boolean() | binary() | DescTermValue | float() | unicode:unicode_binary() | argo_types:i64(),
+    Result :: result(Scalar, ErrorReason),
+    Scalar :: boolean() | binary() | DescTermValue | float() | unicode:unicode_binary() | argo_types:i64(),
     DescTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
-%%%=============================================================================
-%%% Hint API functions
-%%%=============================================================================
+-callback decode_scalar_stop(DecoderState, ScalarValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    ScalarValue :: argo_scalar_value:t(),
+    Result :: result(ScalarValue, ErrorReason),
+    ErrorReason :: error_reason().
 
--spec block_wire_type_hint(BlockWireType) -> BlockWireTypeHint when
-    BlockWireType :: argo_block_wire_type:t(), BlockWireTypeHint :: block_wire_type_hint().
-block_wire_type_hint(#argo_block_wire_type{'of' = Of, key = Key, dedupe = Dedupe}) ->
-    {scalar_wire_type_hint(Of), Key, Dedupe}.
-
--spec field_wire_type_hint(FieldWireType) -> FieldWireTypeHint when
-    FieldWireType :: argo_field_wire_type:t(), FieldWireTypeHint :: field_wire_type_hint().
-field_wire_type_hint(#argo_field_wire_type{'of' = Of, name = Name, omittable = Omittable}) ->
-    {wire_type_hint(Of), Name, Omittable}.
-
--spec record_wire_type_hint(RecordWireType) -> RecordWireTypeHint when
-    RecordWireType :: argo_record_wire_type:t(), RecordWireTypeHint :: record_wire_type_hint().
-record_wire_type_hint(#argo_record_wire_type{fields = Fields}) ->
-    argo_index_map:keys(Fields).
-
--spec scalar_wire_type_hint(ScalarWireType) -> ScalarWireTypeHint when
-    ScalarWireType :: argo_scalar_wire_type:t(), ScalarWireTypeHint :: scalar_wire_type_hint().
-scalar_wire_type_hint(#argo_scalar_wire_type{inner = Inner}) ->
-    case Inner of
-        boolean -> boolean;
-        bytes -> bytes;
-        desc -> desc;
-        #argo_fixed_wire_type{length = FixedLength} -> {fixed, FixedLength};
-        float64 -> float64;
-        string -> string;
-        varint -> varint
-    end.
-
--spec wire_type_hint(WireType) -> WireTypeHint when WireType :: argo_wire_type:t(), WireTypeHint :: wire_type_hint().
-wire_type_hint(#argo_wire_type{inner = Inner}) ->
-    case Inner of
-        #argo_array_wire_type{} -> array;
-        BlockWireType = #argo_block_wire_type{} -> {block, block_wire_type_hint(BlockWireType)};
-        #argo_desc_wire_type{} -> desc;
-        #argo_error_wire_type{} -> error;
-        #argo_extensions_wire_type{} -> extensions;
-        #argo_nullable_wire_type{} -> nullable;
-        #argo_path_wire_type{} -> path;
-        RecordWireType = #argo_record_wire_type{} -> {record, record_wire_type_hint(RecordWireType)};
-        ScalarWireType = #argo_scalar_wire_type{} -> {scalar, scalar_wire_type_hint(ScalarWireType)}
-    end.
+%% Macros
+-define(is_desc_value_scalar_hint(X), ((X) =:= null) orelse ((X) =:= boolean) orelse ((X) =:= string) orelse ((X) =:= bytes) orelse ((X) =:= int) orelse ((X) =:= float)).
 
 %%%=============================================================================
 %%% New API functions
@@ -463,16 +408,18 @@ new(TermValueDecoderModule, TermValueDecoderOptions) when is_atom(TermValueDecod
     ArrayValue :: argo_array_value:t().
 decode_array_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
-    ArrayWireType = #argo_array_wire_type{'of' = Of},
+    ArrayWireType = #argo_array_wire_type{},
     TermValue
 ) ->
-    WireTypeHint = wire_type_hint(Of),
-    case TermValueDecoderModule:decode_array(TermValueDecoderState1, WireTypeHint, TermValue) of
-        {ok, TermValueDecoderState2, ArrayTermValue} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            decode_array_wire_type_next(TermValueDecoder2, ArrayWireType, WireTypeHint, ArrayTermValue, 0, [])
+    ArrayWireTypeHint = argo_term:array_wire_type_hint(ArrayWireType),
+    {TermValueDecoderState2, Result} = TermValueDecoderModule:decode_array(TermValueDecoderState1, ArrayWireTypeHint, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ArrayTermValue} ->
+            decode_array_wire_type_next(TermValueDecoder2, ArrayWireType, ArrayWireTypeHint, ArrayTermValue, 0, [])
     end.
 
 -spec decode_block_wire_type(TermValueDecoder, BlockWireType, TermValue) -> {TermValueDecoder, BlockValue} when
@@ -482,15 +429,18 @@ decode_array_wire_type(
     BlockValue :: argo_block_value:t().
 decode_block_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     BlockWireType = #argo_block_wire_type{'of' = Of},
     TermValue
 ) ->
-    BlockWireTypeHint = block_wire_type_hint(BlockWireType),
-    case TermValueDecoderModule:decode_block(TermValueDecoderState1, BlockWireTypeHint, TermValue) of
-        {ok, TermValueDecoderState2, BlockTermValue} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    BlockWireTypeHint = argo_term:block_wire_type_hint(BlockWireType),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_block(TermValueDecoderState1, BlockWireTypeHint, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, BlockTermValue} ->
             {TermValueDecoder3, ScalarValue} = decode_scalar_wire_type(TermValueDecoder2, Of, BlockTermValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
             {TermValueDecoder3, BlockValue};
@@ -508,23 +458,21 @@ decode_block_wire_type(
     TermValueDecoder :: t(), TermValue :: argo_term:term_value(), DescValue :: argo_desc_value:t().
 decode_desc_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     TermValue
 ) ->
-    case TermValueDecoderModule:decode_desc(TermValueDecoderState1, TermValue) of
-        {ok, TermValueDecoderState2, DescListTermValue, list} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc(TermValueDecoderState1, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {DescListTermValue, list}} ->
             decode_desc_wire_type_list_next(TermValueDecoder2, DescListTermValue, 0, []);
-        {ok, TermValueDecoderState2, DescObjectTermValue, object} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {DescObjectTermValue, object}} ->
             decode_desc_wire_type_object_next(TermValueDecoder2, DescObjectTermValue, 0, argo_index_map:new());
-        {ok, TermValueDecoderState2, DescScalarTermValue, DescHint} when
-            (DescHint =:= null) orelse (DescHint =:= boolean) orelse (DescHint =:= string) orelse (DescHint =:= bytes) orelse
-                (DescHint =:= int) orelse (DescHint =:= float)
-        ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            decode_desc_wire_type_scalar(TermValueDecoder2, DescScalarTermValue, DescHint);
+        {ok, {DescScalarTermValue, DescValueScalarHint}} when ?is_desc_value_scalar_hint(DescValueScalarHint) ->
+            decode_desc_wire_type_scalar(TermValueDecoder2, DescScalarTermValue, DescValueScalarHint);
         {error, _} ->
             error_with_info(badarg, [TermValueDecoder1, TermValue], #{2 => {failed_to_decode_scalar, TermValue}})
     end.
@@ -533,29 +481,27 @@ decode_desc_wire_type(
     TermValueDecoder :: t(), TermValue :: argo_term:term_value(), ErrorValue :: argo_error_value:t().
 decode_error_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     TermValue
 ) ->
-    case TermValueDecoderModule:decode_error(TermValueDecoderState1, TermValue) of
-        {ok, TermValueDecoderState2, ErrorTermValue1} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, ErrorTermValue2, Message} = decode_error_wire_type_message(
-                TermValueDecoder2, ErrorTermValue1
-            ),
-            {TermValueDecoder4, ErrorTermValue3, Locations} = decode_error_wire_type_locations(
-                TermValueDecoder3, ErrorTermValue2
-            ),
-            {TermValueDecoder5, ErrorTermValue4, Path} = decode_error_wire_type_path(
-                TermValueDecoder4, ErrorTermValue3
-            ),
-            {TermValueDecoder6, ErrorTermValue5, Extensions} = decode_error_wire_type_extensions(
-                TermValueDecoder5, ErrorTermValue4
-            ),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error(TermValueDecoderState1, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ErrorTermValue1} ->
+            {TermValueDecoder3, ErrorTermValue2, Message} =
+                decode_error_wire_type_message(TermValueDecoder2, ErrorTermValue1),
+            {TermValueDecoder4, ErrorTermValue3, Locations} =
+                decode_error_wire_type_locations(TermValueDecoder3, ErrorTermValue2),
+            {TermValueDecoder5, ErrorTermValue4, Path} =
+                decode_error_wire_type_path(TermValueDecoder4, ErrorTermValue3),
+            {TermValueDecoder6, ErrorTermValue5, Extensions} =
+                decode_error_wire_type_extensions(TermValueDecoder5, ErrorTermValue4),
             ErrorValue1 = argo_error_value:new(Message, Locations, Path, Extensions),
-            {TermValueDecoder7, ErrorValue2} = decode_error_wire_type_stop(
-                TermValueDecoder6, ErrorTermValue5, ErrorValue1
-            ),
+            {TermValueDecoder7, ErrorValue2} =
+                decode_error_wire_type_stop(TermValueDecoder6, ErrorTermValue5, ErrorValue1),
             {TermValueDecoder7, ErrorValue2};
         {error, type_mismatch} ->
             error_type_mismatch({TermValueDecoder1, TermValue}, error);
@@ -567,13 +513,16 @@ decode_error_wire_type(
     TermValueDecoder :: t(), TermValue :: argo_term:term_value(), ExtensionsValue :: argo_extensions_value:t().
 decode_extensions_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     TermValue
 ) ->
-    case TermValueDecoderModule:decode_extensions(TermValueDecoderState1, TermValue) of
-        {ok, TermValueDecoderState2, ExtensionsTermValue} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_extensions(TermValueDecoderState1, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ExtensionsTermValue} ->
             decode_extensions_wire_type_next(TermValueDecoder2, ExtensionsTermValue, 0, argo_extensions_value:new());
         {error, type_mismatch} ->
             error_type_mismatch({TermValueDecoder1, TermValue}, extensions);
@@ -616,6 +565,36 @@ decode_field_wire_type(
             end
     end.
 
+-spec decode_location_wire_type(TermValueDecoder, TermValue) -> {TermValueDecoder, LocationValue} when
+    TermValueDecoder :: t(),
+    TermValue :: argo_term:term_value(),
+    LocationValue :: argo_location_value:t().
+decode_location_wire_type(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    TermValue
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_location(TermValueDecoderState1, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, LocationTermValue1} ->
+            {TermValueDecoder3, LocationTermValue2, Line} =
+                decode_location_wire_type_line(TermValueDecoder2, LocationTermValue1),
+            {TermValueDecoder4, LocationTermValue3, Column} =
+                decode_location_wire_type_column(TermValueDecoder3, LocationTermValue2),
+            LocationValue1 = argo_location_value:new(Line, Column),
+            {TermValueDecoder5, LocationValue2} =
+                decode_location_wire_type_stop(TermValueDecoder4, LocationTermValue3, LocationValue1),
+            {TermValueDecoder5, LocationValue2};
+        {error, type_mismatch} ->
+            error_type_mismatch({TermValueDecoder1, TermValue}, error);
+        {error, ErrorReason} ->
+            error_failed_to_decode({TermValueDecoder1, TermValue}, error, ErrorReason)
+    end.
+
 -spec decode_nullable_wire_type(TermValueDecoder, NullableWireType, TermValue) -> {TermValueDecoder, NullableValue} when
     TermValueDecoder :: t(),
     NullableWireType :: argo_nullable_wire_type:t(),
@@ -623,35 +602,44 @@ decode_field_wire_type(
     NullableValue :: argo_nullable_value:t().
 decode_nullable_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     NullableWireType = #argo_nullable_wire_type{'of' = Of},
     TermValue
 ) ->
-    WireTypeHint = wire_type_hint(Of),
-    case TermValueDecoderModule:decode_nullable(TermValueDecoderState1, WireTypeHint, TermValue) of
-        {ok, TermValueDecoderState2, null} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    NullableWireTypeHint = argo_term:nullable_wire_type_hint(NullableWireType),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_nullable(TermValueDecoderState1, NullableWireTypeHint, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, null} ->
             NullableValue = argo_nullable_value:null(NullableWireType),
-            {TermValueDecoder2, NullableValue};
-        {ok, TermValueDecoderState2, {non_null, NonNullTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, Value} = decode_wire_type(TermValueDecoder2, Of, NonNullTermValue),
-            NullableValue = argo_nullable_value:non_null(NullableWireType, Value),
-            {TermValueDecoder3, NullableValue}
+            decode_nullable_wire_type_stop(TermValueDecoder2, NullableValue);
+        {ok, {non_null, NonNullTermValue}} ->
+            {TermValueDecoder3, NonNullValue} = decode_wire_type(TermValueDecoder2, Of, NonNullTermValue),
+            NullableValue = argo_nullable_value:non_null(NullableWireType, NonNullValue),
+            decode_nullable_wire_type_stop(TermValueDecoder3, NullableValue);
+        {ok, {field_errors, FieldErrorsTermValue}} ->
+            {TermValueDecoder3, FieldErrorsValue} = decode_nullable_wire_type_field_errors(TermValueDecoder2, FieldErrorsTermValue),
+            NullableValue = argo_nullable_value:field_errors(NullableWireType, FieldErrorsValue),
+            decode_nullable_wire_type_stop(TermValueDecoder3, NullableValue)
     end.
 
 -spec decode_path_wire_type(TermValueDecoder, TermValue) -> {TermValueDecoder, PathValue} when
     TermValueDecoder :: t(), TermValue :: argo_term:term_value(), PathValue :: argo_path_value:t().
 decode_path_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     TermValue
 ) ->
-    case TermValueDecoderModule:decode_path(TermValueDecoderState1, TermValue) of
-        {ok, TermValueDecoderState2, PathTermValue} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_path(TermValueDecoderState1, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, PathTermValue} ->
             decode_path_wire_type_next(TermValueDecoder2, PathTermValue, 0, argo_path_value:new())
     end.
 
@@ -662,48 +650,45 @@ decode_path_wire_type(
     ScalarValue :: argo_scalar_value:t().
 decode_scalar_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ScalarWireType = #argo_scalar_wire_type{},
     TermValue
 ) ->
-    ScalarWireTypeHint = scalar_wire_type_hint(ScalarWireType),
-    case TermValueDecoderModule:decode_scalar(TermValueDecoderState1, ScalarWireTypeHint, TermValue) of
-        {ok, TermValueDecoderState2, StringValue} when is_binary(StringValue) andalso ScalarWireTypeHint =:= string ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    ScalarWireTypeHint = argo_term:scalar_wire_type_hint(ScalarWireType),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_scalar(TermValueDecoderState1, ScalarWireTypeHint, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, StringValue} when is_binary(StringValue) andalso ScalarWireTypeHint =:= string ->
             ScalarValue = argo_scalar_value:string(StringValue),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, BooleanValue} when
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, BooleanValue} when
             is_boolean(BooleanValue) andalso ScalarWireTypeHint =:= boolean
         ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
             ScalarValue = argo_scalar_value:boolean(BooleanValue),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, VarintValue} when ?is_i64(VarintValue) andalso ScalarWireTypeHint =:= varint ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, VarintValue} when ?is_i64(VarintValue) andalso ScalarWireTypeHint =:= varint ->
             ScalarValue = argo_scalar_value:varint(VarintValue),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, Float64Value} when is_float(Float64Value) andalso ScalarWireTypeHint =:= float64 ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, Float64Value} when is_float(Float64Value) andalso ScalarWireTypeHint =:= float64 ->
             ScalarValue = argo_scalar_value:float64(Float64Value),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, BytesValue} when is_binary(BytesValue) andalso ScalarWireTypeHint =:= bytes ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, BytesValue} when is_binary(BytesValue) andalso ScalarWireTypeHint =:= bytes ->
             ScalarValue = argo_scalar_value:bytes(BytesValue),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, FixedValue} when
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, FixedValue} when
             is_binary(FixedValue) andalso element(1, ScalarWireTypeHint) =:= fixed andalso
                 element(2, ScalarWireTypeHint) =:= byte_size(FixedValue)
         ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
             ScalarValue = argo_scalar_value:fixed(FixedValue),
-            {TermValueDecoder2, ScalarValue};
-        {ok, TermValueDecoderState2, DescTermValue} when ScalarWireTypeHint =:= desc ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_scalar_wire_type_stop(TermValueDecoder2, ScalarValue);
+        {ok, DescTermValue} when ScalarWireTypeHint =:= desc ->
             {TermValueDecoder3, DescValue} = decode_desc_wire_type(TermValueDecoder2, DescTermValue),
             ScalarValue = argo_scalar_value:desc(DescValue),
-            {TermValueDecoder3, ScalarValue};
-        {ok, _TermValueDecoderState2, Scalar} ->
+            decode_scalar_wire_type_stop(TermValueDecoder3, ScalarValue);
+        {ok, Scalar} ->
             error_scalar_type_mismatch([TermValueDecoder1, ScalarWireType, TermValue], ScalarWireTypeHint, Scalar);
         {error, type_mismatch} ->
             error_scalar_type_mismatch(
@@ -769,15 +754,18 @@ decode_wire_type(TermValueDecoder1 = #argo_term_value_decoder{}, WireType = #arg
     RecordValue :: argo_record_value:t().
 decode_record_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     RecordWireType = #argo_record_wire_type{fields = Fields},
     TermValue
 ) ->
-    RecordWireTypeHint = record_wire_type_hint(RecordWireType),
-    case TermValueDecoderModule:decode_record(TermValueDecoderState1, RecordWireTypeHint, TermValue) of
-        {ok, TermValueDecoderState2, RecordTermValue} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    RecordWireTypeHint = argo_term:record_wire_type_hint(RecordWireType),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_record(TermValueDecoderState1, RecordWireTypeHint, TermValue),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, RecordTermValue} ->
             decode_record_wire_type_next(
                 TermValueDecoder2,
                 RecordWireType,
@@ -800,7 +788,7 @@ error_with_info(Reason, Args, Cause) ->
 %% @private
 -compile({inline, [error_scalar_type_mismatch/3]}).
 -spec error_scalar_type_mismatch(Args, ScalarHint, Scalar) -> no_return() when
-    Args :: [dynamic()], ScalarHint :: scalar_wire_type_hint(), Scalar :: dynamic().
+    Args :: [dynamic()], ScalarHint :: argo_term:scalar_wire_type_hint(), Scalar :: dynamic().
 error_scalar_type_mismatch(Args, ScalarHint, Scalar) ->
     case ScalarHint of
         string ->
@@ -907,43 +895,44 @@ format_error_description(_Key, Value) ->
 %%%-----------------------------------------------------------------------------
 
 %% @private
--spec decode_array_wire_type_next(TermValueDecoder, ArrayWireType, WireTypeHint, ArrayTermValue, Index, Items) ->
+-spec decode_array_wire_type_next(TermValueDecoder, ArrayWireType, ArrayWireTypeHint, ArrayTermValue, Index, Items) ->
     {TermValueDecoder, ArrayValue}
 when
     TermValueDecoder :: t(),
     ArrayWireType :: argo_array_wire_type:t(),
-    WireTypeHint :: wire_type_hint(),
+    ArrayWireTypeHint :: argo_term:array_wire_type_hint(),
     ArrayTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
+    Index :: argo_types:index(),
     Items :: [Item],
     Item :: argo_value:t(),
     ArrayValue :: argo_array_value:t().
 decode_array_wire_type_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ArrayWireType = #argo_array_wire_type{'of' = Of},
-    WireTypeHint,
+    ArrayWireTypeHint,
     ArrayTermValue1,
     Index1,
     Items1
 ) ->
-    case TermValueDecoderModule:decode_array_next(TermValueDecoderState1, WireTypeHint, Index1, ArrayTermValue1) of
-        {ok, TermValueDecoderState2, ArrayTermValue2, {some, ItemTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_array_next(TermValueDecoderState1, Index1, ArrayWireTypeHint, ArrayTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ArrayTermValue2, {some, ItemTermValue}}} ->
             {TermValueDecoder3, Item} = decode_wire_type(TermValueDecoder2, Of, ItemTermValue),
             Items2 = [Item | Items1],
             Index2 = Index1 + 1,
             decode_array_wire_type_next(
-                TermValueDecoder3, ArrayWireType, WireTypeHint, ArrayTermValue2, Index2, Items2
+                TermValueDecoder3, ArrayWireType, ArrayWireTypeHint, ArrayTermValue2, Index2, Items2
             );
-        {ok, TermValueDecoderState2, ArrayTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {ArrayTermValue2, none}} ->
             Items2 = lists:reverse(Items1),
             ArrayValue1 = argo_array_value:new(ArrayWireType, Items2),
-            {TermValueDecoder3, ArrayValue2} = decode_array_wire_type_stop(
-                TermValueDecoder2, ArrayTermValue2, ArrayValue1
-            ),
+            {TermValueDecoder3, ArrayValue2} =
+                decode_array_wire_type_stop(TermValueDecoder2, ArrayTermValue2, ArrayValue1),
             {TermValueDecoder3, ArrayValue2}
     end.
 
@@ -954,14 +943,17 @@ decode_array_wire_type_next(
     ArrayValue :: argo_array_value:t().
 decode_array_wire_type_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ArrayTermValue,
     ArrayValue1
 ) ->
-    case TermValueDecoderModule:decode_array_stop(TermValueDecoderState1, ArrayTermValue, ArrayValue1) of
-        {ok, TermValueDecoderState2, ArrayValue2 = #argo_array_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_array_stop(TermValueDecoderState1, ArrayTermValue, ArrayValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ArrayValue2 = #argo_array_value{}} ->
             {TermValueDecoder2, ArrayValue2}
     end.
 
@@ -971,32 +963,33 @@ decode_array_wire_type_stop(
 when
     TermValueDecoder :: t(),
     DescListTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
+    Index :: argo_types:index(),
     Items :: [Item],
     Item :: argo_desc_value:t(),
     DescValue :: argo_desc_value:t().
 decode_desc_wire_type_list_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     DescListTermValue1,
     Index1,
     Items1
 ) ->
-    case TermValueDecoderModule:decode_desc_list_next(TermValueDecoderState1, Index1, DescListTermValue1) of
-        {ok, TermValueDecoderState2, DescListTermValue2, {some, ItemValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_list_next(TermValueDecoderState1, Index1, DescListTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {DescListTermValue2, {some, ItemValue}}} ->
             {TermValueDecoder3, Item} = decode_desc_wire_type(TermValueDecoder2, ItemValue),
             Items2 = [Item | Items1],
             Index2 = Index1 + 1,
             decode_desc_wire_type_list_next(TermValueDecoder3, DescListTermValue2, Index2, Items2);
-        {ok, TermValueDecoderState2, DescListTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {DescListTermValue2, none}} ->
             Items2 = lists:reverse(Items1),
             DescValue1 = argo_desc_value:list(Items2),
-            {TermValueDecoder3, DescValue2} = decode_desc_wire_type_list_stop(
-                TermValueDecoder2, DescListTermValue2, DescValue1
-            ),
+            {TermValueDecoder3, DescValue2} =
+                decode_desc_wire_type_list_stop(TermValueDecoder2, DescListTermValue2, DescValue1),
             {TermValueDecoder3, DescValue2}
     end.
 
@@ -1009,14 +1002,17 @@ when
     DescValue :: argo_desc_value:t().
 decode_desc_wire_type_list_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     DescListTermValue,
-    DescValue1
+    DescValue1 = #argo_desc_value{}
 ) ->
-    case TermValueDecoderModule:decode_desc_list_stop(TermValueDecoderState1, DescListTermValue, DescValue1) of
-        {ok, TermValueDecoderState2, DescValue2 = #argo_desc_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_list_stop(TermValueDecoderState1, DescListTermValue, DescValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, DescValue2 = #argo_desc_value{}} ->
             {TermValueDecoder2, DescValue2}
     end.
 
@@ -1026,32 +1022,33 @@ decode_desc_wire_type_list_stop(
 when
     TermValueDecoder :: t(),
     DescObjectTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
+    Index :: argo_types:index(),
     Object :: argo_index_map:t(ObjectKey, ObjectValue),
     ObjectKey :: unicode:unicode_binary(),
     ObjectValue :: argo_desc_value:t(),
     DescValue :: argo_desc_value:t().
 decode_desc_wire_type_object_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     DescObjectTermValue1,
     Index1,
     Object1
 ) ->
-    case TermValueDecoderModule:decode_desc_object_next(TermValueDecoderState1, Index1, DescObjectTermValue1) of
-        {ok, TermValueDecoderState2, DescObjectTermValue2, {some, {ObjectKey, ObjectTermValue}}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_object_next(TermValueDecoderState1, Index1, DescObjectTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {DescObjectTermValue2, {some, {ObjectKey, ObjectTermValue}}}} ->
             {TermValueDecoder3, ObjectValue} = decode_desc_wire_type(TermValueDecoder2, ObjectTermValue),
             Object2 = argo_index_map:put(ObjectKey, ObjectValue, Object1),
             Index2 = Index1 + 1,
             decode_desc_wire_type_object_next(TermValueDecoder3, DescObjectTermValue2, Index2, Object2);
-        {ok, TermValueDecoderState2, DescObjectTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {DescObjectTermValue2, none}} ->
             DescValue1 = argo_desc_value:object(Object1),
-            {TermValueDecoder3, DescValue2} = decode_desc_wire_type_object_stop(
-                TermValueDecoder2, DescObjectTermValue2, DescValue1
-            ),
+            {TermValueDecoder3, DescValue2} =
+                decode_desc_wire_type_object_stop(TermValueDecoder2, DescObjectTermValue2, DescValue1),
             {TermValueDecoder3, DescValue2}
     end.
 
@@ -1064,61 +1061,80 @@ when
     DescValue :: argo_desc_value:t().
 decode_desc_wire_type_object_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     DescObjectTermValue,
-    DescValue1
+    DescValue1 = #argo_desc_value{}
 ) ->
-    case TermValueDecoderModule:decode_desc_object_stop(TermValueDecoderState1, DescObjectTermValue, DescValue1) of
-        {ok, TermValueDecoderState2, DescValue2 = #argo_desc_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_object_stop(TermValueDecoderState1, DescObjectTermValue, DescValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, DescValue2 = #argo_desc_value{}} ->
             {TermValueDecoder2, DescValue2}
     end.
 
 %% @private
--spec decode_desc_wire_type_scalar(TermValueDecoder, DescScalarTermValue, DescScalarHint) ->
+-spec decode_desc_wire_type_scalar(TermValueDecoder, DescScalarTermValue, DescValueScalarHint) ->
     {TermValueDecoder, DescValue}
 when
     TermValueDecoder :: t(),
     DescScalarTermValue :: argo_term:term_value(),
-    DescScalarHint :: desc_scalar_hint(),
+    DescValueScalarHint :: argo_term:desc_value_scalar_hint(),
     DescValue :: argo_desc_value:t().
 decode_desc_wire_type_scalar(
     TermValueDecoder1 = #argo_term_value_decoder{
         decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
     },
-    DescScalarTermValue,
-    DescScalarHint
-) ->
-    case TermValueDecoderModule:decode_desc_scalar(TermValueDecoderState1, DescScalarHint, DescScalarTermValue) of
-        {ok, TermValueDecoderState2, null} when DescScalarHint =:= null ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    DescScalarTermValue1,
+    DescValueScalarHint
+) when ?is_desc_value_scalar_hint(DescValueScalarHint) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_scalar(TermValueDecoderState1, DescValueScalarHint, DescScalarTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {DescScalarTermValue2, null}} when DescValueScalarHint =:= null ->
             DescValue = argo_desc_value:null(),
-            {TermValueDecoder2, DescValue};
-        {ok, TermValueDecoderState2, {boolean, BooleanValue}} when
-            DescScalarHint =:= boolean andalso is_boolean(BooleanValue)
-        ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
+        {ok, {DescScalarTermValue2, {boolean, BooleanValue}}} when DescValueScalarHint =:= boolean andalso is_boolean(BooleanValue) ->
             DescValue = argo_desc_value:boolean(BooleanValue),
-            {TermValueDecoder2, DescValue};
-        {ok, TermValueDecoderState2, {int, IntValue}} when DescScalarHint =:= int andalso ?is_i64(IntValue) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
+        {ok, {DescScalarTermValue2, {int, IntValue}}} when DescValueScalarHint =:= int andalso ?is_i64(IntValue) ->
             DescValue = argo_desc_value:int(IntValue),
-            {TermValueDecoder2, DescValue};
-        {ok, TermValueDecoderState2, {float, FloatValue}} when DescScalarHint =:= float andalso is_float(FloatValue) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
+        {ok, {DescScalarTermValue2, {float, FloatValue}}} when DescValueScalarHint =:= float andalso is_float(FloatValue) ->
             DescValue = argo_desc_value:float(FloatValue),
-            {TermValueDecoder2, DescValue};
-        {ok, TermValueDecoderState2, {bytes, BytesValue}} when DescScalarHint =:= bytes andalso is_binary(BytesValue) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
+        {ok, {DescScalarTermValue2, {bytes, BytesValue}}} when DescValueScalarHint =:= bytes andalso is_binary(BytesValue) ->
             DescValue = argo_desc_value:bytes(BytesValue),
-            {TermValueDecoder2, DescValue};
-        {ok, TermValueDecoderState2, {string, StringValue}} when
-            DescScalarHint =:= string andalso is_binary(StringValue)
-        ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
+        {ok, {DescScalarTermValue2, {string, StringValue}}} when DescValueScalarHint =:= string andalso is_binary(StringValue) ->
             DescValue = argo_desc_value:string(StringValue),
-            {TermValueDecoder2, DescValue}
+            decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue)
+    end.
+
+%% @private
+-spec decode_desc_wire_type_scalar_stop(TermValueDecoder, DescScalarTermValue, DescValue) ->
+    {TermValueDecoder, DescValue}
+when
+    TermValueDecoder :: t(),
+    DescScalarTermValue :: argo_term:term_value(),
+    DescValue :: argo_desc_value:t().
+decode_desc_wire_type_scalar_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    DescScalarTermValue,
+    DescValue1 = #argo_desc_value{}
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_desc_scalar_stop(TermValueDecoderState1, DescScalarTermValue, DescValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, DescValue2 = #argo_desc_value{}} ->
+            {TermValueDecoder2, DescValue2}
     end.
 
 %% @private
@@ -1131,103 +1147,22 @@ when
     Extensions :: argo_extensions_value:t().
 decode_error_wire_type_extensions(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ErrorTermValue1
 ) ->
-    case TermValueDecoderModule:decode_error_extensions(TermValueDecoderState1, ErrorTermValue1) of
-        {ok, TermValueDecoderState2, ErrorTermValue2, {some, ExtensionsTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, Extensions} = decode_extensions_wire_type(TermValueDecoder2, ExtensionsTermValue),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_extensions(TermValueDecoderState1, ErrorTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ErrorTermValue2, {some, ExtensionsTermValue}}} ->
+            {TermValueDecoder3, Extensions} =
+                decode_extensions_wire_type(TermValueDecoder2, ExtensionsTermValue),
             OptionExtensions = {some, Extensions},
             {TermValueDecoder3, ErrorTermValue2, OptionExtensions};
-        {ok, TermValueDecoderState2, ErrorTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {ErrorTermValue2, none}} ->
             {TermValueDecoder2, ErrorTermValue2, none}
-    end.
-
-%% @private
--spec decode_error_wire_type_location(TermValueDecoder, TermValue) -> {TermValueDecoder, LocationValue} when
-    TermValueDecoder :: t(), TermValue :: argo_term:term_value(), LocationValue :: argo_location_value:t().
-decode_error_wire_type_location(TermValueDecoder1 = #argo_term_value_decoder{}, LocationTermValue1) ->
-    {TermValueDecoder2, LocationTermValue2, Line} = decode_error_wire_type_location_line(
-        TermValueDecoder1, LocationTermValue1
-    ),
-    {TermValueDecoder3, LocationTermValue3, Column} = decode_error_wire_type_location_column(
-        TermValueDecoder2, LocationTermValue2
-    ),
-    LocationValue1 = argo_location_value:new(Line, Column),
-    {TermValueDecoder4, LocationValue2} = decode_error_wire_type_location_stop(
-        TermValueDecoder3, LocationTermValue3, LocationValue1
-    ),
-    {TermValueDecoder4, LocationValue2}.
-
-%% @private
--spec decode_error_wire_type_location_column(TermValueDecoder, LocationTermValue) ->
-    {TermValueDecoder, LocationTermValue, Column}
-when
-    TermValueDecoder :: t(), LocationTermValue :: argo_term:term_value(), Column :: integer().
-decode_error_wire_type_location_column(
-    TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
-    },
-    LocationTermValue1
-) ->
-    case TermValueDecoderModule:decode_error_location_column(TermValueDecoderState1, LocationTermValue1) of
-        {ok, TermValueDecoderState2, LocationTermValue2, {some, Column}} when is_integer(Column) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder2, LocationTermValue2, Column};
-        {ok, _TermValueDecoderState2, _LocationTermValue2, {some, ColumnActual}} ->
-            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
-                2 => {mismatch, expected_integer, ColumnActual}
-            });
-        {ok, _TermValueDecoderState2, _LocationTermValue3, none} ->
-            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
-                2 => {required_object_key_missing, <<"column">>}
-            })
-    end.
-
-%% @private
--spec decode_error_wire_type_location_line(TermValueDecoder, LocationTermValue) ->
-    {TermValueDecoder, LocationTermValue, Line}
-when
-    TermValueDecoder :: t(), LocationTermValue :: argo_term:term_value(), Line :: integer().
-decode_error_wire_type_location_line(
-    TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
-    },
-    LocationTermValue1
-) ->
-    case TermValueDecoderModule:decode_error_location_line(TermValueDecoderState1, LocationTermValue1) of
-        {ok, TermValueDecoderState2, LocationTermValue2, {some, Line}} when is_integer(Line) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder2, LocationTermValue2, Line};
-        {ok, _TermValueDecoderState2, _LocationTermValue2, {some, LineActual}} ->
-            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
-                2 => {mismatch, expected_integer, LineActual}
-            });
-        {ok, _TermValueDecoderState2, _LocationTermValue3, none} ->
-            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
-                2 => {required_object_key_missing, <<"line">>}
-            })
-    end.
-
-%% @private
--spec decode_error_wire_type_location_stop(TermValueDecoder, LocationTermValue, LocationValue) ->
-    {TermValueDecoder, LocationValue}
-when
-    TermValueDecoder :: t(), LocationTermValue :: argo_term:term_value(), LocationValue :: argo_location_value:t().
-decode_error_wire_type_location_stop(
-    TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
-    },
-    LocationTermValue,
-    LocationValue1
-) ->
-    case TermValueDecoderModule:decode_error_location_stop(TermValueDecoderState1, LocationTermValue, LocationValue1) of
-        {ok, TermValueDecoderState2, LocationValue2 = #argo_location_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder2, LocationValue2}
     end.
 
 %% @private
@@ -1241,82 +1176,22 @@ when
     Location :: argo_location_value:t().
 decode_error_wire_type_locations(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ErrorTermValue1
 ) ->
-    case TermValueDecoderModule:decode_error_locations(TermValueDecoderState1, ErrorTermValue1) of
-        {ok, TermValueDecoderState2, ErrorTermValue2, {some, LocationsTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, Locations} = decode_error_wire_type_locations_items(
-                TermValueDecoder2, LocationsTermValue, 0, []
-            ),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_locations(TermValueDecoderState1, ErrorTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ErrorTermValue2, {some, LocationsTermValue}}} ->
+            {TermValueDecoder3, Locations} =
+                decode_locations_wire_type(TermValueDecoder2, LocationsTermValue),
             OptionLocations = {some, Locations},
             {TermValueDecoder3, ErrorTermValue2, OptionLocations};
-        {ok, TermValueDecoderState2, ErrorTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {ErrorTermValue2, none}} ->
             {TermValueDecoder2, ErrorTermValue2, none}
-    end.
-
-%% @private
--spec decode_error_wire_type_locations_items(TermValueDecoder, LocationsTermValue, Index, LocationValueList) ->
-    {TermValueDecoder, LocationValueList}
-when
-    TermValueDecoder :: t(),
-    LocationsTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
-    LocationValueList :: [LocationValue],
-    LocationValue :: argo_location_value:t().
-decode_error_wire_type_locations_items(
-    TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
-    },
-    LocationsTermValue1,
-    Index1,
-    LocationValueList1
-) ->
-    case TermValueDecoderModule:decode_error_locations_next(TermValueDecoderState1, Index1, LocationsTermValue1) of
-        {ok, TermValueDecoderState2, LocationsTermValue2, {some, LocationTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, LocationValue} = decode_error_wire_type_location(TermValueDecoder2, LocationTermValue),
-            LocationValueList2 = [LocationValue | LocationValueList1],
-            Index2 = Index1 + 1,
-            decode_error_wire_type_locations_items(TermValueDecoder3, LocationsTermValue2, Index2, LocationValueList2);
-        {ok, TermValueDecoderState2, LocationsTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            LocationValueList2 = lists:reverse(LocationValueList1),
-            {TermValueDecoder3, LocationValueList3} = decode_error_wire_type_locations_stop(
-                TermValueDecoder2, LocationsTermValue2, LocationValueList2
-            ),
-            {TermValueDecoder3, LocationValueList3}
-    end.
-
-%% @private
--spec decode_error_wire_type_locations_stop(TermValueDecoder, LocationsTermValue, LocationValueList) ->
-    {TermValueDecoder, LocationValueList}
-when
-    TermValueDecoder :: t(),
-    LocationsTermValue :: argo_term:term_value(),
-    LocationValueList :: [LocationValue],
-    LocationValue :: argo_location_value:t().
-decode_error_wire_type_locations_stop(
-    TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
-    },
-    LocationsTermValue,
-    LocationValueList1
-) ->
-    case
-        TermValueDecoderModule:decode_error_locations_stop(
-            TermValueDecoderState1, LocationsTermValue, LocationValueList1
-        )
-    of
-        {ok, TermValueDecoderState2, LocationValueList2 = []} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder2, LocationValueList2};
-        {ok, TermValueDecoderState2, LocationValueList2 = [#argo_location_value{} | _]} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder2, LocationValueList2}
     end.
 
 %% @private
@@ -1326,20 +1201,22 @@ when
     TermValueDecoder :: t(), ErrorTermValue :: argo_term:term_value(), Message :: unicode:unicode_binary().
 decode_error_wire_type_message(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ErrorTermValue1
 ) ->
-    case TermValueDecoderModule:decode_error_message(TermValueDecoderState1, ErrorTermValue1) of
-        {ok, TermValueDecoderState2, ErrorTermValue2, {some, MessageTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_message(TermValueDecoderState1, ErrorTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ErrorTermValue2, {some, MessageTermValue}}} ->
             MessageScalarWireType = argo_scalar_wire_type:string(),
-            {TermValueDecoder3, MessageScalarValue} = decode_scalar_wire_type(
-                TermValueDecoder2, MessageScalarWireType, MessageTermValue
-            ),
+            {TermValueDecoder3, MessageScalarValue} =
+                decode_scalar_wire_type(TermValueDecoder2, MessageScalarWireType, MessageTermValue),
             #argo_scalar_value{inner = {string, Message}} = MessageScalarValue,
             {TermValueDecoder3, ErrorTermValue2, Message};
-        {ok, _TermValueDecoderState2, _ErrorTermValue2, none} ->
+        {ok, {_ErrorTermValue2, none}} ->
             error_with_info(badarg, [TermValueDecoder1, ErrorTermValue1], #{
                 2 => {required_object_key_missing, <<"message">>}
             })
@@ -1355,18 +1232,20 @@ when
     Path :: argo_path_value:t().
 decode_error_wire_type_path(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ErrorTermValue1
 ) ->
-    case TermValueDecoderModule:decode_error_path(TermValueDecoderState1, ErrorTermValue1) of
-        {ok, TermValueDecoderState2, ErrorTermValue2, {some, PathTermValue}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_path(TermValueDecoderState1, ErrorTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ErrorTermValue2, {some, PathTermValue}}} ->
             {TermValueDecoder3, Path} = decode_path_wire_type(TermValueDecoder2, PathTermValue),
             OptionPath = {some, Path},
             {TermValueDecoder3, ErrorTermValue2, OptionPath};
-        {ok, TermValueDecoderState2, ErrorTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {ErrorTermValue2, none}} ->
             {TermValueDecoder2, ErrorTermValue2, none}
     end.
 
@@ -1375,14 +1254,17 @@ decode_error_wire_type_path(
     TermValueDecoder :: t(), ErrorTermValue :: argo_term:term_value(), ErrorValue :: argo_error_value:t().
 decode_error_wire_type_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ErrorTermValue,
-    ErrorValue1
+    ErrorValue1 = #argo_error_value{}
 ) ->
-    case TermValueDecoderModule:decode_error_stop(TermValueDecoderState1, ErrorTermValue, ErrorValue1) of
-        {ok, TermValueDecoderState2, ErrorValue2} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_stop(TermValueDecoderState1, ErrorTermValue, ErrorValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ErrorValue2 = #argo_error_value{}} ->
             {TermValueDecoder2, ErrorValue2}
     end.
 
@@ -1392,28 +1274,30 @@ decode_error_wire_type_stop(
 when
     TermValueDecoder :: t(),
     ExtensionsTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
+    Index :: argo_types:index(),
     ExtensionsValue :: argo_extensions_value:t().
 decode_extensions_wire_type_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ExtensionsTermValue1,
     Index1,
-    ExtensionsValue1
+    ExtensionsValue1 = #argo_extensions_value{}
 ) ->
-    case TermValueDecoderModule:decode_extensions_next(TermValueDecoderState1, Index1, ExtensionsTermValue1) of
-        {ok, TermValueDecoderState2, ExtensionsTermValue2, {some, {Key, DescTermValue}}} when is_binary(Key) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, DescValue} = decode_desc_wire_type(TermValueDecoder2, DescTermValue),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_extensions_next(TermValueDecoderState1, Index1, ExtensionsTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {ExtensionsTermValue2, {some, {Key, DescTermValue}}}} when is_binary(Key) ->
+            {TermValueDecoder3, DescValue} =
+                decode_desc_wire_type(TermValueDecoder2, DescTermValue),
             ExtensionsValue2 = argo_extensions_value:insert(ExtensionsValue1, Key, DescValue),
             Index2 = Index1 + 1,
             decode_extensions_wire_type_next(TermValueDecoder3, ExtensionsTermValue2, Index2, ExtensionsValue2);
-        {ok, TermValueDecoderState2, ExtensionsTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-            {TermValueDecoder3, ExtensionsValue2} = decode_extensions_wire_type_stop(
-                TermValueDecoder2, ExtensionsTermValue2, ExtensionsValue1
-            ),
+        {ok, {ExtensionsTermValue2, none}} ->
+            {TermValueDecoder3, ExtensionsValue2} =
+                decode_extensions_wire_type_stop(TermValueDecoder2, ExtensionsTermValue2, ExtensionsValue1),
             {TermValueDecoder3, ExtensionsValue2}
     end.
 
@@ -1426,15 +1310,276 @@ when
     ExtensionsValue :: argo_extensions_value:t().
 decode_extensions_wire_type_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     ExtensionsTermValue,
-    ExtensionsValue1
+    ExtensionsValue1 = #argo_extensions_value{}
 ) ->
-    case TermValueDecoderModule:decode_extensions_stop(TermValueDecoderState1, ExtensionsTermValue, ExtensionsValue1) of
-        {ok, TermValueDecoderState2, ExtensionsValue2 = #argo_extensions_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_extensions_stop(TermValueDecoderState1, ExtensionsTermValue, ExtensionsValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ExtensionsValue2 = #argo_extensions_value{}} ->
             {TermValueDecoder2, ExtensionsValue2}
+    end.
+
+%% @private
+-spec decode_location_wire_type_column(TermValueDecoder, LocationTermValue) ->
+    {TermValueDecoder, LocationTermValue, Column}
+when
+    TermValueDecoder :: t(), LocationTermValue :: argo_term:term_value(), Column :: integer().
+decode_location_wire_type_column(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    LocationTermValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_location_column(TermValueDecoderState1, LocationTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {LocationTermValue2, {some, Column}}} when is_integer(Column) ->
+            {TermValueDecoder2, LocationTermValue2, Column};
+        {ok, {_LocationTermValue2, none}} ->
+            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
+                2 => {required_object_key_missing, <<"column">>}
+            })
+    end.
+
+%% @private
+-spec decode_location_wire_type_line(TermValueDecoder, LocationTermValue) ->
+    {TermValueDecoder, LocationTermValue, Line}
+when
+    TermValueDecoder :: t(), LocationTermValue :: argo_term:term_value(), Line :: integer().
+decode_location_wire_type_line(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    LocationTermValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_location_line(TermValueDecoderState1, LocationTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {LocationTermValue2, {some, Line}}} when is_integer(Line) ->
+            {TermValueDecoder2, LocationTermValue2, Line};
+        {ok, {_LocationTermValue2, none}} ->
+            error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
+                2 => {required_object_key_missing, <<"line">>}
+            })
+    end.
+
+%% @private
+-spec decode_location_wire_type_stop(TermValueDecoder, LocationTermValue, LocationValue) ->
+    {TermValueDecoder, LocationValue}
+when
+    TermValueDecoder :: t(),
+    LocationTermValue :: argo_term:term_value(),
+    LocationValue :: argo_location_value:t().
+decode_location_wire_type_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    LocationTermValue,
+    LocationValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_location_stop(TermValueDecoderState1, LocationTermValue, LocationValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, LocationValue2 = #argo_location_value{}} ->
+            {TermValueDecoder2, LocationValue2}
+    end.
+
+%% @private
+-spec decode_locations_wire_type(TermValueDecoder, LocationsTermValue) ->
+    {TermValueDecoder, Locations}
+when
+    TermValueDecoder :: t(),
+    LocationsTermValue :: argo_term:term_value(),
+    Locations :: [Location],
+    Location :: argo_location_value:t().
+decode_locations_wire_type(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    LocationsTermValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_locations(TermValueDecoderState1, LocationsTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, LocationsTermValue2} ->
+            decode_locations_wire_type_next(TermValueDecoder2, LocationsTermValue2, 0, [])
+    end.
+
+%% @private
+-spec decode_locations_wire_type_next(TermValueDecoder, LocationsTermValue, Index, LocationValueList) ->
+    {TermValueDecoder, LocationValueList}
+when
+    TermValueDecoder :: t(),
+    LocationsTermValue :: argo_term:term_value(),
+    Index :: argo_types:index(),
+    LocationValueList :: [LocationValue],
+    LocationValue :: argo_location_value:t().
+decode_locations_wire_type_next(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    LocationsTermValue1,
+    Index1,
+    LocationValueList1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_error_locations_next(TermValueDecoderState1, Index1, LocationsTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {LocationsTermValue2, {some, LocationTermValue}}} ->
+            {TermValueDecoder3, LocationValue} =
+                decode_location_wire_type(TermValueDecoder2, LocationTermValue),
+            LocationValueList2 = [LocationValue | LocationValueList1],
+            Index2 = Index1 + 1,
+            decode_locations_wire_type_next(TermValueDecoder3, LocationsTermValue2, Index2, LocationValueList2);
+        {ok, {LocationsTermValue2, none}} ->
+            LocationValueList2 = lists:reverse(LocationValueList1),
+            {TermValueDecoder3, LocationValueList3} =
+                decode_locations_wire_type_stop(TermValueDecoder2, LocationsTermValue2, LocationValueList2),
+            {TermValueDecoder3, LocationValueList3}
+    end.
+
+%% @private
+-spec decode_locations_wire_type_stop(TermValueDecoder, LocationsTermValue, LocationValueList) ->
+    {TermValueDecoder, LocationValueList}
+when
+    TermValueDecoder :: t(),
+    LocationsTermValue :: argo_term:term_value(),
+    LocationValueList :: [LocationValue],
+    LocationValue :: argo_location_value:t().
+decode_locations_wire_type_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+    },
+    LocationsTermValue,
+    LocationValueList1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_locations_stop(TermValueDecoderState1, LocationsTermValue, LocationValueList1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, LocationValueList2 = []} ->
+            {TermValueDecoder2, LocationValueList2};
+        {ok, LocationValueList2 = [#argo_location_value{} | _]} ->
+            {TermValueDecoder2, LocationValueList2}
+    end.
+
+%% @private
+-spec decode_nullable_wire_type_field_errors(TermValueDecoder, FieldErrorsTermValue) ->
+    {TermValueDecoder, FieldErrorsValue}
+when
+    TermValueDecoder :: t(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    FieldErrorsValue :: [FieldErrorValue],
+    FieldErrorValue :: argo_error_value:t().
+decode_nullable_wire_type_field_errors(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    FieldErrorsTermValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_nullable_field_errors(TermValueDecoderState1, FieldErrorsTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, FieldErrorsTermValue2} ->
+            decode_nullable_wire_type_field_errors_next(TermValueDecoder2, FieldErrorsTermValue2, 0, [])
+    end.
+
+%% @private
+-spec decode_nullable_wire_type_field_errors_next(TermValueDecoder, FieldErrorsTermValue, Index, FieldErrorsValue) ->
+    {TermValueDecoder, FieldErrorsValue}
+when
+    TermValueDecoder :: t(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    Index :: argo_types:index(),
+    FieldErrorsValue :: [FieldErrorValue],
+    FieldErrorValue :: argo_error_value:t().
+decode_nullable_wire_type_field_errors_next(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    FieldErrorsTermValue1,
+    Index1,
+    FieldErrorsValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_nullable_field_errors_next(TermValueDecoderState1, Index1, FieldErrorsTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {FieldErrorsTermValue2, {some, FieldErrorTermValue}}} ->
+            {TermValueDecoder3, FieldErrorValue} = decode_error_wire_type(TermValueDecoder2, FieldErrorTermValue),
+            FieldErrorsValue2 = [FieldErrorValue | FieldErrorsValue1],
+            Index2 = Index1 + 1,
+            decode_nullable_wire_type_field_errors_next(
+                TermValueDecoder3, FieldErrorsTermValue2, Index2, FieldErrorsValue2
+            );
+        {ok, {FieldErrorsTermValue2, none}} ->
+            FieldErrorsValue2 = lists:reverse(FieldErrorsValue1),
+            {TermValueDecoder3, FieldErrorsValue3} =
+                decode_nullable_wire_type_field_errors_stop(TermValueDecoder2, FieldErrorsTermValue2, FieldErrorsValue2),
+            {TermValueDecoder3, FieldErrorsValue3}
+    end.
+
+%% @private
+-spec decode_nullable_wire_type_field_errors_stop(TermValueDecoder, FieldErrorsTermValue, FieldErrorsValue) ->
+    {TermValueDecoder, FieldErrorsValue}
+when
+    TermValueDecoder :: t(),
+    FieldErrorsTermValue :: argo_term:term_value(),
+    FieldErrorsValue :: [FieldErrorValue],
+    FieldErrorValue :: argo_error_value:t().
+decode_nullable_wire_type_field_errors_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    FieldErrorsTermValue,
+    FieldErrorsValue1
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_nullable_field_errors_stop(TermValueDecoderState1, FieldErrorsTermValue, FieldErrorsValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, FieldErrorsValue2} ->
+            {TermValueDecoder2, FieldErrorsValue2}
+    end.
+
+%% @private
+-spec decode_nullable_wire_type_stop(TermValueDecoder, NullableValue) ->
+    {TermValueDecoder, NullableValue}
+when
+    TermValueDecoder :: t(),
+    NullableValue :: argo_nullable_value:t().
+decode_nullable_wire_type_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    NullableValue1 = #argo_nullable_value{}
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_nullable_stop(TermValueDecoderState1, NullableValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, NullableValue2 = #argo_nullable_value{}} ->
+            {TermValueDecoder2, NullableValue2}
     end.
 
 %% @private
@@ -1443,29 +1588,30 @@ decode_extensions_wire_type_stop(
 when
     TermValueDecoder :: t(),
     PathTermValue :: argo_term:term_value(),
-    Index :: non_neg_integer(),
+    Index :: argo_types:index(),
     PathValue :: argo_path_value:t().
 decode_path_wire_type_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     PathTermValue1,
     Index1,
     PathValue1
 ) ->
-    case TermValueDecoderModule:decode_path_next(TermValueDecoderState1, Index1, PathTermValue1) of
-        {ok, TermValueDecoderState2, PathTermValue2, {some, FieldName}} when is_binary(FieldName) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_path_next(TermValueDecoderState1, Index1, PathTermValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, {PathTermValue2, {some, FieldName}}} when is_binary(FieldName) ->
             Index2 = Index1 + 1,
             PathValue2 = argo_path_value:push_field_name(PathValue1, FieldName),
             decode_path_wire_type_next(TermValueDecoder2, PathTermValue2, Index2, PathValue2);
-        {ok, TermValueDecoderState2, PathTermValue2, {some, ListIndex}} when is_integer(ListIndex) ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {PathTermValue2, {some, ListIndex}}} when is_integer(ListIndex) ->
             Index2 = Index1 + 1,
             PathValue2 = argo_path_value:push_list_index(PathValue1, ListIndex),
             decode_path_wire_type_next(TermValueDecoder2, PathTermValue2, Index2, PathValue2);
-        {ok, TermValueDecoderState2, PathTermValue2, none} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+        {ok, {PathTermValue2, none}} ->
             {TermValueDecoder3, PathValue2} = decode_path_wire_type_stop(TermValueDecoder2, PathTermValue2, PathValue1),
             {TermValueDecoder3, PathValue2}
     end.
@@ -1475,14 +1621,17 @@ decode_path_wire_type_next(
     TermValueDecoder :: t(), PathTermValue :: argo_term:term_value(), PathValue :: argo_path_value:t().
 decode_path_wire_type_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     PathTermValue,
-    PathValue1
+    PathValue1 = #argo_path_value{}
 ) ->
-    case TermValueDecoderModule:decode_path_stop(TermValueDecoderState1, PathTermValue, PathValue1) of
-        {ok, TermValueDecoderState2, PathValue2 = #argo_path_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_path_stop(TermValueDecoderState1, PathTermValue, PathValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, PathValue2 = #argo_path_value{}} ->
             {TermValueDecoder2, PathValue2}
     end.
 
@@ -1499,7 +1648,8 @@ when
     RecordValue :: argo_record_value:t().
 decode_record_wire_type_next(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     RecordWireType = #argo_record_wire_type{},
     RecordTermValue1,
@@ -1508,26 +1658,24 @@ decode_record_wire_type_next(
 ) ->
     case argo_index_map:next(FieldsIterator1) of
         {Index, FieldName, FieldWireType = #argo_field_wire_type{name = FieldName}, FieldsIterator2} ->
-            FieldWireTypeHint = field_wire_type_hint(FieldWireType),
-            case
-                TermValueDecoderModule:decode_record_next(
-                    TermValueDecoderState1, FieldWireTypeHint, Index, RecordTermValue1
-                )
-            of
-                {ok, TermValueDecoderState2, RecordTermValue2, OptionFieldTermValue} ->
-                    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
-                    {TermValueDecoder3, FieldValue} = decode_field_wire_type(
-                        TermValueDecoder2, FieldWireType, OptionFieldTermValue
-                    ),
+            FieldWireTypeHint = argo_term:field_wire_type_hint(FieldWireType),
+            {TermValueDecoderState2, Result} =
+                TermValueDecoderModule:decode_record_next(TermValueDecoderState1, Index, FieldWireTypeHint, RecordTermValue1),
+            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+            case Result of
+                {ok, {RecordTermValue2, OptionFieldTermValue}} ->
+                    {TermValueDecoder3, FieldValue} =
+                        decode_field_wire_type(TermValueDecoder2, FieldWireType, OptionFieldTermValue),
                     RecordValue2 = argo_record_value:insert(RecordValue1, FieldValue),
-                    decode_record_wire_type_next(
-                        TermValueDecoder3, RecordWireType, RecordTermValue2, FieldsIterator2, RecordValue2
-                    )
+                    decode_record_wire_type_next(TermValueDecoder3, RecordWireType, RecordTermValue2, FieldsIterator2, RecordValue2);
+                {error, _} ->
+                    error_with_info(badarg, [TermValueDecoder1, RecordWireType, RecordTermValue1, FieldsIterator1, RecordValue1], #{
+                        3 => {failed_to_decode_record_field, FieldName}
+                    })
             end;
         none ->
-            {TermValueDecoder2, RecordValue2} = decode_record_wire_type_stop(
-                TermValueDecoder1, RecordTermValue1, RecordValue1
-            ),
+            {TermValueDecoder2, RecordValue2} =
+                decode_record_wire_type_stop(TermValueDecoder1, RecordTermValue1, RecordValue1),
             {TermValueDecoder2, RecordValue2}
     end.
 
@@ -1540,15 +1688,37 @@ when
     RecordValue :: argo_record_value:t().
 decode_record_wire_type_stop(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule, decoder_state = TermValueDecoderState1
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
     },
     RecordTermValue,
-    RecordValue1
+    RecordValue1 = #argo_record_value{}
 ) ->
-    case TermValueDecoderModule:decode_record_stop(TermValueDecoderState1, RecordTermValue, RecordValue1) of
-        {ok, TermValueDecoderState2, RecordValue2 = #argo_record_value{}} ->
-            TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_record_stop(TermValueDecoderState1, RecordTermValue, RecordValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, RecordValue2 = #argo_record_value{}} ->
             {TermValueDecoder2, RecordValue2}
+    end.
+
+%% @private
+-spec decode_scalar_wire_type_stop(TermValueDecoder, ScalarValue) -> {TermValueDecoder, ScalarValue} when
+    TermValueDecoder :: t(),
+    ScalarValue :: argo_scalar_value:t().
+decode_scalar_wire_type_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    ScalarValue1 = #argo_scalar_value{}
+) ->
+    {TermValueDecoderState2, Result} =
+        TermValueDecoderModule:decode_scalar_stop(TermValueDecoderState1, ScalarValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, ScalarValue2 = #argo_scalar_value{}} ->
+            {TermValueDecoder2, ScalarValue2}
     end.
 
 %% @private

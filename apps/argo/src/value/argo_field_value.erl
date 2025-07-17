@@ -28,6 +28,7 @@
 
 %% Instance API
 -export([
+    get/1,
     fetch/1,
     is_absent/1,
     is_labeled/1,
@@ -66,6 +67,15 @@ required(FieldWireType = #argo_field_wire_type{}, Value = #argo_value{}) ->
 %%%=============================================================================
 %%% Instance API functions
 %%%=============================================================================
+
+-spec get(FieldValue) -> OptionValue when
+    FieldValue :: t(), OptionValue :: argo_types:option(Value), Value :: argo_value:t().
+get(#argo_field_value{inner = {optional, none}}) ->
+    none;
+get(#argo_field_value{inner = {optional, {some, Value}}}) ->
+    {some, Value};
+get(#argo_field_value{inner = {required, Value}}) ->
+    {some, Value}.
 
 -spec fetch(FieldValue) -> {ok, Value} | error when FieldValue :: t(), Value :: argo_value:t().
 fetch(#argo_field_value{inner = {optional, none}}) ->

@@ -49,6 +49,8 @@
     strict :: boolean()
 }).
 
+-record(argo_location_wire_type, {}).
+
 -record(argo_nullable_wire_type, {
     'of' :: argo_wire_type:t()
 }).

@@ -26,7 +26,11 @@
     foldl/3,
     foldr/3,
     from_list/1,
+    get/2,
+    iterator/1,
+    iterator/2,
     new/0,
+    next/1,
     pop/1,
     push_field_name/2,
     push_list_index/2,
@@ -36,12 +40,32 @@
     to_wire_path/2
 ]).
 
+%% Records
+-record(argo_path_value_iterator, {
+    kind :: {ordered, index()} | {reversed, index()} | {custom, [index()]},
+    path :: t()
+}).
+
 %% Types
+-type index() :: non_neg_integer().
+-type item() :: segment().
+-opaque iterator() :: argo_types:option(#argo_path_value_iterator{}).
+-type iterator_order() :: ordered | reversed | key_func() | order_func().
+-type key_func() ::
+    fun((Index :: index(), Item :: item()) -> Key :: dynamic()).
+-type order_func() ::
+    fun((AIndex :: index(), AItem :: item(), BIndex :: index(), BItem :: item()) -> boolean()).
 -type segment() :: {field_name, argo_types:name()} | {list_index, non_neg_integer()}.
 -type segment_list() :: [argo_types:name() | non_neg_integer()].
 -type t() :: #argo_path_value{}.
 
 -export_type([
+    index/0,
+    item/0,
+    iterator/0,
+    iterator_order/0,
+    key_func/0,
+    order_func/0,
     segment/0,
     segment_list/0,
     t/0
@@ -87,9 +111,88 @@ foldr(#argo_path_value{segments = Segments}, Init, Function) when is_function(Fu
 from_list(SegmentList) when is_list(SegmentList) ->
     lists:foldl(fun from_list/2, new(), SegmentList).
 
+-spec get(PathValue, Index) -> Segment when PathValue :: t(), Index :: index(), Segment :: segment().
+get(PathValue = #argo_path_value{segments = Segments}, Index) when is_integer(Index) andalso Index >= 0 ->
+    Size = ?MODULE:size(PathValue),
+    case Index >= Size of
+        true ->
+            erlang:error(badarg, [PathValue, Index]);
+        false ->
+            Segment = array:get(Index, Segments),
+            Segment
+    end.
+
+-spec iterator(PathValue) -> Iterator when PathValue :: t(), Iterator :: iterator().
+iterator(PathValue = #argo_path_value{}) ->
+    iterator(PathValue, ordered).
+
+-spec iterator(PathValue, Order) -> Iterator when
+    PathValue :: t(), Order :: iterator_order(), Iterator :: iterator().
+iterator(PathValue = #argo_path_value{}, ordered) ->
+    Kind = {ordered, 0},
+    {some, #argo_path_value_iterator{kind = Kind, path = PathValue}};
+iterator(PathValue = #argo_path_value{}, reversed) ->
+    Kind = {reversed, ?MODULE:size(PathValue)},
+    {some, #argo_path_value_iterator{kind = Kind, path = PathValue}};
+iterator(PathValue = #argo_path_value{}, KeyFun) when is_function(KeyFun, 2) ->
+    OrderFun = key_func_to_order_func(KeyFun),
+    iterator(PathValue, OrderFun);
+iterator(PathValue = #argo_path_value{}, OrderFun) when is_function(OrderFun, 4) ->
+    IteratorInternal = iterator_internal(PathValue, OrderFun),
+    Kind = {custom, IteratorInternal},
+    {some, #argo_path_value_iterator{kind = Kind, path = PathValue}}.
+
 -spec new() -> PathValue when PathValue :: t().
 new() ->
     #argo_path_value{segments = argo_types:dynamic_cast(array:new(0, fixed))}.
+
+-spec next(Iterator) -> none | {Index, Item, NextIterator} when
+    Index :: index(),
+    Item :: item(),
+    Iterator :: iterator(),
+    NextIterator :: iterator().
+next({some, Iterator = #argo_path_value_iterator{kind = Kind, path = Path}}) ->
+    Size = ?MODULE:size(Path),
+    case Kind of
+        {ordered, Index} when Index >= Size ->
+            none;
+        {ordered, Index} when Index < Size ->
+            NextIndex = Index + 1,
+            NextIterator =
+                case NextIndex >= Size of
+                    true ->
+                        none;
+                    false ->
+                        {some, Iterator#argo_path_value_iterator{kind = {ordered, NextIndex}}}
+                end,
+            Item = ?MODULE:get(Path, Index),
+            {Index, Item, NextIterator};
+        {reversed, Index} when Index =< 0 ->
+            none;
+        {reversed, Index} when Index =< Size ->
+            NextIndex = Index - 1,
+            NextIterator =
+                case NextIndex =< 0 of
+                    true ->
+                        none;
+                    false ->
+                        {some, Iterator#argo_path_value_iterator{kind = {reversed, NextIndex}}}
+                end,
+            Item = ?MODULE:get(Path, NextIndex),
+            {Index, Item, NextIterator};
+        {custom, [Index | NextIndexes]} ->
+            NextIterator =
+                case NextIndexes of
+                    [] ->
+                        none;
+                    [_ | _] ->
+                        {some, Iterator#argo_path_value_iterator{kind = {custom, NextIndexes}}}
+                end,
+            Item = ?MODULE:get(Path, Index),
+            {Index, Item, NextIterator}
+    end;
+next(none) ->
+    none.
 
 -spec pop(PathValue) -> {PathValue, none | {some, Segment}} when PathValue :: t(), Segment :: segment().
 pop(PathValue0 = #argo_path_value{segments = Segments0}) ->
@@ -101,7 +204,8 @@ pop(PathValue0 = #argo_path_value{segments = Segments0}) ->
             Segment = array:get(Index, Segments0),
             Segments1 = array:set(Index, array:default(Segments0), Segments0),
             Segments2 = array:resize(Size - 1, Segments1),
-            PathValue1 = PathValue0#argo_path_value{segments = Segments2},
+            Segments3 = shrink(Segments2),
+            PathValue1 = PathValue0#argo_path_value{segments = Segments3},
             {PathValue1, {some, Segment}}
     end.
 
@@ -155,6 +259,31 @@ from_list(Index, Acc) when ?is_usize(Index) ->
     push_list_index(Acc, Index).
 
 %% @private
+-spec iterator_internal(PathValue, OrderFun) -> InternalIterator when
+    PathValue :: t(), OrderFun :: order_func(), InternalIterator :: [index()].
+iterator_internal(PathValue = #argo_path_value{segments = Segments}, OrderFun) when is_function(OrderFun, 4) ->
+    InternalIterator = lists:sort(
+        fun(AIndex, BIndex) ->
+            AItem = array:get(AIndex, Segments),
+            BItem = array:get(BIndex, Segments),
+            OrderFun(AIndex, AItem, BIndex, BItem)
+        end,
+        lists:seq(0, ?MODULE:size(PathValue) - 1)
+    ),
+    InternalIterator.
+
+%% @private
+-spec key_func_to_order_func(KeyFun) -> OrderFun when
+    KeyFun :: key_func(), OrderFun :: order_func().
+key_func_to_order_func(KeyFun) when is_function(KeyFun, 2) ->
+    OrderFun = fun(AIndex, AItem, BIndex, BItem) ->
+        AOrder = KeyFun(AIndex, AItem),
+        BOrder = KeyFun(BIndex, BItem),
+        AOrder =< BOrder
+    end,
+    OrderFun.
+
+%% @private
 -spec push(PathValue, Segment) -> PathValue when PathValue :: t(), Segment :: segment().
 push(PathValue0 = #argo_path_value{segments = Segments0}, Segment) ->
     Size = array:size(Segments0),
@@ -162,6 +291,15 @@ push(PathValue0 = #argo_path_value{segments = Segments0}, Segment) ->
     Segments2 = array:set(Size, Segment, Segments1),
     PathValue1 = PathValue0#argo_path_value{segments = Segments2},
     PathValue1.
+
+%% @private
+-spec shrink(Segments) -> Segments when
+    Segments :: array:array(Segment),
+    Segment :: segment().
+shrink(Segments) ->
+    %% TODO: make this less expensive, maybe upstream fix
+    List = array:to_list(Segments),
+    argo_types:dynamic_cast(array:fix(array:from_list(List, undefined))).
 
 %% @private
 -spec to_list(Index, Segment, Acc) -> Acc when Index :: non_neg_integer(), Segment :: segment(), Acc :: segment_list().

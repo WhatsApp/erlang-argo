@@ -88,6 +88,11 @@
     decoder_state :: argo_term_value_decoder:state()
 }).
 
+-record(argo_term_value_encoder, {
+    encoder_module :: module(),
+    encoder_state :: argo_term_value_encoder:state()
+}).
+
 -record(argo_value, {
     inner :: argo_value:inner()
 }).

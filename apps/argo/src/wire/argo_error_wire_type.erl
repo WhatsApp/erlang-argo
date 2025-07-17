@@ -46,14 +46,7 @@ expand_wire_type(#argo_error_wire_type{}) ->
     MessageWireType = argo_wire_type:block(argo_label:self_describing_blocks_string()),
     MessageFieldWireType = argo_field_wire_type:new(<<"message">>, MessageWireType, false),
     % "locations" Field
-    LineWireType = argo_wire_type:block(argo_label:self_describing_blocks_varint()),
-    ColumnWireType = argo_wire_type:block(argo_label:self_describing_blocks_varint()),
-    LineFieldWireType = argo_field_wire_type:new(<<"line">>, LineWireType, false),
-    ColumnFieldWireType = argo_field_wire_type:new(<<"column">>, ColumnWireType, false),
-    LocationRecordWireType1 = argo_record_wire_type:new(),
-    LocationRecordWireType2 = argo_record_wire_type:insert(LocationRecordWireType1, LineFieldWireType),
-    LocationRecordWireType3 = argo_record_wire_type:insert(LocationRecordWireType2, ColumnFieldWireType),
-    LocationWireType = argo_wire_type:record(LocationRecordWireType3),
+    LocationWireType = argo_location_wire_type:expand_wire_type(argo_location_wire_type:new()),
     LocationsWireType = argo_wire_type:array(argo_array_wire_type:new(LocationWireType)),
     LocationsFieldWireType = argo_field_wire_type:new(<<"locations">>, LocationsWireType, true),
     % "path" Field
