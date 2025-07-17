@@ -284,14 +284,18 @@
     FieldErrorsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_nullable_field_errors(DecoderState, NullableWireTypeHint, FieldErrorsTermValue) -> {DecoderState, Result} when
+-callback decode_nullable_field_errors(DecoderState, NullableWireTypeHint, FieldErrorsTermValue) ->
+    {DecoderState, Result}
+when
     DecoderState :: state(),
     NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
     FieldErrorsTermValue :: argo_term:term_value(),
     Result :: result(FieldErrorsTermValue, ErrorReason),
     ErrorReason :: error_reason().
 
--callback decode_nullable_field_errors_next(DecoderState, Index, NullableWireTypeHint, FieldErrorsTermValue) -> {DecoderState, Result} when
+-callback decode_nullable_field_errors_next(DecoderState, Index, NullableWireTypeHint, FieldErrorsTermValue) ->
+    {DecoderState, Result}
+when
     DecoderState :: state(),
     Index :: argo_types:index(),
     NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
@@ -301,7 +305,9 @@
     FieldErrorTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback decode_nullable_field_errors_stop(DecoderState, FieldErrorsTermValue, FieldErrorsValue) -> {DecoderState, Result} when
+-callback decode_nullable_field_errors_stop(DecoderState, FieldErrorsTermValue, FieldErrorsValue) ->
+    {DecoderState, Result}
+when
     DecoderState :: state(),
     FieldErrorsTermValue :: argo_term:term_value(),
     FieldErrorsValue :: [FieldErrorValue],
@@ -380,7 +386,10 @@
     ErrorReason :: error_reason().
 
 %% Macros
--define(is_desc_value_scalar_hint(X), ((X) =:= null) orelse ((X) =:= boolean) orelse ((X) =:= string) orelse ((X) =:= bytes) orelse ((X) =:= int) orelse ((X) =:= float)).
+-define(is_desc_value_scalar_hint(X),
+    ((X) =:= null) orelse ((X) =:= boolean) orelse ((X) =:= string) orelse ((X) =:= bytes) orelse ((X) =:= int) orelse
+        ((X) =:= float)
+).
 
 %%%=============================================================================
 %%% New API functions
@@ -415,7 +424,9 @@ decode_array_wire_type(
     TermValue
 ) ->
     ArrayWireTypeHint = argo_term:array_wire_type_hint(ArrayWireType),
-    {TermValueDecoderState2, Result} = TermValueDecoderModule:decode_array(TermValueDecoderState1, ArrayWireTypeHint, TermValue),
+    {TermValueDecoderState2, Result} = TermValueDecoderModule:decode_array(
+        TermValueDecoderState1, ArrayWireTypeHint, TermValue
+    ),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, ArrayTermValue} ->
@@ -621,7 +632,9 @@ decode_nullable_wire_type(
             NullableValue = argo_nullable_value:non_null(NullableWireType, NonNullValue),
             decode_nullable_wire_type_stop(TermValueDecoder3, NullableValue);
         {ok, {field_errors, FieldErrorsTermValue}} ->
-            {TermValueDecoder3, FieldErrorsValue} = decode_nullable_wire_type_field_errors(TermValueDecoder2, FieldErrorsTermValue),
+            {TermValueDecoder3, FieldErrorsValue} = decode_nullable_wire_type_field_errors(
+                TermValueDecoder2, FieldErrorsTermValue
+            ),
             NullableValue = argo_nullable_value:field_errors(NullableWireType, FieldErrorsValue),
             decode_nullable_wire_type_stop(TermValueDecoder3, NullableValue)
     end.
@@ -1097,19 +1110,27 @@ decode_desc_wire_type_scalar(
         {ok, {DescScalarTermValue2, null}} when DescValueScalarHint =:= null ->
             DescValue = argo_desc_value:null(),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
-        {ok, {DescScalarTermValue2, {boolean, BooleanValue}}} when DescValueScalarHint =:= boolean andalso is_boolean(BooleanValue) ->
+        {ok, {DescScalarTermValue2, {boolean, BooleanValue}}} when
+            DescValueScalarHint =:= boolean andalso is_boolean(BooleanValue)
+        ->
             DescValue = argo_desc_value:boolean(BooleanValue),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
         {ok, {DescScalarTermValue2, {int, IntValue}}} when DescValueScalarHint =:= int andalso ?is_i64(IntValue) ->
             DescValue = argo_desc_value:int(IntValue),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
-        {ok, {DescScalarTermValue2, {float, FloatValue}}} when DescValueScalarHint =:= float andalso is_float(FloatValue) ->
+        {ok, {DescScalarTermValue2, {float, FloatValue}}} when
+            DescValueScalarHint =:= float andalso is_float(FloatValue)
+        ->
             DescValue = argo_desc_value:float(FloatValue),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
-        {ok, {DescScalarTermValue2, {bytes, BytesValue}}} when DescValueScalarHint =:= bytes andalso is_binary(BytesValue) ->
+        {ok, {DescScalarTermValue2, {bytes, BytesValue}}} when
+            DescValueScalarHint =:= bytes andalso is_binary(BytesValue)
+        ->
             DescValue = argo_desc_value:bytes(BytesValue),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue);
-        {ok, {DescScalarTermValue2, {string, StringValue}}} when DescValueScalarHint =:= string andalso is_binary(StringValue) ->
+        {ok, {DescScalarTermValue2, {string, StringValue}}} when
+            DescValueScalarHint =:= string andalso is_binary(StringValue)
+        ->
             DescValue = argo_desc_value:string(StringValue),
             decode_desc_wire_type_scalar_stop(TermValueDecoder2, DescScalarTermValue2, DescValue)
     end.
@@ -1533,7 +1554,9 @@ decode_nullable_wire_type_field_errors_next(
         {ok, {FieldErrorsTermValue2, none}} ->
             FieldErrorsValue2 = lists:reverse(FieldErrorsValue1),
             {TermValueDecoder3, FieldErrorsValue3} =
-                decode_nullable_wire_type_field_errors_stop(TermValueDecoder2, FieldErrorsTermValue2, FieldErrorsValue2),
+                decode_nullable_wire_type_field_errors_stop(
+                    TermValueDecoder2, FieldErrorsTermValue2, FieldErrorsValue2
+                ),
             {TermValueDecoder3, FieldErrorsValue3}
     end.
 
@@ -1554,7 +1577,9 @@ decode_nullable_wire_type_field_errors_stop(
     FieldErrorsValue1
 ) ->
     {TermValueDecoderState2, Result} =
-        TermValueDecoderModule:decode_nullable_field_errors_stop(TermValueDecoderState1, FieldErrorsTermValue, FieldErrorsValue1),
+        TermValueDecoderModule:decode_nullable_field_errors_stop(
+            TermValueDecoderState1, FieldErrorsTermValue, FieldErrorsValue1
+        ),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, FieldErrorsValue2} ->
@@ -1660,18 +1685,24 @@ decode_record_wire_type_next(
         {Index, FieldName, FieldWireType = #argo_field_wire_type{name = FieldName}, FieldsIterator2} ->
             FieldWireTypeHint = argo_term:field_wire_type_hint(FieldWireType),
             {TermValueDecoderState2, Result} =
-                TermValueDecoderModule:decode_record_next(TermValueDecoderState1, Index, FieldWireTypeHint, RecordTermValue1),
+                TermValueDecoderModule:decode_record_next(
+                    TermValueDecoderState1, Index, FieldWireTypeHint, RecordTermValue1
+                ),
             TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
             case Result of
                 {ok, {RecordTermValue2, OptionFieldTermValue}} ->
                     {TermValueDecoder3, FieldValue} =
                         decode_field_wire_type(TermValueDecoder2, FieldWireType, OptionFieldTermValue),
                     RecordValue2 = argo_record_value:insert(RecordValue1, FieldValue),
-                    decode_record_wire_type_next(TermValueDecoder3, RecordWireType, RecordTermValue2, FieldsIterator2, RecordValue2);
+                    decode_record_wire_type_next(
+                        TermValueDecoder3, RecordWireType, RecordTermValue2, FieldsIterator2, RecordValue2
+                    );
                 {error, _} ->
-                    error_with_info(badarg, [TermValueDecoder1, RecordWireType, RecordTermValue1, FieldsIterator1, RecordValue1], #{
-                        3 => {failed_to_decode_record_field, FieldName}
-                    })
+                    error_with_info(
+                        badarg, [TermValueDecoder1, RecordWireType, RecordTermValue1, FieldsIterator1, RecordValue1], #{
+                            3 => {failed_to_decode_record_field, FieldName}
+                        }
+                    )
             end;
         none ->
             {TermValueDecoder2, RecordValue2} =

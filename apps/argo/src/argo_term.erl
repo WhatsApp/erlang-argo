@@ -95,20 +95,25 @@ array_value_hint(ArrayValue = #argo_array_value{}, Index) when ?is_usize(Index) 
     (array_wire_type_hint(ArrayValue))#{size => argo_array_value:size(ArrayValue), index => Index}.
 
 -spec array_wire_type_hint(ArrayValue | ArrayWireType) -> ArrayWireTypeHint when
-    ArrayValue :: argo_array_value:t(), ArrayWireType :: argo_array_wire_type:t(), ArrayWireTypeHint :: array_wire_type_hint().
+    ArrayValue :: argo_array_value:t(),
+    ArrayWireType :: argo_array_wire_type:t(),
+    ArrayWireTypeHint :: array_wire_type_hint().
 array_wire_type_hint(#argo_array_value{wire_type = ArrayWireType}) ->
     array_wire_type_hint(ArrayWireType);
 array_wire_type_hint(#argo_array_wire_type{'of' = Of}) ->
     #{'of' => wire_type_hint(Of)}.
 
 -spec block_wire_type_hint(BlockValue | BlockWireType) -> BlockWireTypeHint when
-    BlockValue :: argo_block_value:t(), BlockWireType :: argo_block_wire_type:t(), BlockWireTypeHint :: block_wire_type_hint().
+    BlockValue :: argo_block_value:t(),
+    BlockWireType :: argo_block_wire_type:t(),
+    BlockWireTypeHint :: block_wire_type_hint().
 block_wire_type_hint(#argo_block_value{wire_type = BlockWireType}) ->
     block_wire_type_hint(BlockWireType);
 block_wire_type_hint(#argo_block_wire_type{'of' = Of, key = Key, dedupe = Dedupe}) ->
     #{'of' => scalar_wire_type_hint(Of), key => Key, dedupe => Dedupe}.
 
--spec desc_value_hint(DescInner | DescValue) -> DescValueHint when DescInner :: argo_desc_value:inner(), DescValue :: argo_desc_value:t(), DescValueHint :: desc_value_hint().
+-spec desc_value_hint(DescInner | DescValue) -> DescValueHint when
+    DescInner :: argo_desc_value:inner(), DescValue :: argo_desc_value:t(), DescValueHint :: desc_value_hint().
 desc_value_hint(null) -> null;
 desc_value_hint({boolean, _}) -> boolean;
 desc_value_hint({string, _}) -> string;
@@ -119,26 +124,37 @@ desc_value_hint({object, _}) -> object;
 desc_value_hint({list, _}) -> list;
 desc_value_hint(#argo_desc_value{inner = DescInner}) -> desc_value_hint(DescInner).
 
--spec desc_value_list_hint(DescValue, Index) -> DescValueListHint when DescValue :: argo_desc_value:t(), Index :: argo_types:index(), DescValueListHint :: desc_value_list_hint().
+-spec desc_value_list_hint(DescValue, Index) -> DescValueListHint when
+    DescValue :: argo_desc_value:t(), Index :: argo_types:index(), DescValueListHint :: desc_value_list_hint().
 desc_value_list_hint(DescValue = #argo_desc_value{}, Index) when ?is_usize(Index) ->
     #{'of' => desc_value_hint(DescValue), index => Index}.
 
--spec desc_value_object_hint(DescValue, Index, Key) -> DescValueObjectHint when DescValue :: argo_desc_value:t(), Index :: argo_types:index(), Key :: argo_types:name(), DescValueObjectHint :: desc_value_object_hint().
+-spec desc_value_object_hint(DescValue, Index, Key) -> DescValueObjectHint when
+    DescValue :: argo_desc_value:t(),
+    Index :: argo_types:index(),
+    Key :: argo_types:name(),
+    DescValueObjectHint :: desc_value_object_hint().
 desc_value_object_hint(DescValue = #argo_desc_value{}, Index, Key) when ?is_usize(Index) andalso is_binary(Key) ->
     #{'of' => desc_value_hint(DescValue), index => Index, key => Key}.
 
 -spec field_wire_type_hint(FieldValue | FieldWireType) -> FieldWireTypeHint when
-    FieldValue :: argo_field_value:t(), FieldWireType :: argo_field_wire_type:t(), FieldWireTypeHint :: field_wire_type_hint().
+    FieldValue :: argo_field_value:t(),
+    FieldWireType :: argo_field_wire_type:t(),
+    FieldWireTypeHint :: field_wire_type_hint().
 field_wire_type_hint(#argo_field_value{wire_type = FieldWireType}) ->
     field_wire_type_hint(FieldWireType);
 field_wire_type_hint(#argo_field_wire_type{'of' = Of, name = Name, omittable = Omittable}) ->
     #{'of' => wire_type_hint(Of), name => Name, omittable => Omittable}.
 
 -spec nullable_wire_type_hint(NullableValue | NullableWireType) -> NullableWireTypeHint when
-    NullableValue :: argo_nullable_value:t(), NullableWireType :: argo_nullable_wire_type:t(), NullableWireTypeHint :: nullable_wire_type_hint().
+    NullableValue :: argo_nullable_value:t(),
+    NullableWireType :: argo_nullable_wire_type:t(),
+    NullableWireTypeHint :: nullable_wire_type_hint().
 nullable_wire_type_hint(#argo_nullable_value{wire_type = NullableWireType}) ->
     nullable_wire_type_hint(NullableWireType);
-nullable_wire_type_hint(#argo_nullable_wire_type{'of' = #argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}}) ->
+nullable_wire_type_hint(#argo_nullable_wire_type{
+    'of' = #argo_wire_type{inner = NullableWireType = #argo_nullable_wire_type{}}
+}) ->
     nullable_wire_type_hint(NullableWireType);
 nullable_wire_type_hint(NullableWireType = #argo_nullable_wire_type{'of' = Of}) ->
     case wire_type_hint(Of) of
@@ -150,14 +166,18 @@ nullable_wire_type_hint(NullableWireType = #argo_nullable_wire_type{'of' = Of}) 
     end.
 
 -spec record_wire_type_hint(RecordValue | RecordWireType) -> RecordWireTypeHint when
-    RecordValue :: argo_record_value:t(), RecordWireType :: argo_record_wire_type:t(), RecordWireTypeHint :: record_wire_type_hint().
+    RecordValue :: argo_record_value:t(),
+    RecordWireType :: argo_record_wire_type:t(),
+    RecordWireTypeHint :: record_wire_type_hint().
 record_wire_type_hint(#argo_record_value{fields = Fields}) ->
     #{fields => argo_index_map:keys(Fields)};
 record_wire_type_hint(#argo_record_wire_type{fields = Fields}) ->
     #{fields => argo_index_map:keys(Fields)}.
 
 -spec scalar_wire_type_hint(ScalarValue | ScalarWireType) -> ScalarWireTypeHint when
-    ScalarValue :: argo_scalar_value:t(), ScalarWireType :: argo_scalar_wire_type:t(), ScalarWireTypeHint :: scalar_wire_type_hint().
+    ScalarValue :: argo_scalar_value:t(),
+    ScalarWireType :: argo_scalar_wire_type:t(),
+    ScalarWireTypeHint :: scalar_wire_type_hint().
 scalar_wire_type_hint(#argo_scalar_value{inner = Inner}) ->
     case Inner of
         {boolean, _} -> boolean;
@@ -179,7 +199,8 @@ scalar_wire_type_hint(#argo_scalar_wire_type{inner = Inner}) ->
         varint -> varint
     end.
 
--spec wire_type_hint(Value | WireType) -> WireTypeHint when Value :: argo_value:t(), WireType :: argo_wire_type:t(), WireTypeHint :: wire_type_hint().
+-spec wire_type_hint(Value | WireType) -> WireTypeHint when
+    Value :: argo_value:t(), WireType :: argo_wire_type:t(), WireTypeHint :: wire_type_hint().
 wire_type_hint(Value = #argo_value{}) ->
     WireType = argo_value:to_wire_type(Value),
     wire_type_hint(WireType);

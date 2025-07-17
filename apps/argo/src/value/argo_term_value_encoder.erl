@@ -108,7 +108,9 @@
     DescListTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_desc_list_next(EncoderState, DescValueListHint, DescTermValue, DescListTermValue) -> {EncoderState, Result} when
+-callback encode_desc_list_next(EncoderState, DescValueListHint, DescTermValue, DescListTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     DescValueListHint :: argo_term:desc_value_list_hint(),
     DescTermValue :: argo_term:term_value(),
@@ -129,7 +131,9 @@
     DescObjectTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_desc_object_next(EncoderState, DescValueObjectHint, DescTermValue, DescObjectTermValue) -> {EncoderState, Result} when
+-callback encode_desc_object_next(EncoderState, DescValueObjectHint, DescTermValue, DescObjectTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     DescValueObjectHint :: argo_term:desc_value_object_hint(),
     DescTermValue :: argo_term:term_value(),
@@ -157,7 +161,9 @@
     ErrorTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_error_extensions(EncoderState, OptionExtensionsTermValue, ErrorTermValue) -> {EncoderState, Result} when
+-callback encode_error_extensions(EncoderState, OptionExtensionsTermValue, ErrorTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     OptionExtensionsTermValue :: argo_types:option(ExtensionsTermValue),
     ExtensionsTermValue :: argo_term:term_value(),
@@ -201,7 +207,9 @@
     ExtensionsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_extensions_next(EncoderState, DescValueObjectHint, DescTermValue, ExtensionsTermValue) -> {EncoderState, Result} when
+-callback encode_extensions_next(EncoderState, DescValueObjectHint, DescTermValue, ExtensionsTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     DescValueObjectHint :: argo_term:desc_value_object_hint(),
     DescTermValue :: argo_term:term_value(),
@@ -260,7 +268,9 @@
     LocationsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_locations_next(EncoderState, Index, LocationTermValue, LocationsTermValue) -> {EncoderState, Result} when
+-callback encode_locations_next(EncoderState, Index, LocationTermValue, LocationsTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     Index :: argo_types:index(),
     LocationTermValue :: argo_term:term_value(),
@@ -292,7 +302,9 @@
     FieldErrorsTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_nullable_field_errors_next(EncoderState, Index, NullableWireTypeHint, ErrorTermValue, FieldErrorsTermValue) -> {EncoderState, Result} when
+-callback encode_nullable_field_errors_next(
+    EncoderState, Index, NullableWireTypeHint, ErrorTermValue, FieldErrorsTermValue
+) -> {EncoderState, Result} when
     EncoderState :: state(),
     Index :: argo_types:index(),
     NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
@@ -336,7 +348,9 @@
     RecordTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
--callback encode_record_next(EncoderState, Index, FieldWireTypeHint, OptionFieldTermValue, RecordTermValue) -> {EncoderState, Result} when
+-callback encode_record_next(EncoderState, Index, FieldWireTypeHint, OptionFieldTermValue, RecordTermValue) ->
+    {EncoderState, Result}
+when
     EncoderState :: state(),
     Index :: argo_types:index(),
     FieldWireTypeHint :: argo_term:field_wire_type_hint(),
@@ -576,7 +590,9 @@ encode_nullable_value(TermValueEncoder1 = #argo_term_value_encoder{}, NullableVa
             TermValueEncoderModule = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule:encode_nullable(TermValueEncoderState2, NullableWireTypeHint, {non_null, NonNullTermValue}),
+                TermValueEncoderModule:encode_nullable(
+                    TermValueEncoderState2, NullableWireTypeHint, {non_null, NonNullTermValue}
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, NullableTermValue} ->
@@ -586,17 +602,23 @@ encode_nullable_value(TermValueEncoder1 = #argo_term_value_encoder{}, NullableVa
             TermValueEncoderModule1 = TermValueEncoder1#argo_term_value_encoder.encoder_module,
             TermValueEncoderState1 = TermValueEncoder1#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState2, Result1} =
-                TermValueEncoderModule1:encode_nullable_field_errors(TermValueEncoderState1, NullableWireTypeHint, NullableValue),
+                TermValueEncoderModule1:encode_nullable_field_errors(
+                    TermValueEncoderState1, NullableWireTypeHint, NullableValue
+                ),
             TermValueEncoder2 = maybe_update_encoder_state(TermValueEncoder1, TermValueEncoderState2),
             case Result1 of
                 {ok, FieldErrorsTermValue1} ->
                     FieldErrorsValueIterator = {0, FieldErrorsValue},
                     {TermValueEncoder3, FieldErrorsTermValue2} =
-                        encode_nullable_value_field_errors_next(TermValueEncoder2, NullableWireTypeHint, FieldErrorsValueIterator, FieldErrorsTermValue1),
+                        encode_nullable_value_field_errors_next(
+                            TermValueEncoder2, NullableWireTypeHint, FieldErrorsValueIterator, FieldErrorsTermValue1
+                        ),
                     TermValueEncoderModule3 = TermValueEncoder3#argo_term_value_encoder.encoder_module,
                     TermValueEncoderState3 = TermValueEncoder3#argo_term_value_encoder.encoder_state,
                     {TermValueEncoderState4, Result2} =
-                        TermValueEncoderModule3:encode_nullable(TermValueEncoderState3, NullableWireTypeHint, {field_errors, FieldErrorsTermValue2}),
+                        TermValueEncoderModule3:encode_nullable(
+                            TermValueEncoderState3, NullableWireTypeHint, {field_errors, FieldErrorsTermValue2}
+                        ),
                     TermValueEncoder4 = maybe_update_encoder_state(TermValueEncoder3, TermValueEncoderState4),
                     case Result2 of
                         {ok, NullableTermValue} ->
@@ -835,7 +857,9 @@ encode_array_value_next(
             TermValueEncoderModule = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule:encode_array_next(TermValueEncoderState2, ArrayValueHint1, ItemTermValue, ArrayTermValue1),
+                TermValueEncoderModule:encode_array_next(
+                    TermValueEncoderState2, ArrayValueHint1, ItemTermValue, ArrayTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, ArrayTermValue2} ->
@@ -903,7 +927,9 @@ encode_desc_value_list_next(TermValueEncoder1 = #argo_term_value_encoder{}, Desc
             TermValueEncoderModule = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule:encode_desc_list_next(TermValueEncoderState2, DescValueListHint, DescTermValue, DescListTermValue1),
+                TermValueEncoderModule:encode_desc_list_next(
+                    TermValueEncoderState2, DescValueListHint, DescTermValue, DescListTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, DescListTermValue2} ->
@@ -969,7 +995,9 @@ encode_desc_value_object_next(
             TermValueEncoderModule2 = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule2:encode_desc_object_next(TermValueEncoderState2, DescValueObjectHint, DescTermValue, DescObjectTermValue1),
+                TermValueEncoderModule2:encode_desc_object_next(
+                    TermValueEncoderState2, DescValueObjectHint, DescTermValue, DescObjectTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, DescObjectTermValue2} ->
@@ -1034,7 +1062,9 @@ encode_error_value_extensions(TermValueEncoder1 = #argo_term_value_encoder{}, Op
     TermValueEncoderModule3 = TermValueEncoder3#argo_term_value_encoder.encoder_module,
     TermValueEncoderState3 = TermValueEncoder3#argo_term_value_encoder.encoder_state,
     {TermValueEncoderState4, Result} =
-        TermValueEncoderModule3:encode_error_extensions(TermValueEncoderState3, OptionExtensionsTermValue, ErrorTermValue1),
+        TermValueEncoderModule3:encode_error_extensions(
+            TermValueEncoderState3, OptionExtensionsTermValue, ErrorTermValue1
+        ),
     TermValueEncoder4 = maybe_update_encoder_state(TermValueEncoder3, TermValueEncoderState4),
     case Result of
         {ok, ErrorTermValue2} ->
@@ -1150,7 +1180,9 @@ encode_extensions_value_next(
             TermValueEncoderModule = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule:encode_extensions_next(TermValueEncoderState2, DescValueObjectHint, DescTermValue, ExtensionsTermValue1),
+                TermValueEncoderModule:encode_extensions_next(
+                    TermValueEncoderState2, DescValueObjectHint, DescTermValue, ExtensionsTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, ExtensionsTermValue2} ->
@@ -1328,7 +1360,9 @@ encode_nullable_value_field_errors_next(
             TermValueEncoderModule = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule:encode_nullable_field_errors_next(TermValueEncoderState2, Index, NullableWireTypeHint, ErrorTermValue, FieldErrorsTermValue1),
+                TermValueEncoderModule:encode_nullable_field_errors_next(
+                    TermValueEncoderState2, Index, NullableWireTypeHint, ErrorTermValue, FieldErrorsTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, FieldErrorsTermValue2} ->
@@ -1414,7 +1448,9 @@ encode_record_value_next(
             TermValueEncoderModule2 = TermValueEncoder2#argo_term_value_encoder.encoder_module,
             TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
             {TermValueEncoderState3, Result} =
-                TermValueEncoderModule2:encode_record_next(TermValueEncoderState2, Index, FieldWireTypeHint, OptionFieldTermValue, RecordTermValue1),
+                TermValueEncoderModule2:encode_record_next(
+                    TermValueEncoderState2, Index, FieldWireTypeHint, OptionFieldTermValue, RecordTermValue1
+                ),
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, RecordTermValue2} ->
