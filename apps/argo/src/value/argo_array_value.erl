@@ -151,7 +151,7 @@ iterator_internal(_ArrayValue = #argo_array_value{items = Items}, OrderFun) when
         fun({AIndex, AItem}, {BIndex, BItem}) ->
             OrderFun(AIndex, AItem, BIndex, BItem)
         end,
-        lists:enumerate(0, 1, Items)
+        argo_types:dynamic_cast(lists:enumerate(0, 1, Items))
     ),
     InternalIterator.
 

@@ -51,7 +51,7 @@ defmodule Argo.MixProject do
   end
 
   defp load_app() do
-    {:ok, [{:application, name, desc}]} = :file.consult('src/argo.app.src')
+    {:ok, [{:application, name, desc}]} = :file.consult(~c"src/argo.app.src")
     {name, desc}
   end
 end

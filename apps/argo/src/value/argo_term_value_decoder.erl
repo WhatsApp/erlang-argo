@@ -312,7 +312,7 @@ when
     FieldErrorsTermValue :: argo_term:term_value(),
     FieldErrorsValue :: [FieldErrorValue],
     FieldErrorValue :: argo_error_value:t(),
-    Result :: result(FieldErrorValue, ErrorReason),
+    Result :: result(FieldErrorsValue, ErrorReason),
     ErrorReason :: error_reason().
 
 -callback decode_nullable_stop(DecoderState, NullableValue) -> {DecoderState, Result} when

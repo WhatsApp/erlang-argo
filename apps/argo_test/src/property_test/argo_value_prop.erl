@@ -30,6 +30,7 @@
 -export([
     prop_roundtrip_encoder_and_decoder/1,
     prop_roundtrip_json_encoder_and_json_decoder/1,
+    prop_roundtrip_term_encoder_and_term_decoder/1,
     prop_to_wire_type/1
 ]).
 
@@ -111,6 +112,57 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
         end
     ).
 
+-spec prop_roundtrip_term_encoder_and_term_decoder(ct_suite:ct_config()) -> proper:test().
+prop_roundtrip_term_encoder_and_term_decoder(_Config) ->
+    ?FORALL(
+        {WireType, Value},
+        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_json_safe(WireType)}),
+        begin
+            % Header1 = argo_header:new(),
+            % {Header2, _} = argo_header:set_self_describing_errors(Header1, false),
+            TermEncoded1 = term_encode(Value),
+            TermDecoded1 = term_decode(WireType, TermEncoded1),
+            TermEncoded2 = term_encode(TermDecoded1),
+            % Encoded = argo_value:to_writer(Value, Header2),
+            ExpectedValue = Value,
+            ActualValue = TermDecoded1,
+            ExpectedTerm = TermEncoded1,
+            ActualTerm = TermEncoded2,
+            % PercentageSmaller = trunc(math:ceil((byte_size(Encoded) / byte_size(JsonEncoded1)) * 100)),
+            % PercentageSmaller = byte_size(Encoded) / byte_size(JsonEncoded1),
+            % SmallerOrLarger =
+            %     case byte_size(Encoded) < byte_size(JsonEncoded1) of
+            %         true ->
+            %             smaller;
+            %         false ->
+            %             larger
+            %     end,
+            ?WHENFAIL(
+                begin
+                    io:format(
+                        "FAILURE: Expected (Term) does not match Actual (Term)~n"
+                        "Expected (Value):~n~0tp~n"
+                        "Actual (Value):~n~0tp~n"
+                        "Expected (String):~n~ts~n"
+                        "Actual (String):~n~ts~n"
+                        "Expected (Term):~n~ts~n"
+                        "Actual (Term):~n~ts~n",
+                        [
+                            ExpectedValue,
+                            ActualValue,
+                            argo:format_with_lines(ExpectedValue),
+                            argo:format_with_lines(ActualValue),
+                            term_encode_pretty(ExpectedValue),
+                            term_encode_pretty(ActualValue)
+                        ]
+                    )
+                end,
+                ExpectedTerm =:= ActualTerm
+                % aggregate([SmallerOrLarger], ExpectedJson =:= ActualJson)
+            )
+        end
+    ).
+
 -spec prop_to_wire_type(ct_suite:ct_config()) -> proper:test().
 prop_to_wire_type(_Config) ->
     ?FORALL(
@@ -123,7 +175,7 @@ prop_to_wire_type(_Config) ->
     ).
 
 %%%-----------------------------------------------------------------------------
-%%% Internal functions
+%%% Internal JSON functions
 %%%-----------------------------------------------------------------------------
 
 %% @private
@@ -157,6 +209,45 @@ json_encode(Value, EncodeOptions) when is_list(EncodeOptions) ->
     jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value)), [{float_format, [short]} | EncodeOptions]).
 
 %% @private
--spec json_encode_pretty(Value) -> JsonEncoded when Value :: argo_value:t(), JsonEncoded :: unicode:unicode_binary().
+-spec json_encode_pretty(Value) -> JsonEncodedPretty when Value :: argo_value:t(), JsonEncodedPretty :: unicode:unicode_binary().
 json_encode_pretty(Value = #argo_value{}) ->
     argo_types:format_with_lines(json_encode(Value, [{indent, 2}])).
+
+%%%-----------------------------------------------------------------------------
+%%% Internal Term functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec term_decode(WireType, TermEncoded) -> Value when
+    WireType :: argo_wire_type:t(), TermEncoded :: argo_term:term_value(), Value :: argo_value:t().
+term_decode(WireType = #argo_wire_type{}, TermEncoded) ->
+    term_decode(WireType, TermEncoded, #{}).
+
+%% @private
+-spec term_decode(WireType, TermEncoded, DecodeOptions) -> Value when
+    WireType :: argo_wire_type:t(),
+    TermEncoded :: argo_term:term_value(),
+    DecodeOptions :: argo_erlang_term_value_decoder:options(),
+    Value :: argo_value:t().
+term_decode(WireType = #argo_wire_type{}, TermEncoded, DecodeOptions) when is_map(DecodeOptions) ->
+    TermValueDecoder1 = argo_term_value_decoder:new(argo_erlang_term_value_decoder, DecodeOptions),
+    {_TermValueDecoder2, Value} = argo_term_value_decoder:decode_wire_type(TermValueDecoder1, WireType, TermEncoded),
+    Value.
+
+%% @private
+-spec term_encode(Value) -> TermEncoded when Value :: argo_value:t(), TermEncoded :: argo_term:term_value().
+term_encode(Value = #argo_value{}) ->
+    term_encode(Value, #{}).
+
+%% @private
+-spec term_encode(Value, EncodeOptions) -> TermEncoded when
+    Value :: argo_value:t(), EncodeOptions :: argo_erlang_term_value_encoder:options(), TermEncoded :: argo_term:term_value().
+term_encode(Value, EncodeOptions) when is_map(EncodeOptions) ->
+    TermValueEncoder1 = argo_term_value_encoder:new(argo_erlang_term_value_encoder, EncodeOptions),
+    {_TermValueEncoder2, TermEncoded} = argo_term_value_encoder:encode_value(TermValueEncoder1, Value),
+    TermEncoded.
+
+%% @private
+-spec term_encode_pretty(Value) -> TermEncodedPretty when Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
+term_encode_pretty(Value = #argo_value{}) ->
+    argo_types:unicode_binary(io_lib:format("~tp", [term_encode(Value)])).

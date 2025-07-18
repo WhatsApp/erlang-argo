@@ -78,6 +78,11 @@
     root :: var_fragment_definition() | var_operation_definition(),
     stack :: [var_field() | var_fragment_definition() | var_inline_fragment() | var_operation_definition()]
 }).
+-record(var_executable_document, {clock :: clock()}).
+-record(var_field, {clock :: clock()}).
+-record(var_fragment_definition, {clock :: clock()}).
+-record(var_inline_fragment, {clock :: clock()}).
+-record(var_operation_definition, {clock :: clock()}).
 -record(context, {
     service_document :: argo_graphql_service_document:t(),
     executable_document :: var_executable_document(),
@@ -87,19 +92,16 @@
     groups_in :: #{var() => argo_index_set:t(var())},
     groups_out :: #{var() => var()},
     vars :: #{
-        var_executable_document() => argo_graphql_executable_document:t(),
-        var_field() => argo_graphql_field:t(),
-        var_fragment_definition() => argo_graphql_fragment_definition:t(),
-        var_inline_fragment() => argo_graphql_inline_fragment:t(),
-        var_operation_definition() => argo_graphql_operation_definition:t()
+        var() => dynamic()
+        % NOTE: eqWAlizer - Only one default association per map is allowed, all other keys should be composed of statically defined atoms or tuples.
+        % var_executable_document() => argo_graphql_executable_document:t(),
+        % var_field() => argo_graphql_field:t(),
+        % var_fragment_definition() => argo_graphql_fragment_definition:t(),
+        % var_inline_fragment() => argo_graphql_inline_fragment:t(),
+        % var_operation_definition() => argo_graphql_operation_definition:t()
     },
     frames :: [frame()]
 }).
--record(var_executable_document, {clock :: clock()}).
--record(var_field, {clock :: clock()}).
--record(var_fragment_definition, {clock :: clock()}).
--record(var_inline_fragment, {clock :: clock()}).
--record(var_operation_definition, {clock :: clock()}).
 
 %% Types
 -type clock() :: non_neg_integer().

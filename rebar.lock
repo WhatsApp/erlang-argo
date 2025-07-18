@@ -1,17 +1,16 @@
 {"1.2.0",
 [{<<"eqwalizer_support">>,
   {git_subdir,"https://github.com/WhatsApp/eqwalizer.git",
-              {ref,"8bc8b79f35c8c70f94972e989586eea723ee799c"},
+              {ref,"54a74ae351f494328fa77515830a87275088426a"},
               "eqwalizer_support"},
   0},
  {<<"jsone">>,{pkg,<<"jsone">>,<<"1.9.0">>},0},
- {<<"proper">>,
-  {git,"https://github.com/proper-testing/proper.git",
-       {ref,"29a76fa1a7047b3905091a850499905c44f1ccaf"}},
-  0}]}.
+ {<<"proper">>,{pkg,<<"proper">>,<<"1.5.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"jsone">>, <<"2242DC76859DB74E27AE6B6209BBF4F03651B8EDDB53FA8002A931D35953E9B6">>}]},
+ {<<"jsone">>, <<"2242DC76859DB74E27AE6B6209BBF4F03651B8EDDB53FA8002A931D35953E9B6">>},
+ {<<"proper">>, <<"4A87CE8B219858E64C9AA015F4F7ED739D0AC3CA6BFD77FA62794617EE784225">>}]},
 {pkg_hash_ext,[
- {<<"jsone">>, <<"6863DCF95A7FC26094EAAFF0D72522D58FE22719B4758AFB75A21735BC92646D">>}]}
+ {<<"jsone">>, <<"6863DCF95A7FC26094EAAFF0D72522D58FE22719B4758AFB75A21735BC92646D">>},
+ {<<"proper">>, <<"FBF7CF0625E5441A314514F7D8E1EAFF52090FCD94FF34B5171FF293D3F9969A">>}]}
 ].

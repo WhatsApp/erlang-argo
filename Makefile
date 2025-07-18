@@ -156,7 +156,7 @@ lint:: lint-format lint-eqwalizer lint-xref lint-dialyzer
 lint-dialyzer:
 	$(verbose) rebar3 dialyzer
 
-lint-eqwalizer: eqwalize
+lint-eqwalizer: eqwalize-all
 
 lint-format: erlfmt-check
 

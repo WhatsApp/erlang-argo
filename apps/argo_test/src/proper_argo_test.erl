@@ -19,7 +19,8 @@
 -compile(warn_missing_spec).
 -wacov(ignore).
 
--include_lib("proper/include/proper.hrl").
+-define(PROPER_NO_IMPORTS, 1).
+-include_lib("argo_test/include/proper_argo_test.hrl").
 
 %% Helper API
 -export([
@@ -47,13 +48,13 @@ complex(RawType) ->
         ?SIZED(Size, begin
             Complexity = complexity(),
             ComplexSize = max(1, Size bsr Complexity),
-            ?LET(NewSize, mostly(range(1, min(ComplexSize, 4)), range(1, ComplexSize)), resize(NewSize, RawType))
+            ?LET(NewSize, mostly(proper_types:range(1, min(ComplexSize, 4)), proper_types:range(1, ComplexSize)), proper_types:resize(NewSize, RawType))
         end)
     ).
 
 -spec complexity() -> pos_integer().
 complexity() ->
-    case parameter(?COMPLEXITY, 0) of
+    case proper_types:parameter(?COMPLEXITY, 0) of
         Complexity when is_integer(Complexity) andalso Complexity >= 0 ->
             max(Complexity, 1)
     end.
@@ -64,7 +65,7 @@ minsized(RawType) ->
 
 -spec mostly(U :: proper_types:raw_type(), T :: proper_types:raw_type()) -> proper_types:type().
 mostly(U, T) ->
-    frequency([
+    proper_types:frequency([
         {100, U},
         {1, T}
     ]).
@@ -72,28 +73,28 @@ mostly(U, T) ->
 -spec mostly_small_list(RawType :: proper_types:raw_type()) -> proper_types:type().
 mostly_small_list(RawType) ->
     mostly(
-        frequency([
+        proper_types:frequency([
             {1 * complexity(), []},
             {1, [RawType]},
             {1, [RawType, RawType]}
         ]),
-        list(RawType)
+        proper_types:list(RawType)
     ).
 
 -spec mostly_small_size() -> proper_types:type().
 mostly_small_size() ->
     mostly(
-        frequency([
+        proper_types:frequency([
             {1 * complexity(), 0},
             {1, 1},
             {1, 2}
         ]),
-        ?SIZED(Size, range(0, Size))
+        ?SIZED(Size, proper_types:range(0, Size))
     ).
 
 -spec option(T :: proper_types:type()) -> proper_types:type().
 option(T) ->
-    oneof([none, {some, T}]).
+    proper_types:oneof([none, {some, T}]).
 
 -spec option_unlikely(T :: proper_types:type()) -> proper_types:type().
 option_unlikely(T) ->
@@ -102,8 +103,8 @@ option_unlikely(T) ->
 -spec with_complexity(RawType :: proper_types:raw_type()) -> proper_types:type().
 with_complexity(RawType) ->
     Complexity =
-        case parameter(?COMPLEXITY, 0) of
+        case proper_types:parameter(?COMPLEXITY, 0) of
             C when is_integer(C) andalso C >= 0 ->
                 C + 1
         end,
-    with_parameter(?COMPLEXITY, Complexity, RawType).
+    proper_types:with_parameter(?COMPLEXITY, Complexity, RawType).

@@ -75,11 +75,11 @@
 -type index() :: non_neg_integer().
 -type key() :: dynamic().
 -type value() :: dynamic().
+-type t() :: t(key(), value()).
+-type t(KeyType) :: t(KeyType, value()).
 -type t(KeyType, ValueType) :: #argo_index_map{
     indices :: #{KeyType => index()}, entries :: array:array({KeyType, ValueType})
 }.
--type t(KeyType) :: t(KeyType, value()).
--type t() :: t(key(), value()).
 -type iterator() :: iterator(key(), value()).
 -opaque iterator(KeyType, ValueType) ::
     none
@@ -811,10 +811,11 @@ repair(_Index, {_Key, _Value}, Acc = {halt, _Indices, _Entries}) ->
     Acc.
 
 %% @private
--spec shrink(Entries) -> Entries when
+-spec shrink(Entries) -> NewEntries when
     Entries :: array:array(undefined | {Key, Value}),
     Key :: key(),
-    Value :: value().
+    Value :: value(),
+    NewEntries :: array:array({Key, Value}).
 shrink(Entries) ->
     %% TODO: make this less expensive, maybe upstream fix
     List = array:to_list(Entries),
