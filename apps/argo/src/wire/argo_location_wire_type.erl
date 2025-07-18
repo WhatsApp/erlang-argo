@@ -37,7 +37,7 @@
 
 -spec new() -> LocationWireType when LocationWireType :: t().
 new() ->
-    #argo_error_wire_type{}.
+    #argo_location_wire_type{}.
 
 -spec expand_wire_type(LocationWireType) -> WireType when LocationWireType :: t(), WireType :: argo_wire_type:t().
 expand_wire_type(#argo_location_wire_type{}) ->

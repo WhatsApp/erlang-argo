@@ -1340,7 +1340,7 @@ encode_locations_value_stop(TermValueEncoder1 = #argo_term_value_encoder{}, Loca
     TermValueEncoder, NullableWireTypeHint, FieldErrorsValueIterator, FieldErrorsTermValue
 ) -> {TermValueEncoder, FieldErrorsTermValue} when
     TermValueEncoder :: t(),
-    NullableWireTypeHint :: argo_term:wire_type_hint(),
+    NullableWireTypeHint :: argo_term:nullable_wire_type_hint(),
     FieldErrorsValueIterator :: {Index, FieldErrors},
     Index :: non_neg_integer(),
     FieldErrors :: [ErrorValue],
@@ -1366,9 +1366,9 @@ encode_nullable_value_field_errors_next(
             TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
             case Result of
                 {ok, FieldErrorsTermValue2} ->
-                    DescListIterator2 = {Index + 1, FieldErrors},
+                    FieldErrorsValueIterator2 = {Index + 1, FieldErrors},
                     encode_nullable_value_field_errors_next(
-                        TermValueEncoder3, NullableWireTypeHint, DescListIterator2, FieldErrorsTermValue2
+                        TermValueEncoder3, NullableWireTypeHint, FieldErrorsValueIterator2, FieldErrorsTermValue2
                     )
             end
     end.

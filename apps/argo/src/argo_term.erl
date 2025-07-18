@@ -36,7 +36,7 @@
 ]).
 
 %% Hint Types
--type array_value_hint() :: #{'of' := array_wire_type_hint(), size := argo_types:usize(), index := argo_types:index()}.
+-type array_value_hint() :: #{'of' := wire_type_hint(), size := argo_types:usize(), index := argo_types:index()}.
 -type array_wire_type_hint() :: #{'of' := wire_type_hint()}.
 -type block_wire_type_hint() :: #{'of' := scalar_wire_type_hint(), key := argo_types:name(), dedupe := boolean()}.
 -type desc_value_container_hint() :: list | object.
@@ -90,8 +90,8 @@
 %%%=============================================================================
 
 -spec array_value_hint(ArrayValue, Index) -> ArrayValueHint when
-    ArrayValue :: argo_array_value:t(), Index :: argo_types:index(), ArrayValueHint :: array_value_hint().
-array_value_hint(ArrayValue = #argo_array_value{}, Index) when ?is_usize(Index) ->
+    ArrayValue :: argo_array_value:t(), Index :: non_neg_integer(), ArrayValueHint :: array_value_hint().
+array_value_hint(ArrayValue = #argo_array_value{}, Index) ->
     #{'of' := WireTypeHint} = array_wire_type_hint(ArrayValue),
     #{'of' => WireTypeHint, size => argo_array_value:size(ArrayValue), index => Index}.
 
@@ -162,7 +162,8 @@ nullable_wire_type_hint(NullableWireType = #argo_nullable_wire_type{'of' = Of}) 
         nullable ->
             %% unreachable
             erlang:error(badarg, [NullableWireType]);
-        NullableWireTypeHint ->
+        WireTypeHint ->
+            NullableWireTypeHint = #{'of' => WireTypeHint},
             NullableWireTypeHint
     end.
 

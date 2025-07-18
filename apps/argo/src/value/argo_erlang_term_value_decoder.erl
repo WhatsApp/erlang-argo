@@ -113,9 +113,9 @@ decode_array(DecoderState, _WireTypeHint, _TermValue) ->
     OptionItemTermValue :: argo_types:option(ItemTermValue),
     ItemTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
-decode_array_next(DecoderState, _Index, [ItemTermValue | ArrayTermValue], _ArrayWireTypeHint) ->
+decode_array_next(DecoderState, _Index, _ArrayWireTypeHint, [ItemTermValue | ArrayTermValue]) ->
     {DecoderState, {ok, {ArrayTermValue, {some, ItemTermValue}}}};
-decode_array_next(DecoderState, _Index, ArrayTermValue = [], _ArrayWireTypeHint) ->
+decode_array_next(DecoderState, _Index, _ArrayWireTypeHint, ArrayTermValue = []) ->
     {DecoderState, {ok, {ArrayTermValue, none}}}.
 
 -spec decode_array_stop(DecoderState, ArrayTermValue, ArrayValue) -> {DecoderState, Result} when
