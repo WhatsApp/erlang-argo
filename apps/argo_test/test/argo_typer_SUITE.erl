@@ -95,7 +95,7 @@ init_per_group(static, Config) ->
         false,
         fun(File, Acc) ->
             {ok, JsonEncoded} = file:read_file(File),
-            JsonValue = argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple}])),
+            JsonValue = argo_json:decode(JsonEncoded),
             Key = argo_types:unicode_binary(filename:basename(File, ".json")),
             Acc#{Key => JsonValue}
         end,
@@ -397,9 +397,9 @@ test_argo_1_2_json(Config) ->
     ArgoSelfDescribingHeader = argo_header:new(#{self_describing => true}),
     ArgoSelfDescribingEncoded = argo_value:to_writer(Value, ArgoSelfDescribingHeader),
     ?assertMatch({<<>>, Value}, argo_value:from_reader(WireType, ArgoSelfDescribingEncoded)),
-    ExpectedJson = jsone:encode(JsonValue),
+    ExpectedJson = argo_json:encode(JsonValue),
     ArgoEncodedJson = argo_value:to_json(Value),
-    ActualJson = jsone:encode(ArgoEncodedJson),
+    ActualJson = argo_json:encode(ArgoEncodedJson),
     ?assertEqual(ExpectedJson, ActualJson),
     ok.
 
@@ -711,9 +711,9 @@ test_simple_introspection_query(Config) ->
     ArgoSelfDescribingHeader = argo_header:new(#{self_describing => true}),
     ArgoSelfDescribingEncoded = argo_value:to_writer(Value, ArgoSelfDescribingHeader),
     ?assertMatch({<<>>, Value}, argo_value:from_reader(WireType, ArgoSelfDescribingEncoded)),
-    ExpectedJson = jsone:encode(JsonValue),
+    ExpectedJson = argo_json:encode(JsonValue),
     ArgoEncodedJson = argo_value:to_json(Value),
-    ActualJson = jsone:encode(ArgoEncodedJson),
+    ActualJson = argo_json:encode(ArgoEncodedJson),
     ?assertEqual(ExpectedJson, ActualJson),
     ok.
 

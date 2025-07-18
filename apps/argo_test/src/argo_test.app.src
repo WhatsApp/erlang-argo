@@ -17,8 +17,7 @@
         stdlib,
         common_test,
         proper,
-        argo,
-        jsone
+        argo
     ]},
     {env, []}
 ]}.

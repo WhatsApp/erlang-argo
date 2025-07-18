@@ -39,6 +39,10 @@
     as_number/1,
     as_object/1,
     as_string/1,
+    decode/1,
+    decode/2,
+    encode/1,
+    format/1,
     is_array/1,
     is_boolean/1,
     is_null/1,
@@ -52,14 +56,25 @@
     object_size/1
 ]).
 
-%% Decoder/Encoder API
-
 %% Errors API
 -export([
     format_error/2
 ]).
 
+%% Records
+-record(argo_json_decode_state, {
+    object_format :: index_map | map | tuple,
+    stack :: [{array, [json_value()]} | {object, [{json_string(), json_value()}]}]
+}).
+
+%% Internal Types
+-type decode_state() :: #argo_json_decode_state{}.
+
 %% Types
+-type decode_options() :: #{
+    object_format => index_map | map | tuple
+}.
+-type encoded_value() :: unicode:unicode_binary().
 -type json_array() :: [json_value()].
 -type json_boolean() :: boolean().
 -type json_null() :: null.
@@ -72,6 +87,8 @@
 -type json_value() :: json_null() | json_boolean() | json_number() | json_string() | json_array() | json_object().
 
 -export_type([
+    decode_options/0,
+    encoded_value/0,
     json_array/0,
     json_boolean/0,
     json_null/0,
@@ -179,6 +196,44 @@ as_string(JsonString) when erlang:is_binary(JsonString) ->
     JsonString;
 as_string(JsonValue) ->
     error_with_info(badarg, [JsonValue], #{1 => expected_string}).
+
+-spec decode(encoded_value()) -> json_value().
+decode(JsonEncodedValue) when erlang:is_binary(JsonEncodedValue) ->
+    decode(JsonEncodedValue, #{}).
+
+-spec decode(encoded_value(), decode_options()) -> json_value().
+decode(JsonEncodedValue, JsonDecodeOptions) when
+    erlang:is_binary(JsonEncodedValue) andalso erlang:is_map(JsonDecodeOptions)
+->
+    JsonObjectFormat =
+        case JsonDecodeOptions of
+            #{object_format := V} when V =:= index_map orelse V =:= map orelse V =:= tuple ->
+                V;
+            #{} when erlang:map_size(JsonDecodeOptions) > 0 ->
+                erlang:error(badarg, [JsonEncodedValue, JsonDecodeOptions]);
+            #{} ->
+                tuple
+        end,
+    DecodeState = #argo_json_decode_state{
+        object_format = JsonObjectFormat,
+        stack = []
+    },
+    case json:decode(JsonEncodedValue, DecodeState, decoders()) of
+        {JsonValue, DecodeState, Remaining} ->
+            ok = decode_remaining_check(Remaining),
+            JsonValue
+    end.
+
+-spec encode(json_value()) -> encoded_value().
+encode(JsonValue) ->
+    Encoder = fun encode_value/2,
+    argo_types:unicode_binary(encode_value(JsonValue, Encoder)).
+
+-spec format(json_value()) -> encoded_value().
+format(JsonValue) ->
+    State = #{level => 0, col => 0, indent => 2, max => 100},
+    Formatter = fun format_value/3,
+    argo_types:unicode_binary(format_value(JsonValue, Formatter, State)).
 
 -spec is_array(json_value()) -> boolean().
 is_array(V) -> erlang:is_list(V).
@@ -312,3 +367,155 @@ format_error_description(_Key, expected_string) ->
     "expected JSON string";
 format_error_description(_Key, Value) ->
     Value.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec decode_array_finish(DecodeState, OldDecodeState) -> {JsonArray, OldDecodeState} when
+    DecodeState :: decode_state(),
+    OldDecodeState :: decode_state(),
+    JsonArray :: json_array().
+decode_array_finish(
+    DecodeState = #argo_json_decode_state{stack = [{array, ArrayAcc} | Stack]},
+    OldDecodeState = #argo_json_decode_state{}
+) ->
+    JsonArray = lists:reverse(ArrayAcc),
+    case DecodeState#argo_json_decode_state{stack = Stack} of
+        OldDecodeState ->
+            {JsonArray, OldDecodeState}
+    end.
+
+%% @private
+-spec decode_array_push(JsonValue, DecodeState) -> DecodeState when
+    JsonValue :: json_value(), DecodeState :: decode_state().
+decode_array_push(JsonValue, DecodeState1 = #argo_json_decode_state{stack = [{array, ArrayAcc1} | Stack1]}) ->
+    ArrayAcc2 = [JsonValue | ArrayAcc1],
+    Stack2 = [{array, ArrayAcc2} | Stack1],
+    DecodeState2 = DecodeState1#argo_json_decode_state{stack = Stack2},
+    DecodeState2.
+
+%% @private
+-spec decode_array_start(DecodeState) -> DecodeState when DecodeState :: decode_state().
+decode_array_start(DecodeState1 = #argo_json_decode_state{stack = Stack1}) ->
+    Stack2 = [{array, []} | Stack1],
+    DecodeState2 = DecodeState1#argo_json_decode_state{stack = Stack2},
+    DecodeState2.
+
+%% @private
+-spec decode_object_finish(DecodeState, OldDecodeState) -> {JsonObject, OldDecodeState} when
+    DecodeState :: decode_state(),
+    OldDecodeState :: decode_state(),
+    JsonObject :: json_object().
+decode_object_finish(
+    DecodeState = #argo_json_decode_state{stack = [{object, ObjectAcc} | Stack]},
+    OldDecodeState = #argo_json_decode_state{}
+) ->
+    KeyValueList = lists:reverse(ObjectAcc),
+    JsonObject =
+        case DecodeState#argo_json_decode_state.object_format of
+            index_map ->
+                argo_index_map:from_list(KeyValueList);
+            map ->
+                maps:from_list(KeyValueList);
+            tuple ->
+                {KeyValueList}
+        end,
+    case DecodeState#argo_json_decode_state{stack = Stack} of
+        OldDecodeState ->
+            {JsonObject, OldDecodeState}
+    end.
+
+%% @private
+-spec decode_object_push(JsonKey, JsonValue, DecodeState) -> DecodeState when
+    JsonKey :: json_string(), JsonValue :: json_value(), DecodeState :: decode_state().
+decode_object_push(JsonKey, JsonValue, DecodeState1 = #argo_json_decode_state{stack = [{object, Object1} | Stack1]}) ->
+    Object2 = [{JsonKey, JsonValue} | Object1],
+    Stack2 = [{object, Object2} | Stack1],
+    DecodeState2 = DecodeState1#argo_json_decode_state{stack = Stack2},
+    DecodeState2.
+
+%% @private
+-spec decode_object_start(DecodeState) -> DecodeState when DecodeState :: decode_state().
+decode_object_start(DecodeState1 = #argo_json_decode_state{stack = Stack1}) ->
+    Stack2 = [{object, []} | Stack1],
+    DecodeState2 = DecodeState1#argo_json_decode_state{stack = Stack2},
+    DecodeState2.
+
+%% @private
+-spec decode_remaining_check(binary()) -> ok.
+decode_remaining_check(<<>>) ->
+    ok;
+decode_remaining_check(<<$\s, Bytes/bytes>>) ->
+    decode_remaining_check(Bytes);
+decode_remaining_check(<<$\t, Bytes/bytes>>) ->
+    decode_remaining_check(Bytes);
+decode_remaining_check(<<$\r, Bytes/bytes>>) ->
+    decode_remaining_check(Bytes);
+decode_remaining_check(<<$\n, Bytes/bytes>>) ->
+    decode_remaining_check(Bytes);
+decode_remaining_check(<<Bytes/bytes>>) ->
+    erlang:error(badarg, [Bytes]).
+
+%% @private
+-spec decoders() -> json:decoders().
+decoders() ->
+    #{
+        array_start => fun decode_array_start/1,
+        array_push => fun decode_array_push/2,
+        array_finish => fun decode_array_finish/2,
+        object_start => fun decode_object_start/1,
+        object_push => fun decode_object_push/3,
+        object_finish => fun decode_object_finish/2
+    }.
+
+%% @private
+-spec encode_value(json_value(), json:encoder()) -> iodata().
+encode_value(JsonValue, Encoder) ->
+    case JsonValue of
+        JsonNull = null ->
+            json:encode_atom(JsonNull, Encoder);
+        JsonBoolean when erlang:is_boolean(JsonBoolean) ->
+            json:encode_atom(JsonBoolean, Encoder);
+        JsonInteger when erlang:is_integer(JsonInteger) ->
+            json:encode_integer(JsonInteger);
+        JsonFloat when erlang:is_float(JsonFloat) ->
+            json:encode_float(JsonFloat);
+        JsonString when erlang:is_binary(JsonString) ->
+            json:encode_binary(JsonString);
+        JsonArray when erlang:is_list(JsonArray) ->
+            json:encode_list(JsonArray, Encoder);
+        JsonObject when erlang:is_map(JsonObject) ->
+            json:encode_map(JsonObject, Encoder);
+        {KeyValueList} when erlang:is_list(KeyValueList) ->
+            json:encode_key_value_list_checked(KeyValueList, Encoder);
+        JsonObject = #argo_index_map{} ->
+            KeyValueList = argo_index_map:to_list(JsonObject),
+            json:encode_key_value_list_checked(KeyValueList, Encoder)
+    end.
+
+%% @private
+-spec format_value(json_value(), json:encoder(), dynamic()) -> iodata().
+format_value(JsonValue, Encoder, State) ->
+    case JsonValue of
+        JsonNull = null ->
+            json:format_value(JsonNull, Encoder, State);
+        JsonBoolean when erlang:is_boolean(JsonBoolean) ->
+            json:format_value(JsonBoolean, Encoder, State);
+        JsonInteger when erlang:is_integer(JsonInteger) ->
+            json:format_value(JsonInteger, Encoder, State);
+        JsonFloat when erlang:is_float(JsonFloat) ->
+            json:format_value(JsonFloat, Encoder, State);
+        JsonString when erlang:is_binary(JsonString) ->
+            json:format_value(JsonString, Encoder, State);
+        JsonArray when erlang:is_list(JsonArray) ->
+            json:format_value(JsonArray, Encoder, State);
+        JsonObject when erlang:is_map(JsonObject) ->
+            json:format_value(JsonObject, Encoder, State);
+        {KeyValueList} when erlang:is_list(KeyValueList) ->
+            json:format_key_value_list_checked(KeyValueList, Encoder, State);
+        JsonObject = #argo_index_map{} ->
+            KeyValueList = argo_index_map:to_list(JsonObject),
+            json:format_key_value_list_checked(KeyValueList, Encoder, State)
+    end.

@@ -112,7 +112,7 @@ maybe_json_safe_float() ->
             false ->
                 Float;
             true ->
-                shrink_float_for_jsone(Float)
+                shrink_float_for_json(Float)
         end
     end).
 
@@ -532,20 +532,20 @@ value_make_json_safe(Value1 = #argo_value{}) ->
 %% @private
 -spec value_make_json_safe(dynamic(), ok) -> dynamic().
 value_make_json_safe(ScalarValue1 = #argo_scalar_value{inner = {float64, Float64}}, Acc = ok) ->
-    ShrunkFloat64 = shrink_float_for_jsone(Float64),
+    ShrunkFloat64 = shrink_float_for_json(Float64),
     ScalarValue2 = ScalarValue1#argo_scalar_value{inner = {float64, ShrunkFloat64}},
     {cont, ScalarValue2, Acc};
 value_make_json_safe(DescValue1 = #argo_desc_value{inner = {float, Float}}, Acc = ok) ->
-    ShrunkFloat = shrink_float_for_jsone(Float),
+    ShrunkFloat = shrink_float_for_json(Float),
     DescValue2 = DescValue1#argo_desc_value{inner = {float, ShrunkFloat}},
     {cont, DescValue2, Acc};
 value_make_json_safe(_, ok) ->
     cont.
 
-% jsone doesn't handle accurate roundtrip for high precision floats
+% json doesn't handle accurate roundtrip for high precision floats
 %% @private
--spec shrink_float_for_jsone(float()) -> float().
-shrink_float_for_jsone(Float) when is_float(Float) ->
+-spec shrink_float_for_json(float()) -> float().
+shrink_float_for_json(Float) when is_float(Float) ->
     list_to_float(float_to_list(Float, [{scientific, 5}])).
 
 %%%=============================================================================

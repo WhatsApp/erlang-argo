@@ -97,40 +97,32 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
     ).
 
 %%%-----------------------------------------------------------------------------
-%%% Internal functions
+%%% Internal JSON functions
 %%%-----------------------------------------------------------------------------
 
 %% @private
 -spec json_decode(JsonEncoded) -> WireType when
     JsonEncoded :: binary(), WireType :: argo_wire_type:t().
 json_decode(JsonEncoded) when is_binary(JsonEncoded) ->
-    json_decode(JsonEncoded, []).
+    json_decode(JsonEncoded, #{}).
 
 %% @private
 -spec json_decode(JsonEncoded, DecodeOptions) -> WireType when
     JsonEncoded :: binary(),
-    DecodeOptions :: [jsone:decode_option()],
+    DecodeOptions :: argo_json:decode_options(),
     WireType :: argo_wire_type:t().
 json_decode(JsonEncoded, DecodeOptions) when
-    is_binary(JsonEncoded) andalso is_list(DecodeOptions)
+    is_binary(JsonEncoded) andalso is_map(DecodeOptions)
 ->
-    argo_wire_type:from_json(
-        argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple} | DecodeOptions]))
-    ).
+    argo_wire_type:from_json(argo_json:decode(JsonEncoded, DecodeOptions)).
 
 %% @private
 -spec json_encode(WireType) -> JsonEncoded when WireType :: argo_wire_type:t(), JsonEncoded :: binary().
 json_encode(WireType = #argo_wire_type{}) ->
-    json_encode(WireType, []).
+    argo_json:encode(argo_wire_type:to_json(WireType)).
 
 %% @private
--spec json_encode(WireType, EncodeOptions) -> JsonEncoded when
-    WireType :: argo_wire_type:t(), EncodeOptions :: [jsone:encode_option()], JsonEncoded :: binary().
-json_encode(WireType, EncodeOptions) when is_list(EncodeOptions) ->
-    jsone:encode(argo_types:dynamic_cast(argo_wire_type:to_json(WireType)), [{float_format, [short]} | EncodeOptions]).
-
-%% @private
--spec json_encode_pretty(WireType) -> JsonEncoded when
-    WireType :: argo_wire_type:t(), JsonEncoded :: unicode:unicode_binary().
+-spec json_encode_pretty(WireType) -> JsonEncodedPretty when
+    WireType :: argo_wire_type:t(), JsonEncodedPretty :: unicode:unicode_binary().
 json_encode_pretty(WireType = #argo_wire_type{}) ->
-    argo_types:format_with_lines(json_encode(WireType, [{indent, 2}])).
+    argo_types:format_with_lines(argo_json:format(argo_wire_type:to_json(WireType))).

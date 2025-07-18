@@ -182,37 +182,29 @@ prop_to_wire_type(_Config) ->
 -spec json_decode(WireType, JsonEncoded) -> Value when
     WireType :: argo_wire_type:t(), JsonEncoded :: binary(), Value :: argo_value:t().
 json_decode(WireType = #argo_wire_type{}, JsonEncoded) when is_binary(JsonEncoded) ->
-    json_decode(WireType, JsonEncoded, []).
+    json_decode(WireType, JsonEncoded, #{}).
 
 %% @private
 -spec json_decode(WireType, JsonEncoded, DecodeOptions) -> Value when
     WireType :: argo_wire_type:t(),
     JsonEncoded :: binary(),
-    DecodeOptions :: [jsone:decode_option()],
+    DecodeOptions :: argo_json:decode_options(),
     Value :: argo_value:t().
 json_decode(WireType = #argo_wire_type{}, JsonEncoded, DecodeOptions) when
-    is_binary(JsonEncoded) andalso is_list(DecodeOptions)
+    is_binary(JsonEncoded) andalso is_map(DecodeOptions)
 ->
-    argo_value:from_json(
-        WireType, argo_types:dynamic_cast(jsone:decode(JsonEncoded, [{object_format, tuple} | DecodeOptions]))
-    ).
+    argo_value:from_json(WireType, argo_json:decode(JsonEncoded, DecodeOptions)).
 
 %% @private
 -spec json_encode(Value) -> JsonEncoded when Value :: argo_value:t(), JsonEncoded :: binary().
 json_encode(Value = #argo_value{}) ->
-    json_encode(Value, []).
-
-%% @private
--spec json_encode(Value, EncodeOptions) -> JsonEncoded when
-    Value :: argo_value:t(), EncodeOptions :: [jsone:encode_option()], JsonEncoded :: binary().
-json_encode(Value, EncodeOptions) when is_list(EncodeOptions) ->
-    jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value)), [{float_format, [short]} | EncodeOptions]).
+    argo_json:encode(argo_value:to_json(Value)).
 
 %% @private
 -spec json_encode_pretty(Value) -> JsonEncodedPretty when
     Value :: argo_value:t(), JsonEncodedPretty :: unicode:unicode_binary().
 json_encode_pretty(Value = #argo_value{}) ->
-    argo_types:format_with_lines(json_encode(Value, [{indent, 2}])).
+    argo_types:format_with_lines(argo_json:format(argo_value:to_json(Value))).
 
 %%%-----------------------------------------------------------------------------
 %%% Internal Term functions
@@ -254,4 +246,4 @@ term_encode(Value, EncodeOptions) when is_map(EncodeOptions) ->
 -spec term_encode_pretty(Value) -> TermEncodedPretty when
     Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
 term_encode_pretty(Value = #argo_value{}) ->
-    argo_types:unicode_binary(io_lib:format("~tp", [term_encode(Value)])).
+    argo_types:format_with_lines(io_lib:format("~tp", [term_encode(Value)])).

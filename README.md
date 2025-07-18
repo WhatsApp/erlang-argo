@@ -62,7 +62,7 @@ ArgoValue = argo_value:from_json(ArgoWireType, JsonValue),
 % Encode Argo Value using default settings.
 ArgoEncoded = argo_value:to_writer(ArgoValue),
 % Compare output size to the JSON encoding.
-JsonEncoded = jsone:encode(JsonValue),
+JsonEncoded = argo_json:encode(JsonValue),
 41 = byte_size(JsonEncoded),
 22 = byte_size(ArgoEncoded),
 % Argo encoding is roughly 46% smaller than JSON encoding in this case.

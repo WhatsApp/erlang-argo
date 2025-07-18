@@ -64,7 +64,7 @@ prop_roundtrip(_Config) ->
             Encoded = argo_value:to_writer(Value, Header),
             {<<>>, Decoded} = argo_value:from_reader(WireType, Encoded),
             ToWireType = argo_value:to_wire_type(Value),
-            % JsonEncoded = jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value))),
+            % JsonEncoded = argo_json:encode(argo_value:to_json(Value)),
             % PercentageSmaller = trunc(math:ceil((byte_size(Encoded) / byte_size(JsonEncoded)) * 100)),
             ?WHENFAIL(
                 begin
