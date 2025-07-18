@@ -496,26 +496,26 @@ encode_value(JsonValue, Encoder) ->
     end.
 
 %% @private
--spec format_value(json_value(), json:encoder(), dynamic()) -> iodata().
-format_value(JsonValue, Encoder, State) ->
+-spec format_value(json_value(), json:formatter(), dynamic()) -> iodata().
+format_value(JsonValue, Formatter, State) ->
     case JsonValue of
         JsonNull = null ->
-            json:format_value(JsonNull, Encoder, State);
+            json:format_value(JsonNull, Formatter, State);
         JsonBoolean when erlang:is_boolean(JsonBoolean) ->
-            json:format_value(JsonBoolean, Encoder, State);
+            json:format_value(JsonBoolean, Formatter, State);
         JsonInteger when erlang:is_integer(JsonInteger) ->
-            json:format_value(JsonInteger, Encoder, State);
+            json:format_value(JsonInteger, Formatter, State);
         JsonFloat when erlang:is_float(JsonFloat) ->
-            json:format_value(JsonFloat, Encoder, State);
+            json:format_value(JsonFloat, Formatter, State);
         JsonString when erlang:is_binary(JsonString) ->
-            json:format_value(JsonString, Encoder, State);
+            json:format_value(JsonString, Formatter, State);
         JsonArray when erlang:is_list(JsonArray) ->
-            json:format_value(JsonArray, Encoder, State);
+            json:format_value(JsonArray, Formatter, State);
         JsonObject when erlang:is_map(JsonObject) ->
-            json:format_value(JsonObject, Encoder, State);
+            json:format_value(JsonObject, Formatter, State);
         {KeyValueList} when erlang:is_list(KeyValueList) ->
-            json:format_key_value_list_checked(KeyValueList, Encoder, State);
+            json:format_key_value_list_checked(KeyValueList, Formatter, State);
         JsonObject = #argo_index_map{} ->
             KeyValueList = argo_index_map:to_list(JsonObject),
-            json:format_key_value_list_checked(KeyValueList, Encoder, State)
+            json:format_key_value_list_checked(KeyValueList, Formatter, State)
     end.
