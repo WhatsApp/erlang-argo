@@ -1358,7 +1358,7 @@ decode_location_wire_type_column(
     LocationTermValue1
 ) ->
     {TermValueDecoderState2, Result} =
-        TermValueDecoderModule:decode_error_location_column(TermValueDecoderState1, LocationTermValue1),
+        TermValueDecoderModule:decode_location_column(TermValueDecoderState1, LocationTermValue1),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, {LocationTermValue2, {some, Column}}} when is_integer(Column) ->
@@ -1382,7 +1382,7 @@ decode_location_wire_type_line(
     LocationTermValue1
 ) ->
     {TermValueDecoderState2, Result} =
-        TermValueDecoderModule:decode_error_location_line(TermValueDecoderState1, LocationTermValue1),
+        TermValueDecoderModule:decode_location_line(TermValueDecoderState1, LocationTermValue1),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, {LocationTermValue2, {some, Line}}} when is_integer(Line) ->
@@ -1458,7 +1458,7 @@ decode_locations_wire_type_next(
     LocationValueList1
 ) ->
     {TermValueDecoderState2, Result} =
-        TermValueDecoderModule:decode_error_locations_next(TermValueDecoderState1, Index1, LocationsTermValue1),
+        TermValueDecoderModule:decode_locations_next(TermValueDecoderState1, Index1, LocationsTermValue1),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, {LocationsTermValue2, {some, LocationTermValue}}} ->
