@@ -209,7 +209,8 @@ json_encode(Value, EncodeOptions) when is_list(EncodeOptions) ->
     jsone:encode(argo_types:dynamic_cast(argo_value:to_json(Value)), [{float_format, [short]} | EncodeOptions]).
 
 %% @private
--spec json_encode_pretty(Value) -> JsonEncodedPretty when Value :: argo_value:t(), JsonEncodedPretty :: unicode:unicode_binary().
+-spec json_encode_pretty(Value) -> JsonEncodedPretty when
+    Value :: argo_value:t(), JsonEncodedPretty :: unicode:unicode_binary().
 json_encode_pretty(Value = #argo_value{}) ->
     argo_types:format_with_lines(json_encode(Value, [{indent, 2}])).
 
@@ -241,13 +242,16 @@ term_encode(Value = #argo_value{}) ->
 
 %% @private
 -spec term_encode(Value, EncodeOptions) -> TermEncoded when
-    Value :: argo_value:t(), EncodeOptions :: argo_erlang_term_value_encoder:options(), TermEncoded :: argo_term:term_value().
+    Value :: argo_value:t(),
+    EncodeOptions :: argo_erlang_term_value_encoder:options(),
+    TermEncoded :: argo_term:term_value().
 term_encode(Value, EncodeOptions) when is_map(EncodeOptions) ->
     TermValueEncoder1 = argo_term_value_encoder:new(argo_erlang_term_value_encoder, EncodeOptions),
     {_TermValueEncoder2, TermEncoded} = argo_term_value_encoder:encode_value(TermValueEncoder1, Value),
     TermEncoded.
 
 %% @private
--spec term_encode_pretty(Value) -> TermEncodedPretty when Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
+-spec term_encode_pretty(Value) -> TermEncodedPretty when
+    Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
 term_encode_pretty(Value = #argo_value{}) ->
     argo_types:unicode_binary(io_lib:format("~tp", [term_encode(Value)])).

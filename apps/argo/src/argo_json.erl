@@ -54,7 +54,6 @@
 
 %% Decoder/Encoder API
 
-
 %% Errors API
 -export([
     format_error/2

@@ -48,7 +48,11 @@ complex(RawType) ->
         ?SIZED(Size, begin
             Complexity = complexity(),
             ComplexSize = max(1, Size bsr Complexity),
-            ?LET(NewSize, mostly(proper_types:range(1, min(ComplexSize, 4)), proper_types:range(1, ComplexSize)), proper_types:resize(NewSize, RawType))
+            ?LET(
+                NewSize,
+                mostly(proper_types:range(1, min(ComplexSize, 4)), proper_types:range(1, ComplexSize)),
+                proper_types:resize(NewSize, RawType)
+            )
         end)
     ).
 

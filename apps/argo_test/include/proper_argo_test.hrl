@@ -110,7 +110,9 @@
 -ifdef(SUCHTHATMAYBE).
 -undef(SUCHTHATMAYBE).
 -endif.
--define(SUCHTHATMAYBE(X, RawType, Condition), proper_types:add_constraint(RawType, ?DYNAMIC(fun(X) -> Condition end), false)).
+-define(SUCHTHATMAYBE(X, RawType, Condition),
+    proper_types:add_constraint(RawType, ?DYNAMIC(fun(X) -> Condition end), false)
+).
 
 %%%-----------------------------------------------------------------------------
 %%% Function imports
