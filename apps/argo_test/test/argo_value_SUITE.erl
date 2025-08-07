@@ -42,6 +42,8 @@
     prop_roundtrip_json_encoder_and_json_decoder/1,
     prop_roundtrip_term_encoder_and_term_decoder/0,
     prop_roundtrip_term_encoder_and_term_decoder/1,
+    prop_roundtrip_zlib_encoder_and_zlib_decoder/0,
+    prop_roundtrip_zlib_encoder_and_zlib_decoder/1,
     prop_to_wire_type/0,
     prop_to_wire_type/1
 ]).
@@ -62,6 +64,7 @@ groups() ->
             prop_roundtrip_encoder_and_decoder,
             prop_roundtrip_json_encoder_and_json_decoder,
             prop_roundtrip_term_encoder_and_term_decoder,
+            prop_roundtrip_zlib_encoder_and_zlib_decoder,
             prop_to_wire_type
         ]}
     ].
@@ -182,6 +185,19 @@ prop_roundtrip_term_encoder_and_term_decoder() ->
 
 prop_roundtrip_term_encoder_and_term_decoder(Config) ->
     argo_proper:quickcheck(argo_value_prop:prop_roundtrip_term_encoder_and_term_decoder(Config), [
+        verbose,
+        {max_shrinks, 10},
+        {numtests, 100}
+    ]).
+
+prop_roundtrip_zlib_encoder_and_zlib_decoder() ->
+    [
+        {doc, "Property-based test for `argo_value' zlib encoder and zlib decoder."},
+        {timetrap, {seconds, 600}}
+    ].
+
+prop_roundtrip_zlib_encoder_and_zlib_decoder(Config) ->
+    argo_proper:quickcheck(argo_value_prop:prop_roundtrip_zlib_encoder_and_zlib_decoder(Config), [
         verbose,
         {max_shrinks, 10},
         {numtests, 100}

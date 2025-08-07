@@ -186,11 +186,19 @@ decode_desc(DecoderModule, DecoderState, TermValue) ->
         false ->
             DescValueHint =
                 case TermValue of
-                    null -> null;
+                    null ->
+                        null;
                     _ when is_boolean(TermValue) -> boolean;
                     _ when ?is_i64(TermValue) -> int;
                     _ when is_float(TermValue) -> float;
-                    _ when is_binary(TermValue) -> string;
+                    _ when is_binary(TermValue) ->
+                        try argo_types:unicode_length(TermValue) of
+                            Length when is_integer(Length) ->
+                                string
+                        catch
+                            error:badarg ->
+                                bytes
+                        end;
                     _ when is_list(TermValue) -> list;
                     _ when is_map(TermValue) -> object
                 end,

@@ -31,6 +31,7 @@
     prop_roundtrip_encoder_and_decoder/1,
     prop_roundtrip_json_encoder_and_json_decoder/1,
     prop_roundtrip_term_encoder_and_term_decoder/1,
+    prop_roundtrip_zlib_encoder_and_zlib_decoder/1,
     prop_to_wire_type/1
 ]).
 
@@ -118,25 +119,13 @@ prop_roundtrip_term_encoder_and_term_decoder(_Config) ->
         {WireType, Value},
         ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_term_safe(WireType)}),
         begin
-            % Header1 = argo_header:new(),
-            % {Header2, _} = argo_header:set_self_describing_errors(Header1, false),
             TermEncoded1 = term_encode(Value),
             TermDecoded1 = term_decode(WireType, TermEncoded1),
             TermEncoded2 = term_encode(TermDecoded1),
-            % Encoded = argo_value:to_writer(Value, Header2),
             ExpectedValue = Value,
             ActualValue = TermDecoded1,
             ExpectedTerm = TermEncoded1,
             ActualTerm = TermEncoded2,
-            % PercentageSmaller = trunc(math:ceil((byte_size(Encoded) / byte_size(JsonEncoded1)) * 100)),
-            % PercentageSmaller = byte_size(Encoded) / byte_size(JsonEncoded1),
-            % SmallerOrLarger =
-            %     case byte_size(Encoded) < byte_size(JsonEncoded1) of
-            %         true ->
-            %             smaller;
-            %         false ->
-            %             larger
-            %     end,
             ?WHENFAIL(
                 begin
                     io:format(
@@ -158,7 +147,44 @@ prop_roundtrip_term_encoder_and_term_decoder(_Config) ->
                     )
                 end,
                 ExpectedTerm =:= ActualTerm
-                % aggregate([SmallerOrLarger], ExpectedJson =:= ActualJson)
+            )
+        end
+    ).
+
+-spec prop_roundtrip_zlib_encoder_and_zlib_decoder(ct_suite:ct_config()) -> proper:test().
+prop_roundtrip_zlib_encoder_and_zlib_decoder(_Config) ->
+    ?FORALL(
+        {WireType, Value},
+        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_term_safe(WireType)}),
+        begin
+            TermEncoded1 = zlib_encode(Value),
+            TermDecoded1 = zlib_decode(WireType, TermEncoded1),
+            TermEncoded2 = zlib_encode(TermDecoded1),
+            ExpectedValue = Value,
+            ActualValue = TermDecoded1,
+            ExpectedTerm = TermEncoded1,
+            ActualTerm = TermEncoded2,
+            ?WHENFAIL(
+                begin
+                    io:format(
+                        "FAILURE: Expected (zlib) does not match Actual (zlib)~n"
+                        "Expected (Value):~n~0tp~n"
+                        "Actual (Value):~n~0tp~n"
+                        "Expected (String):~n~ts~n"
+                        "Actual (String):~n~ts~n"
+                        "Expected (zlib):~n~ts~n"
+                        "Actual (zlib):~n~ts~n",
+                        [
+                            ExpectedValue,
+                            ActualValue,
+                            argo:format_with_lines(ExpectedValue),
+                            argo:format_with_lines(ActualValue),
+                            zlib_encode_pretty(ExpectedValue),
+                            zlib_encode_pretty(ActualValue)
+                        ]
+                    )
+                end,
+                ExpectedTerm =:= ActualTerm
             )
         end
     ).
@@ -228,3 +254,26 @@ term_encode(Value = #argo_value{}) ->
     Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
 term_encode_pretty(Value = #argo_value{}) ->
     argo_types:format_with_lines(io_lib:format("~tp", [term_encode(Value)])).
+
+%%%-----------------------------------------------------------------------------
+%%% Internal zlib functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-spec zlib_decode(WireType, TermEncoded) -> Value when
+    WireType :: argo_wire_type:t(), TermEncoded :: argo_term:term_value(), Value :: argo_value:t().
+zlib_decode(WireType = #argo_wire_type{}, TermEncoded) ->
+    Value = argo_value:from_erlang(WireType, TermEncoded, argo_test_zlib_scalar_decoder, #{level => default}),
+    Value.
+
+%% @private
+-spec zlib_encode(Value) -> TermEncoded when Value :: argo_value:t(), TermEncoded :: argo_term:term_value().
+zlib_encode(Value = #argo_value{}) ->
+    TermEncoded = argo_value:to_erlang(Value, argo_test_zlib_scalar_encoder, #{}),
+    TermEncoded.
+
+%% @private
+-spec zlib_encode_pretty(Value) -> TermEncodedPretty when
+    Value :: argo_value:t(), TermEncodedPretty :: unicode:unicode_binary().
+zlib_encode_pretty(Value = #argo_value{}) ->
+    argo_types:format_with_lines(io_lib:format("~tp", [zlib_encode(Value)])).
