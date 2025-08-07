@@ -11,7 +11,7 @@
 
 """.
 -moduledoc #{author => ["Andrew Bennett <potatosaladx@meta.com>"]}.
--moduledoc #{created => "2025-05-13", modified => "2025-07-17"}.
+-moduledoc #{created => "2025-05-13", modified => "2025-07-18"}.
 -moduledoc #{copyright => "Meta Platforms, Inc. and affiliates."}.
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
@@ -19,7 +19,7 @@
 
 -behaviour(argo_term_value_decoder).
 
--include_lib("argo/include/argo_common.hrl").
+-include_lib("argo/include/argo_value.hrl").
 
 %% argo_term_value_decoder callbacks
 -export([
@@ -28,6 +28,7 @@
     decode_array_next/4,
     decode_array_stop/3,
     decode_block/3,
+    decode_block_stop/2,
     decode_desc/2,
     decode_desc_list_next/3,
     decode_desc_list_stop/3,
@@ -66,14 +67,14 @@
     decode_scalar_stop/2
 ]).
 
-%% Records
--record(state, {}).
-
 %% Types
--type error_reason() :: dynamic().
--type options() :: #{}.
+-type error_reason() :: argo_term_value_decoder:error_reason().
+-type options() :: #{
+    scalar_decoder_module => module(),
+    scalar_decoder_options => argo_erlang_term_scalar_decoder:options()
+}.
 -type result(Ok, Error) :: argo_term_value_decoder:result(Ok, Error).
--type state() :: #state{}.
+-type state() :: #argo_erlang_term_value_decoder{}.
 
 -export_type([
     error_reason/0,
@@ -87,8 +88,14 @@
 %%%=============================================================================
 
 -spec init(Options) -> DecoderState when Options :: options(), DecoderState :: state().
-init(_Options) ->
-    DecoderState = #state{},
+init(Options) ->
+    ScalarDecoderModule = maps:get(scalar_decoder_module, Options, undefined),
+    ScalarDecoderOptions = maps:get(scalar_decoder_options, Options, #{}),
+    ScalarDecoderState = argo_erlang_term_scalar_decoder:init(ScalarDecoderModule, ScalarDecoderOptions),
+    DecoderState = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState
+    },
     DecoderState.
 
 -spec decode_array(DecoderState, ArrayWireTypeHint, TermValue) -> {DecoderState, Result} when
@@ -134,9 +141,37 @@ decode_array_stop(DecoderState, _ArrayTermValue, ArrayValue) ->
     Result :: result(BlockTermValue, ErrorReason),
     BlockTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
-decode_block(DecoderState, _BlockWireTypeHint, TermValue) ->
-    BlockTermValue = TermValue,
-    {DecoderState, {ok, BlockTermValue}}.
+decode_block(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    BlockWireTypeHint,
+    TermValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_block(
+        ScalarDecoderModule, ScalarDecoderState1, BlockWireTypeHint, TermValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
+
+-spec decode_block_stop(DecoderState, BlockValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    BlockValue :: argo_block_value:t(),
+    Result :: result(DecoderState, ErrorReason),
+    ErrorReason :: error_reason().
+decode_block_stop(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    BlockValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_block_stop(
+        ScalarDecoderModule, ScalarDecoderState1, BlockValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_desc(DecoderState, TermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -145,19 +180,18 @@ decode_block(DecoderState, _BlockWireTypeHint, TermValue) ->
     DescTermValue :: argo_term:term_value(),
     DescValueHint :: argo_term:desc_value_hint(),
     ErrorReason :: error_reason().
-decode_desc(DecoderState, TermValue) ->
-    DescValueHint =
-        case TermValue of
-            null -> null;
-            _ when is_boolean(TermValue) -> boolean;
-            _ when ?is_i64(TermValue) -> int;
-            _ when is_float(TermValue) -> float;
-            _ when is_binary(TermValue) -> string;
-            _ when is_list(TermValue) -> list;
-            _ when is_map(TermValue) -> object
-        end,
-    DescTermValue = TermValue,
-    {DecoderState, {ok, {DescTermValue, DescValueHint}}}.
+decode_desc(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    TermValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_desc(
+        ScalarDecoderModule, ScalarDecoderState1, TermValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_desc_list_next(DecoderState, Index, DescListTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -178,8 +212,20 @@ decode_desc_list_next(DecoderState, _Index, DescListTermValue = []) ->
     DescValue :: argo_desc_value:t(),
     Result :: result(DescValue, ErrorReason),
     ErrorReason :: error_reason().
-decode_desc_list_stop(DecoderState, _DescListTermValue, DescValue) ->
-    {DecoderState, {ok, DescValue}}.
+decode_desc_list_stop(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    DescListTermValue,
+    DescValue
+) ->
+    {ScalarDecoderState2, Result} =
+        argo_erlang_term_scalar_decoder:decode_desc_list_stop(
+            ScalarDecoderModule, ScalarDecoderState1, DescListTermValue, DescValue
+        ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_desc_object_next(DecoderState, Index, DescObjectTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -191,7 +237,7 @@ decode_desc_list_stop(DecoderState, _DescListTermValue, DescValue) ->
     ObjectTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 decode_desc_object_next(DecoderState, Index, DescObjectTermValue) when is_map(DescObjectTermValue) ->
-    decode_desc_object_next(DecoderState, Index, maps:iterator(DescObjectTermValue));
+    decode_desc_object_next(DecoderState, Index, maps:iterator(DescObjectTermValue, ordered));
 decode_desc_object_next(DecoderState, _Index, MapIterator1) ->
     case maps:next(MapIterator1) of
         {ObjectKey, ObjectTermValue, MapIterator2} ->
@@ -206,8 +252,20 @@ decode_desc_object_next(DecoderState, _Index, MapIterator1) ->
     DescValue :: argo_desc_value:t(),
     Result :: result(DescValue, ErrorReason),
     ErrorReason :: error_reason().
-decode_desc_object_stop(DecoderState, _DescObjectTermValue, DescValue) ->
-    {DecoderState, {ok, DescValue}}.
+decode_desc_object_stop(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    DescListTermValue,
+    DescValue
+) ->
+    {ScalarDecoderState2, Result} =
+        argo_erlang_term_scalar_decoder:decode_desc_object_stop(
+            ScalarDecoderModule, ScalarDecoderState1, DescListTermValue, DescValue
+        ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_desc_scalar(DecoderState, DescValueScalarHint, DescScalarTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -216,17 +274,19 @@ decode_desc_object_stop(DecoderState, _DescObjectTermValue, DescValue) ->
     Result :: result({DescScalarTermValue, DescScalar}, ErrorReason),
     DescScalar :: argo_desc_value:inner_scalar(),
     ErrorReason :: error_reason().
-decode_desc_scalar(DecoderState, DescValueScalarHint, DescScalarTermValue) ->
-    DescScalar =
-        case DescValueScalarHint of
-            null when DescScalarTermValue =:= null -> null;
-            boolean when is_boolean(DescScalarTermValue) -> {boolean, DescScalarTermValue};
-            string when is_binary(DescScalarTermValue) -> {string, DescScalarTermValue};
-            bytes when is_binary(DescScalarTermValue) -> {bytes, DescScalarTermValue};
-            int when ?is_i64(DescScalarTermValue) -> {int, DescScalarTermValue};
-            float when is_float(DescScalarTermValue) -> {float, DescScalarTermValue}
-        end,
-    {DecoderState, {ok, {DescScalarTermValue, DescScalar}}}.
+decode_desc_scalar(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    DescValueScalarHint,
+    DescScalarTermValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_desc_scalar(
+        ScalarDecoderModule, ScalarDecoderState1, DescValueScalarHint, DescScalarTermValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_desc_scalar_stop(DecoderState, DescScalarTermValue, DescValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -234,8 +294,19 @@ decode_desc_scalar(DecoderState, DescValueScalarHint, DescScalarTermValue) ->
     DescValue :: argo_desc_value:t(),
     Result :: result(DescValue, ErrorReason),
     ErrorReason :: error_reason().
-decode_desc_scalar_stop(DecoderState, _DescScalarTermValue, DescValue) ->
-    {DecoderState, {ok, DescValue}}.
+decode_desc_scalar_stop(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    DescScalarTermValue,
+    DescValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_desc_scalar_stop(
+        ScalarDecoderModule, ScalarDecoderState1, DescScalarTermValue, DescValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_error(DecoderState, TermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
@@ -340,7 +411,7 @@ decode_extensions(DecoderState, _TermValue) ->
     ObjectTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 decode_extensions_next(DecoderState, Index, ExtensionsTermValue) when is_map(ExtensionsTermValue) ->
-    decode_extensions_next(DecoderState, Index, maps:iterator(ExtensionsTermValue));
+    decode_extensions_next(DecoderState, Index, maps:iterator(ExtensionsTermValue, ordered));
 decode_extensions_next(DecoderState, _Index, MapIterator1) ->
     case maps:next(MapIterator1) of
         {ObjectKey, ObjectTermValue, MapIterator2} ->
@@ -371,9 +442,9 @@ decode_location(DecoderState, _LocationTermValue) ->
 -spec decode_location_column(DecoderState, LocationTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     LocationTermValue :: argo_term:term_value(),
-    Result :: result({LocationTermValue, OptionColumn}, ErrorReason),
-    OptionColumn :: argo_types:option(Column),
-    Column :: integer(),
+    Result :: result({LocationTermValue, OptionColumnTermValue}, ErrorReason),
+    OptionColumnTermValue :: argo_types:option(ColumnTermValue),
+    ColumnTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 decode_location_column(DecoderState, LocationTermValue) ->
     case LocationTermValue of
@@ -386,9 +457,9 @@ decode_location_column(DecoderState, LocationTermValue) ->
 -spec decode_location_line(DecoderState, LocationTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     LocationTermValue :: argo_term:term_value(),
-    Result :: result({LocationTermValue, OptionLine}, ErrorReason),
-    OptionLine :: argo_types:option(Line),
-    Line :: integer(),
+    Result :: result({LocationTermValue, OptionLineTermValue}, ErrorReason),
+    OptionLineTermValue :: argo_types:option(LineTermValue),
+    LineTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 decode_location_line(DecoderState, LocationTermValue) ->
     case LocationTermValue of
@@ -599,13 +670,56 @@ decode_record_stop(DecoderState, _RecordTermValue, RecordValue) ->
     Scalar :: boolean() | binary() | DescTermValue | float() | unicode:unicode_binary() | argo_types:i64(),
     DescTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
-decode_scalar(DecoderState, _ScalarWireTypeHint, TermValue) ->
-    {DecoderState, {ok, TermValue}}.
+decode_scalar(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    ScalarWireTypeHint,
+    TermValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_scalar(
+        ScalarDecoderModule, ScalarDecoderState1, ScalarWireTypeHint, TermValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
 
 -spec decode_scalar_stop(DecoderState, ScalarValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     ScalarValue :: argo_scalar_value:t(),
     Result :: result(ScalarValue, ErrorReason),
     ErrorReason :: error_reason().
-decode_scalar_stop(DecoderState, ScalarValue) ->
-    {DecoderState, {ok, ScalarValue}}.
+decode_scalar_stop(
+    DecoderState1 = #argo_erlang_term_value_decoder{
+        scalar_decoder_module = ScalarDecoderModule,
+        scalar_decoder_state = ScalarDecoderState1
+    },
+    ScalarValue
+) ->
+    {ScalarDecoderState2, Result} = argo_erlang_term_scalar_decoder:decode_scalar_stop(
+        ScalarDecoderModule, ScalarDecoderState1, ScalarValue
+    ),
+    DecoderState2 = maybe_update_scalar_decoder_state(DecoderState1, ScalarDecoderState2),
+    {DecoderState2, Result}.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-compile({inline, [maybe_update_scalar_decoder_state/2]}).
+-spec maybe_update_scalar_decoder_state(DecoderState, ScalarDecoderState) -> DecoderState when
+    DecoderState :: state(), ScalarDecoderState :: argo_erlang_term_scalar_decoder:state().
+maybe_update_scalar_decoder_state(
+    DecoderState1 = #argo_erlang_term_value_decoder{scalar_decoder_state = ScalarDecoderState},
+    ScalarDecoderState
+) ->
+    DecoderState1;
+maybe_update_scalar_decoder_state(
+    DecoderState1 = #argo_erlang_term_value_decoder{scalar_decoder_state = _ScalarDecoderState1},
+    ScalarDecoderState2
+) ->
+    DecoderState2 = DecoderState1#argo_erlang_term_value_decoder{
+        scalar_decoder_state = ScalarDecoderState2
+    },
+    DecoderState2.

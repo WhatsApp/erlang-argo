@@ -87,9 +87,7 @@ prop_roundtrip_encoder_and_decoder() ->
 
 prop_roundtrip_encoder_and_decoder(Config) ->
     argo_proper:quickcheck(
-        argo_wire_type_prop,
-        prop_roundtrip_encoder_and_decoder,
-        Config,
+        argo_wire_type_prop:prop_roundtrip_encoder_and_decoder(Config),
         [
             verbose,
             {max_shrinks, 100},
@@ -105,9 +103,7 @@ prop_roundtrip_json_encoder_and_json_decoder() ->
 
 prop_roundtrip_json_encoder_and_json_decoder(Config) ->
     argo_proper:quickcheck(
-        argo_wire_type_prop,
-        prop_roundtrip_json_encoder_and_json_decoder,
-        Config,
+        argo_wire_type_prop:prop_roundtrip_json_encoder_and_json_decoder(Config),
         [
             verbose,
             {max_shrinks, 10},

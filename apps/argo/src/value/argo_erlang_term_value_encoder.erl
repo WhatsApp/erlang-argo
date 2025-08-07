@@ -11,13 +11,15 @@
 
 """.
 -moduledoc #{author => ["Andrew Bennett <potatosaladx@meta.com>"]}.
--moduledoc #{created => "2025-05-13", modified => "2025-07-17"}.
+-moduledoc #{created => "2025-05-13", modified => "2025-07-18"}.
 -moduledoc #{copyright => "Meta Platforms, Inc. and affiliates."}.
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
 -compile(warn_missing_spec_all).
 
 -behaviour(argo_term_value_encoder).
+
+-include_lib("argo/include/argo_value.hrl").
 
 %% argo_term_value_encoder callbacks
 -export([
@@ -64,14 +66,14 @@
     encode_scalar/3
 ]).
 
-%% Records
--record(state, {}).
-
 %% Types
 -type error_reason() :: dynamic().
--type options() :: #{}.
+-type options() :: #{
+    scalar_encoder_module => module(),
+    scalar_encoder_options => argo_erlang_term_scalar_encoder:options()
+}.
 -type result(Ok, Error) :: argo_term_value_encoder:result(Ok, Error).
--type state() :: #state{}.
+-type state() :: #argo_erlang_term_value_encoder{}.
 
 -export_type([
     error_reason/0,
@@ -85,8 +87,14 @@
 %%%=============================================================================
 
 -spec init(Options) -> EncoderState when Options :: options(), EncoderState :: state().
-init(_Options) ->
-    EncoderState = #state{},
+init(Options) ->
+    ScalarEncoderModule = maps:get(scalar_encoder_module, Options, undefined),
+    ScalarEncoderOptions = maps:get(scalar_encoder_options, Options, #{}),
+    ScalarEncoderState = argo_erlang_term_scalar_encoder:init(ScalarEncoderModule, ScalarEncoderOptions),
+    EncoderState = #argo_erlang_term_value_encoder{
+        scalar_encoder_module = ScalarEncoderModule,
+        scalar_encoder_state = ScalarEncoderState
+    },
     EncoderState.
 
 -spec encode_array(EncoderState, ArrayValueHint, ArrayValue) -> {EncoderState, Result} when
@@ -129,9 +137,20 @@ encode_array_stop(EncoderState, _ArrayValueHint, ArrayTermValue1) ->
     Result :: result(BlockTermValue, ErrorReason),
     BlockTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
-encode_block(EncoderState, _BlockWireTypeHint, ScalarTermValue) ->
-    BlockTermValue = ScalarTermValue,
-    {EncoderState, {ok, BlockTermValue}}.
+encode_block(
+    EncoderState1 = #argo_erlang_term_value_encoder{
+        scalar_encoder_module = ScalarEncoderModule,
+        scalar_encoder_state = ScalarEncoderState1
+    },
+    BlockWireTypeHint,
+    ScalarTermValue
+) ->
+    {ScalarEncoderState2, Result} =
+        argo_erlang_term_scalar_encoder:encode_block(
+            ScalarEncoderModule, ScalarEncoderState1, BlockWireTypeHint, ScalarTermValue
+        ),
+    EncoderState2 = maybe_update_scalar_encoder_state(EncoderState1, ScalarEncoderState2),
+    {EncoderState2, Result}.
 
 -spec encode_desc(EncoderState, DescValueHint, DescTermValue) -> {EncoderState, Result} when
     EncoderState :: state(),
@@ -211,17 +230,17 @@ encode_desc_object_stop(EncoderState, DescObjectTermValue) ->
     Result :: result(DescScalarTermValue, ErrorReason),
     DescScalarTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
-encode_desc_scalar(EncoderState, DescScalar) ->
-    DescScalarTermValue =
-        case DescScalar of
-            null -> null;
-            {boolean, V} -> V;
-            {string, V} -> V;
-            {bytes, V} -> V;
-            {int, V} -> V;
-            {float, V} -> V
-        end,
-    {EncoderState, {ok, DescScalarTermValue}}.
+encode_desc_scalar(
+    EncoderState1 = #argo_erlang_term_value_encoder{
+        scalar_encoder_module = ScalarEncoderModule,
+        scalar_encoder_state = ScalarEncoderState1
+    },
+    DescScalar
+) ->
+    {ScalarEncoderState2, Result} =
+        argo_erlang_term_scalar_encoder:encode_desc_scalar(ScalarEncoderModule, ScalarEncoderState1, DescScalar),
+    EncoderState2 = maybe_update_scalar_encoder_state(EncoderState1, ScalarEncoderState2),
+    {EncoderState2, Result}.
 
 -spec encode_error(EncoderState, ErrorValue) -> {EncoderState, Result} when
     EncoderState :: state(),
@@ -557,5 +576,39 @@ encode_record_stop(EncoderState, _RecordWireTypeHint, RecordTermValue) ->
     ScalarTermValue :: argo_term:term_value(),
     Result :: result(ScalarTermValue, ErrorReason),
     ErrorReason :: error_reason().
-encode_scalar(EncoderState, _ScalarWireTypeHint, ScalarTermValue) ->
-    {EncoderState, {ok, ScalarTermValue}}.
+encode_scalar(
+    EncoderState1 = #argo_erlang_term_value_encoder{
+        scalar_encoder_module = ScalarEncoderModule,
+        scalar_encoder_state = ScalarEncoderState1
+    },
+    ScalarWireTypeHint,
+    ScalarTermValue
+) ->
+    {ScalarEncoderState2, Result} =
+        argo_erlang_term_scalar_encoder:encode_scalar(
+            ScalarEncoderModule, ScalarEncoderState1, ScalarWireTypeHint, ScalarTermValue
+        ),
+    EncoderState2 = maybe_update_scalar_encoder_state(EncoderState1, ScalarEncoderState2),
+    {EncoderState2, Result}.
+
+%%%-----------------------------------------------------------------------------
+%%% Internal functions
+%%%-----------------------------------------------------------------------------
+
+%% @private
+-compile({inline, [maybe_update_scalar_encoder_state/2]}).
+-spec maybe_update_scalar_encoder_state(EncoderState, ScalarEncoderState) -> EncoderState when
+    EncoderState :: state(), ScalarEncoderState :: argo_erlang_term_scalar_encoder:state().
+maybe_update_scalar_encoder_state(
+    EncoderState1 = #argo_erlang_term_value_encoder{scalar_encoder_state = ScalarEncoderState},
+    ScalarEncoderState
+) ->
+    EncoderState1;
+maybe_update_scalar_encoder_state(
+    EncoderState1 = #argo_erlang_term_value_encoder{scalar_encoder_state = _ScalarEncoderState1},
+    ScalarEncoderState2
+) ->
+    EncoderState2 = EncoderState1#argo_erlang_term_value_encoder{
+        scalar_encoder_state = ScalarEncoderState2
+    },
+    EncoderState2.

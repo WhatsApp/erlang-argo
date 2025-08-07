@@ -116,7 +116,7 @@ prop_roundtrip_json_encoder_and_json_decoder(_Config) ->
 prop_roundtrip_term_encoder_and_term_decoder(_Config) ->
     ?FORALL(
         {WireType, Value},
-        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_json_safe(WireType)}),
+        ?LET(WireType, proper_argo:wire_type(), {WireType, proper_argo:value_term_safe(WireType)}),
         begin
             % Header1 = argo_header:new(),
             % {Header2, _} = argo_header:set_self_describing_errors(Header1, false),
@@ -214,32 +214,13 @@ json_encode_pretty(Value = #argo_value{}) ->
 -spec term_decode(WireType, TermEncoded) -> Value when
     WireType :: argo_wire_type:t(), TermEncoded :: argo_term:term_value(), Value :: argo_value:t().
 term_decode(WireType = #argo_wire_type{}, TermEncoded) ->
-    term_decode(WireType, TermEncoded, #{}).
-
-%% @private
--spec term_decode(WireType, TermEncoded, DecodeOptions) -> Value when
-    WireType :: argo_wire_type:t(),
-    TermEncoded :: argo_term:term_value(),
-    DecodeOptions :: argo_erlang_term_value_decoder:options(),
-    Value :: argo_value:t().
-term_decode(WireType = #argo_wire_type{}, TermEncoded, DecodeOptions) when is_map(DecodeOptions) ->
-    TermValueDecoder1 = argo_term_value_decoder:new(argo_erlang_term_value_decoder, DecodeOptions),
-    {_TermValueDecoder2, Value} = argo_term_value_decoder:decode_wire_type(TermValueDecoder1, WireType, TermEncoded),
+    Value = argo_value:from_erlang(WireType, TermEncoded),
     Value.
 
 %% @private
 -spec term_encode(Value) -> TermEncoded when Value :: argo_value:t(), TermEncoded :: argo_term:term_value().
 term_encode(Value = #argo_value{}) ->
-    term_encode(Value, #{}).
-
-%% @private
--spec term_encode(Value, EncodeOptions) -> TermEncoded when
-    Value :: argo_value:t(),
-    EncodeOptions :: argo_erlang_term_value_encoder:options(),
-    TermEncoded :: argo_term:term_value().
-term_encode(Value, EncodeOptions) when is_map(EncodeOptions) ->
-    TermValueEncoder1 = argo_term_value_encoder:new(argo_erlang_term_value_encoder, EncodeOptions),
-    {_TermValueEncoder2, TermEncoded} = argo_term_value_encoder:encode_value(TermValueEncoder1, Value),
+    TermEncoded = argo_value:to_erlang(Value),
     TermEncoded.
 
 %% @private

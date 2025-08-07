@@ -96,6 +96,12 @@
     BlockTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
+-callback decode_block_stop(DecoderState, BlockValue) -> {DecoderState, Result} when
+    DecoderState :: state(),
+    BlockValue :: argo_block_value:t(),
+    Result :: result(DecoderState, ErrorReason),
+    ErrorReason :: error_reason().
+
 -callback decode_desc(DecoderState, TermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     TermValue :: argo_term:term_value(),
@@ -231,17 +237,17 @@
 -callback decode_location_column(DecoderState, LocationTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     LocationTermValue :: argo_term:term_value(),
-    Result :: result({LocationTermValue, OptionColumn}, ErrorReason),
-    OptionColumn :: argo_types:option(Column),
-    Column :: integer(),
+    Result :: result({LocationTermValue, OptionColumnTermValue}, ErrorReason),
+    OptionColumnTermValue :: argo_types:option(ColumnTermValue),
+    ColumnTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
 -callback decode_location_line(DecoderState, LocationTermValue) -> {DecoderState, Result} when
     DecoderState :: state(),
     LocationTermValue :: argo_term:term_value(),
-    Result :: result({LocationTermValue, OptionLine}, ErrorReason),
-    OptionLine :: argo_types:option(Line),
-    Line :: integer(),
+    Result :: result({LocationTermValue, OptionLineTermValue}, ErrorReason),
+    OptionLineTermValue :: argo_types:option(LineTermValue),
+    LineTermValue :: argo_term:term_value(),
     ErrorReason :: error_reason().
 
 -callback decode_location_stop(DecoderState, LocationTermValue, LocationValue) -> {DecoderState, Result} when
@@ -440,7 +446,7 @@ decode_array_wire_type(
     BlockValue :: argo_block_value:t().
 decode_block_wire_type(
     TermValueDecoder1 = #argo_term_value_decoder{
-        decoder_module = TermValueDecoderModule,
+        decoder_module = TermValueDecoderModule1,
         decoder_state = TermValueDecoderState1
     },
     BlockWireType = #argo_block_wire_type{'of' = Of},
@@ -448,13 +454,13 @@ decode_block_wire_type(
 ) ->
     BlockWireTypeHint = argo_term:block_wire_type_hint(BlockWireType),
     {TermValueDecoderState2, Result} =
-        TermValueDecoderModule:decode_block(TermValueDecoderState1, BlockWireTypeHint, TermValue),
+        TermValueDecoderModule1:decode_block(TermValueDecoderState1, BlockWireTypeHint, TermValue),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
         {ok, BlockTermValue} ->
             {TermValueDecoder3, ScalarValue} = decode_scalar_wire_type(TermValueDecoder2, Of, BlockTermValue),
             BlockValue = argo_block_value:new(BlockWireType, ScalarValue),
-            {TermValueDecoder3, BlockValue};
+            decode_block_wire_type_stop(TermValueDecoder3, BlockValue);
         % {error, type_mismatch} ->
         %     error_scalar_type_mismatch(
         %         [TermValueDecoder1, BlockWireType, TermValue], ScalarWireTypeHint, {term, TermValue}
@@ -971,6 +977,24 @@ decode_array_wire_type_stop(
     end.
 
 %% @private
+-spec decode_block_wire_type_stop(TermValueDecoder, BlockValue) -> {TermValueDecoder, BlockValue} when
+    TermValueDecoder :: t(),
+    BlockValue :: argo_block_value:t().
+decode_block_wire_type_stop(
+    TermValueDecoder1 = #argo_term_value_decoder{
+        decoder_module = TermValueDecoderModule,
+        decoder_state = TermValueDecoderState1
+    },
+    BlockValue1 = #argo_block_value{}
+) ->
+    {TermValueDecoderState2, Result} = TermValueDecoderModule:decode_block_stop(TermValueDecoderState1, BlockValue1),
+    TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
+    case Result of
+        {ok, BlockValue2 = #argo_block_value{}} ->
+            {TermValueDecoder2, BlockValue2}
+    end.
+
+%% @private
 -spec decode_desc_wire_type_list_next(TermValueDecoder, DescListTermValue, Index, Items) ->
     {TermValueDecoder, DescValue}
 when
@@ -1361,8 +1385,11 @@ decode_location_wire_type_column(
         TermValueDecoderModule:decode_location_column(TermValueDecoderState1, LocationTermValue1),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
-        {ok, {LocationTermValue2, {some, Column}}} when is_integer(Column) ->
-            {TermValueDecoder2, LocationTermValue2, Column};
+        {ok, {LocationTermValue2, {some, ColumnTermValue}}} ->
+            ColumnBlockWireType = argo_label:self_describing_blocks_varint(),
+            {TermValueDecoder3, #argo_block_value{value = #argo_scalar_value{inner = {varint, Column}}}} =
+                decode_block_wire_type(TermValueDecoder2, ColumnBlockWireType, ColumnTermValue),
+            {TermValueDecoder3, LocationTermValue2, Column};
         {ok, {_LocationTermValue2, none}} ->
             error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
                 2 => {required_object_key_missing, <<"column">>}
@@ -1385,8 +1412,11 @@ decode_location_wire_type_line(
         TermValueDecoderModule:decode_location_line(TermValueDecoderState1, LocationTermValue1),
     TermValueDecoder2 = maybe_update_decoder_state(TermValueDecoder1, TermValueDecoderState2),
     case Result of
-        {ok, {LocationTermValue2, {some, Line}}} when is_integer(Line) ->
-            {TermValueDecoder2, LocationTermValue2, Line};
+        {ok, {LocationTermValue2, {some, LineTermValue}}} ->
+            LineBlockWireType = argo_label:self_describing_blocks_varint(),
+            {TermValueDecoder3, #argo_block_value{value = #argo_scalar_value{inner = {varint, Line}}}} =
+                decode_block_wire_type(TermValueDecoder2, LineBlockWireType, LineTermValue),
+            {TermValueDecoder3, LocationTermValue2, Line};
         {ok, {_LocationTermValue2, none}} ->
             error_with_info(badarg, [TermValueDecoder1, LocationTermValue1], #{
                 2 => {required_object_key_missing, <<"line">>}

@@ -31,11 +31,17 @@
 
 %% Codec API
 -export([
+    from_erlang/2,
+    from_erlang/4,
     from_json/2,
     from_json/4,
     from_reader/2,
+    from_term/4,
+    to_erlang/1,
+    to_erlang/3,
     to_json/1,
     to_json/3,
+    to_term/3,
     to_writer/1,
     to_writer/2
 ]).
@@ -125,6 +131,27 @@ format(Value = #argo_value{}, Options) when is_map(Options) ->
 %%% Codec API functions
 %%%=============================================================================
 
+-spec from_erlang(WireType, TermValue) -> Value when
+    WireType :: argo_wire_type:t(), TermValue :: argo_term:term_value(), Value :: t().
+from_erlang(WireType = #argo_wire_type{}, TermValue) ->
+    Value = from_term(WireType, TermValue, argo_erlang_term_value_decoder, #{}),
+    Value.
+
+-spec from_erlang(WireType, TermValue, TermScalarDecoderModule, TermScalarDecoderOptions) -> Value when
+    WireType :: argo_wire_type:t(),
+    TermValue :: argo_term:term_value(),
+    TermScalarDecoderModule :: module(),
+    TermScalarDecoderOptions :: argo_erlang_term_scalar_decoder:options(),
+    Value :: t().
+from_erlang(WireType = #argo_wire_type{}, TermValue, TermScalarDecoderModule, TermScalarDecoderOptions) when
+    is_atom(TermScalarDecoderModule)
+->
+    Value = from_term(WireType, TermValue, argo_erlang_term_value_decoder, #{
+        scalar_decoder_module => TermScalarDecoderModule,
+        scalar_decoder_options => TermScalarDecoderOptions
+    }),
+    Value.
+
 -spec from_json(WireType, JsonValue) -> Value when
     WireType :: argo_wire_type:t(), JsonValue :: argo_json:json_value(), Value :: t().
 from_json(WireType = #argo_wire_type{}, JsonValue) ->
@@ -155,6 +182,40 @@ from_reader(WireType = #argo_wire_type{}, Reader1) when is_binary(Reader1) ->
     _ = ValueDecoder2,
     {Reader2, Value}.
 
+-spec from_term(WireType, TermValue, TermValueDecoderModule, TermValueDecoderOptions) -> Value when
+    WireType :: argo_wire_type:t(),
+    TermValue :: argo_term:term_value(),
+    TermValueDecoderModule :: module(),
+    TermValueDecoderOptions :: argo_term_value_decoder:options(),
+    Value :: t().
+from_term(WireType = #argo_wire_type{}, TermValue, TermValueDecoderModule, TermValueDecoderOptions) when
+    is_atom(TermValueDecoderModule)
+->
+    TermValueDecoder1 = argo_term_value_decoder:new(TermValueDecoderModule, TermValueDecoderOptions),
+    {TermValueDecoder2, Value} = argo_term_value_decoder:decode_wire_type(TermValueDecoder1, WireType, TermValue),
+    _ = TermValueDecoder2,
+    Value.
+
+-spec to_erlang(Value) -> TermValue when
+    Value :: t(), TermValue :: argo_term:term_value().
+to_erlang(Value = #argo_value{}) ->
+    TermValue = to_term(Value, argo_erlang_term_value_encoder, #{}),
+    TermValue.
+
+-spec to_erlang(Value, TermScalarEncoderModule, TermScalarEncoderOptions) -> TermValue when
+    Value :: t(),
+    TermScalarEncoderModule :: module(),
+    TermScalarEncoderOptions :: argo_erlang_term_scalar_encoder:options(),
+    TermValue :: argo_term:term_value().
+to_erlang(Value = #argo_value{}, TermScalarEncoderModule, TermScalarEncoderOptions) when
+    is_atom(TermScalarEncoderModule)
+->
+    TermValue = to_term(Value, argo_erlang_term_value_encoder, #{
+        scalar_encoder_module => TermScalarEncoderModule,
+        scalar_encoder_options => TermScalarEncoderOptions
+    }),
+    TermValue.
+
 -spec to_json(Value) -> JsonValue when Value :: t(), JsonValue :: argo_json:json_value().
 to_json(Value = #argo_value{}) ->
     JsonValueEncoder1 = argo_json_value_encoder:new(),
@@ -174,6 +235,19 @@ to_json(Value = #argo_value{}, JsonScalarEncoderModule, JsonScalarEncoderOptions
     {JsonValueEncoder2, JsonValue} = argo_json_value_encoder:encode_value(JsonValueEncoder1, Value),
     _ = JsonValueEncoder2,
     JsonValue.
+
+-spec to_term(Value, TermValueEncoderModule, TermValueEncoderOptions) -> TermValue when
+    Value :: t(),
+    TermValueEncoderModule :: module(),
+    TermValueEncoderOptions :: argo_term_value_encoder:options(),
+    TermValue :: argo_term:term_value().
+to_term(Value = #argo_value{}, TermValueEncoderModule, TermValueEncoderOptions) when
+    is_atom(TermValueEncoderModule)
+->
+    TermValueEncoder1 = argo_term_value_encoder:new(TermValueEncoderModule, TermValueEncoderOptions),
+    {TermValueEncoder2, TermValue} = argo_term_value_encoder:encode_value(TermValueEncoder1, Value),
+    _ = TermValueEncoder2,
+    TermValue.
 
 -spec to_writer(Value) -> Writer when Value :: t(), Writer :: binary().
 to_writer(Value = #argo_value{}) ->

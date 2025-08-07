@@ -40,8 +40,8 @@
 ]).
 
 %% Macros
--define(QUICKCHECK(Module, Property, Config),
-    argo_proper:quickcheck(Module, Property, Config, [verbose, {max_shrinks, 100}, {numtests, 1000}])
+-define(QUICKCHECK(OuterTest),
+    argo_proper:quickcheck(OuterTest, [verbose, {max_shrinks, 100}, {numtests, 1000}])
 ).
 
 %%%=============================================================================
@@ -91,7 +91,7 @@ prop_roundtrip_http_argo_mode() ->
     ].
 
 prop_roundtrip_http_argo_mode(Config) ->
-    ?QUICKCHECK(argo_header_prop, prop_roundtrip_http_argo_mode, Config).
+    ?QUICKCHECK(argo_header_prop:prop_roundtrip_http_argo_mode(Config)).
 
 prop_roundtrip_u64() ->
     [
@@ -100,7 +100,7 @@ prop_roundtrip_u64() ->
     ].
 
 prop_roundtrip_u64(Config) ->
-    ?QUICKCHECK(argo_header_prop, prop_roundtrip_u64, Config).
+    ?QUICKCHECK(argo_header_prop:prop_roundtrip_u64(Config)).
 
 prop_roundtrip_uint() ->
     [
@@ -109,7 +109,7 @@ prop_roundtrip_uint() ->
     ].
 
 prop_roundtrip_uint(Config) ->
-    ?QUICKCHECK(argo_header_prop, prop_roundtrip_uint, Config).
+    ?QUICKCHECK(argo_header_prop:prop_roundtrip_uint(Config)).
 
 %%%-----------------------------------------------------------------------------
 %%% Internal functions

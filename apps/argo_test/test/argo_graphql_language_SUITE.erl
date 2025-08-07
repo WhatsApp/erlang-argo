@@ -84,9 +84,7 @@ prop_roundtrip_formatter_and_parser() ->
 
 prop_roundtrip_formatter_and_parser(Config) ->
     argo_proper:quickcheck(
-        argo_graphql_language_prop,
-        prop_roundtrip_formatter_and_parser,
-        Config,
+        argo_graphql_language_prop:prop_roundtrip_formatter_and_parser(Config),
         [
             verbose,
             {max_shrinks, 10},

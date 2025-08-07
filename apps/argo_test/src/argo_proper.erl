@@ -25,8 +25,8 @@
     pick/2,
     pick/3,
     pick/4,
-    quickcheck/4,
-    quickcheck/1,
+    present_result/4,
+    quickcheck/2,
     sample/1,
     sample/2,
     sample/3,
@@ -65,7 +65,7 @@
 
 %% Macros
 -define(DEFAULT_TIMEOUT, 5000).
--define(PROPER_QUICKCHECK_OPTIONS, '$proper_quickcheck_options').
+-define(UNKNOWN, "unknown_property").
 -define(is_size(X), (is_integer(X) andalso (X) >= 0)).
 -define(is_seed(X),
     (is_tuple(X) andalso tuple_size(X) =:= 3 andalso ?is_size(element(1, (X))) andalso ?is_size(element(2, (X))) andalso
@@ -103,20 +103,16 @@ pick(RawType, Size, RawSeed, Timeout) when
 ->
     clean_execute(proper_gen, pick, [RawType, Size, cook_seed(RawSeed)], Timeout).
 
--spec quickcheck(Module, Function, Config, Options) -> true | {fail, Reason} when
-    Module :: module(),
-    Function :: atom(),
-    Config :: ct_suite:ct_config(),
+-spec present_result(module(), list(), tuple(), proplists:proplist()) -> boolean().
+present_result(Module, Cmds, Triple, Config0) ->
+    Config = [{property_test_tool, proper}] ++ Config0,
+    ct_property_test:present_result(Module, Cmds, Triple, Config).
+
+-spec quickcheck(OuterTest, Options) -> true | {fail, Reason} when
+    OuterTest :: proper:outer_test(),
     Options :: dynamic(),
     Reason :: dynamic().
-quickcheck(Module, Function, Config0, Options) ->
-    _ = erlang:put(?PROPER_QUICKCHECK_OPTIONS, {Module, Function, Config0, Options}),
-    Config1 = lists:keystore(property_test_tool, 1, Config0, {property_test_tool, ?MODULE}),
-    ct_property_test:quickcheck(undefined, Config1).
-
--spec quickcheck(undefined) -> true | Reason when Reason :: dynamic().
-quickcheck(undefined) ->
-    {Module, Function, Config, Options0} = erlang:erase(?PROPER_QUICKCHECK_OPTIONS),
+quickcheck(OuterTest, Options0) ->
     {Store, Options1} =
         case lists:keytake(store, 1, Options0) of
             {value, StoreTuple = {store, _}, Opts1} ->
@@ -124,36 +120,34 @@ quickcheck(undefined) ->
             false ->
                 {false, Options0}
         end,
-    OuterTest = Module:Function(Config),
+    Options = [long_result, {to_file, user}] ++ Options1,
     Result =
-        try proper:quickcheck(OuterTest, Options1) of
-            true ->
-                true;
-            FailureResult ->
-                #{failure => FailureResult, counterexample => proper:counterexample()}
+        try proper:quickcheck(OuterTest, Options) of
+            true -> true;
+            {error, Reason} -> #{failure => Reason};
+            [CounterExample] -> #{counterexample => CounterExample};
+            CounterExamples -> #{counterexamples => CounterExamples}
         catch
-            Class:Reason:Stacktrace ->
-                #{error => {Class, Reason, Stacktrace}, counterexample => proper:counterexample()}
+            Class:Reason:Stacktrace -> #{error => {Class, Reason, Stacktrace}}
         end,
     case Result of
         true ->
             true;
         _ ->
-            ok =
-                case Store of
-                    {store, StoreFilename} ->
-                        {ok, IoDevice} = file:open(StoreFilename, [write, {encoding, utf8}]),
-                        io:format(IoDevice, "~p.~n", [{Module, Function, Result}]),
-                        _ = file:close(IoDevice),
-                        ok;
-                    false ->
-                        ok
-                end,
+            case Store of
+                {store, StoreFilename} ->
+                    {ok, IoDevice} = file:open(StoreFilename, [write, {encoding, utf8}]),
+                    io:format(IoDevice, "~p.~n", [Result]),
+                    _ = file:close(IoDevice),
+                    ok;
+                false ->
+                    ok
+            end,
             case Result of
                 #{error := {C, R, S}} ->
                     erlang:raise(C, R, S);
-                #{failure := Failure} ->
-                    Failure
+                Other ->
+                    {fail, {property_name(OuterTest), Other}}
             end
     end.
 
@@ -369,6 +363,33 @@ cook_seed(Seed) when ?is_seed(Seed) ->
     Seed;
 cook_seed(RawSeed) when ?is_size(RawSeed) ->
     {RawSeed, RawSeed, RawSeed}.
+
+%% @private
+-spec extract_name_from_fun(fun()) -> string().
+extract_name_from_fun(Fun) ->
+    FInfo = erlang:fun_info(Fun),
+    case proplists:get_value(name, FInfo) of
+        undefined ->
+            ?UNKNOWN;
+        FullName ->
+            L = erlang:atom_to_list(FullName),
+            case string:split(L, "/") of
+                [L] -> L;
+                [[$- | EncfunName], _] -> EncfunName;
+                [EncfunName, _] -> EncfunName
+            end
+    end.
+
+%% @private
+-spec property_name(dynamic()) -> string().
+property_name({forall, _Generator, PropFun}) ->
+    extract_name_from_fun(PropFun);
+property_name({setup, _SetupFun, Prop}) ->
+    property_name(Prop);
+property_name({exists, _Generator, PropFun, _Not}) ->
+    extract_name_from_fun(PropFun);
+property_name(_) ->
+    ?UNKNOWN.
 
 %% @private
 -spec sample_print(term()) -> ok.

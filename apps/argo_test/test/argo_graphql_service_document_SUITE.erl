@@ -84,9 +84,7 @@ prop_roundtrip_service_document() ->
 
 prop_roundtrip_service_document(Config) ->
     argo_proper:quickcheck(
-        argo_graphql_service_document_prop,
-        prop_roundtrip_service_document,
-        Config,
+        argo_graphql_service_document_prop:prop_roundtrip_service_document(Config),
         [
             verbose,
             {max_size, 15},

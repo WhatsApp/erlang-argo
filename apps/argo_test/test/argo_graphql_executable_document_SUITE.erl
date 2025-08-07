@@ -84,9 +84,7 @@ prop_roundtrip_executable_document() ->
 
 prop_roundtrip_executable_document(Config) ->
     argo_proper:quickcheck(
-        argo_graphql_executable_document_prop,
-        prop_roundtrip_executable_document,
-        Config,
+        argo_graphql_executable_document_prop:prop_roundtrip_executable_document(Config),
         [
             verbose,
             {max_size, 15},

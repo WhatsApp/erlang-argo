@@ -31,6 +31,16 @@
     inner :: argo_desc_value:inner()
 }).
 
+-record(argo_erlang_term_value_decoder, {
+    scalar_decoder_module :: module(),
+    scalar_decoder_state :: argo_erlang_term_scalar_decoder:state()
+}).
+
+-record(argo_erlang_term_value_encoder, {
+    scalar_encoder_module :: module(),
+    scalar_encoder_state :: argo_erlang_term_scalar_encoder:state()
+}).
+
 -record(argo_error_value, {
     message :: argo_desc_value:desc_string(),
     locations :: none | {some, [argo_location_value:t()]},

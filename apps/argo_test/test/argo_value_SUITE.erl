@@ -150,9 +150,7 @@ prop_roundtrip_encoder_and_decoder() ->
 
 prop_roundtrip_encoder_and_decoder(Config) ->
     argo_proper:quickcheck(
-        argo_value_prop,
-        prop_roundtrip_encoder_and_decoder,
-        Config,
+        argo_value_prop:prop_roundtrip_encoder_and_decoder(Config),
         [
             verbose,
             {max_shrinks, 100},
@@ -168,9 +166,7 @@ prop_roundtrip_json_encoder_and_json_decoder() ->
 
 prop_roundtrip_json_encoder_and_json_decoder(Config) ->
     argo_proper:quickcheck(
-        argo_value_prop,
-        prop_roundtrip_json_encoder_and_json_decoder,
-        Config,
+        argo_value_prop:prop_roundtrip_json_encoder_and_json_decoder(Config),
         [
             verbose,
             {max_shrinks, 10},
@@ -185,16 +181,11 @@ prop_roundtrip_term_encoder_and_term_decoder() ->
     ].
 
 prop_roundtrip_term_encoder_and_term_decoder(Config) ->
-    argo_proper:quickcheck(
-        argo_value_prop,
-        prop_roundtrip_term_encoder_and_term_decoder,
-        Config,
-        [
-            verbose,
-            {max_shrinks, 10},
-            {numtests, 100}
-        ]
-    ).
+    argo_proper:quickcheck(argo_value_prop:prop_roundtrip_term_encoder_and_term_decoder(Config), [
+        verbose,
+        {max_shrinks, 10},
+        {numtests, 100}
+    ]).
 
 prop_to_wire_type() ->
     [
@@ -204,9 +195,7 @@ prop_to_wire_type() ->
 
 prop_to_wire_type(Config) ->
     argo_proper:quickcheck(
-        argo_value_prop,
-        prop_to_wire_type,
-        Config,
+        argo_value_prop:prop_to_wire_type(Config),
         [
             verbose,
             {max_shrinks, 100},

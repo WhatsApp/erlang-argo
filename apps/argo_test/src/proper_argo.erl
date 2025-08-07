@@ -68,7 +68,9 @@
     value/1,
     value_json_safe/0,
     value_json_safe/1,
-    value_make_json_safe/1
+    value_make_json_safe/1,
+    value_term_safe/0,
+    value_term_safe/1
 ]).
 
 %% Wire Type API
@@ -547,6 +549,14 @@ value_make_json_safe(_, ok) ->
 -spec shrink_float_for_json(float()) -> float().
 shrink_float_for_json(Float) when is_float(Float) ->
     list_to_float(float_to_list(Float, [{scientific, 5}])).
+
+-spec value_term_safe() -> proper_types:type().
+value_term_safe() ->
+    ?LET(WireType, wire_type(), value_term_safe(WireType)).
+
+-spec value_term_safe(WireType :: argo_wire_type:t()) -> proper_types:type().
+value_term_safe(WireType = #argo_wire_type{}) ->
+    value(WireType).
 
 %%%=============================================================================
 %%% Wire Type API functions

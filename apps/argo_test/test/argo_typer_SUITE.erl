@@ -132,9 +132,7 @@ prop_roundtrip() ->
 
 prop_roundtrip(Config) ->
     argo_proper:quickcheck(
-        argo_typer_prop,
-        prop_roundtrip,
-        Config,
+        argo_typer_prop:prop_roundtrip(Config),
         [
             verbose,
             {max_size, 15},

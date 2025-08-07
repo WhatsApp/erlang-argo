@@ -1213,19 +1213,22 @@ encode_extensions_value_stop(TermValueEncoder1 = #argo_term_value_encoder{}, Ext
 when
     TermValueEncoder :: t(), Column :: argo_types:varint(), LocationTermValue :: argo_term:term_value().
 encode_location_value_column(
-    TermValueEncoder1 = #argo_term_value_encoder{
-        encoder_module = TermValueEncoderModule,
-        encoder_state = TermValueEncoderState1
-    },
+    TermValueEncoder1 = #argo_term_value_encoder{},
     Column,
     LocationTermValue1
 ) ->
-    {TermValueEncoderState2, Result} =
-        TermValueEncoderModule:encode_location_column(TermValueEncoderState1, Column, LocationTermValue1),
-    TermValueEncoder2 = maybe_update_encoder_state(TermValueEncoder1, TermValueEncoderState2),
+    ColumnBlockWireType = argo_label:self_describing_blocks_varint(),
+    ColumnScalarValue = argo_scalar_value:varint(Column),
+    ColumnBlockValue = argo_block_value:new(ColumnBlockWireType, ColumnScalarValue),
+    {TermValueEncoder2, ColumnTermValue} = encode_block_value(TermValueEncoder1, ColumnBlockValue),
+    TermValueEncoderModule2 = TermValueEncoder2#argo_term_value_encoder.encoder_module,
+    TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
+    {TermValueEncoderState3, Result} =
+        TermValueEncoderModule2:encode_location_column(TermValueEncoderState2, ColumnTermValue, LocationTermValue1),
+    TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
     case Result of
         {ok, LocationTermValue2} ->
-            {TermValueEncoder2, LocationTermValue2}
+            {TermValueEncoder3, LocationTermValue2}
     end.
 
 %% @private
@@ -1234,19 +1237,22 @@ encode_location_value_column(
 when
     TermValueEncoder :: t(), Line :: argo_types:varint(), LocationTermValue :: argo_term:term_value().
 encode_location_value_line(
-    TermValueEncoder1 = #argo_term_value_encoder{
-        encoder_module = TermValueEncoderModule,
-        encoder_state = TermValueEncoderState1
-    },
+    TermValueEncoder1 = #argo_term_value_encoder{},
     Line,
     LocationTermValue1
 ) ->
-    {TermValueEncoderState2, Result} =
-        TermValueEncoderModule:encode_location_line(TermValueEncoderState1, Line, LocationTermValue1),
-    TermValueEncoder2 = maybe_update_encoder_state(TermValueEncoder1, TermValueEncoderState2),
+    LineBlockWireType = argo_label:self_describing_blocks_varint(),
+    LineScalarValue = argo_scalar_value:varint(Line),
+    LineBlockValue = argo_block_value:new(LineBlockWireType, LineScalarValue),
+    {TermValueEncoder2, LineTermValue} = encode_block_value(TermValueEncoder1, LineBlockValue),
+    TermValueEncoderModule2 = TermValueEncoder2#argo_term_value_encoder.encoder_module,
+    TermValueEncoderState2 = TermValueEncoder2#argo_term_value_encoder.encoder_state,
+    {TermValueEncoderState3, Result} =
+        TermValueEncoderModule2:encode_location_line(TermValueEncoderState2, LineTermValue, LocationTermValue1),
+    TermValueEncoder3 = maybe_update_encoder_state(TermValueEncoder2, TermValueEncoderState3),
     case Result of
         {ok, LocationTermValue2} ->
-            {TermValueEncoder2, LocationTermValue2}
+            {TermValueEncoder3, LocationTermValue2}
     end.
 
 %% @private
