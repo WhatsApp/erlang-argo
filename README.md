@@ -15,7 +15,7 @@ Add `argo_graphql` to your project's dependencies in `mix.exs`
 ```elixir
 defp deps() do
   [
-    {:argo, "~> 1.0", hex: :argo_graphql}
+    {:argo, "~> 1.1", hex: :argo_graphql}
   ]
 end
 ```
@@ -24,7 +24,7 @@ Add `argo_graphql` to your project's dependencies in your `Makefile` for [`erlan
 
 ```erlang
 {deps, [
-    {argo, "~> 1.0", {pkg, argo_graphql}}
+    {argo, "~> 1.1", {pkg, argo_graphql}}
 ]}.
 ```
 

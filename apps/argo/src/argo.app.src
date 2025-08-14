@@ -8,7 +8,7 @@
 %%%-----------------------------------------------------------------------------
 {application, argo, [
     {description, "argo: Erlang implementation of Argo for GraphQL"},
-    {vsn, "1.0.10"},
+    {vsn, "1.1.0"},
     {modules, []},
     {registered, []},
     %% NOTE: Remember to sync changes to `applications` to

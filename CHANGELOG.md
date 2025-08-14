@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 (2025-08-14)
+
+* Enhancements
+  * Add support for `argo_value:from_erlang/2` and `argo_value:to_erlang/1` for term-based conversion.
+* Fixes
+  * Workaround for compiler bug in `argo_varbit` related to [erlang/otp#10048](https://github.com/erlang/otp/pull/10048)
+
 ## 1.0.10 (2024-06-03)
 
 * Enhancements

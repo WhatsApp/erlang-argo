@@ -6,7 +6,7 @@
 
 PROJECT = argo
 PROJECT_DESCRIPTION = argo
-PROJECT_VERSION = 1.0.0
+PROJECT_VERSION = 1.1.0
 
 include erlang.mk
 
