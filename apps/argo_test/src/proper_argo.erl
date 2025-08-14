@@ -302,6 +302,7 @@ desc_value_list() ->
     ).
 
 %% @private
+-spec desc_value_list(Length :: non_neg_integer()) -> proper_types:type().
 desc_value_list(Length) ->
     vector(Length, ?LAZY(desc_value())).
 
@@ -317,6 +318,7 @@ desc_value_object() ->
     ).
 
 %% @private
+-spec desc_value_object(Length :: non_neg_integer()) -> proper_types:type().
 desc_value_object(Length) when is_integer(Length) andalso Length >= 0 ->
     ?LET(
         Keys,

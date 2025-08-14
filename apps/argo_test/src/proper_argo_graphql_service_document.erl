@@ -1724,6 +1724,13 @@ union_member_type_definition(
         end
     ).
 
+%% @private
+-spec union_member_type_definition_merge_object_shape(ServiceDocument, UnionMemberShape, ObjectTypeDefinition) ->
+    UnionMemberShape
+when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    UnionMemberShape :: argo_graphql_union_type_definition:shape(),
+    ObjectTypeDefinition :: argo_graphql_type_definition:t().
 union_member_type_definition_merge_object_shape(
     ServiceDocument, UnionMemberShape1, ObjectTypeDefinition = #argo_graphql_type_definition{name = ObjectTypeName}
 ) ->
@@ -1835,6 +1842,10 @@ union_type_definition(ServiceDocument1, TypeName) ->
 value_const(ServiceDocument, Type = #argo_graphql_type{}) ->
     value_const(ServiceDocument, Type, argo_graphql_input_type_graph:new()).
 
+-spec value_const(ServiceDocument, Type, InputTypeGraph) -> proper_types:type() when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    Type :: argo_graphql_type:t(),
+    InputTypeGraph :: argo_graphql_input_type_graph:t().
 value_const(ServiceDocument, Type = #argo_graphql_type{}, InputTypeGraph1) ->
     case Type of
         #argo_graphql_type{inner = NamedType} when is_binary(NamedType) ->
@@ -1913,6 +1924,16 @@ value_const(
             )
     end.
 
+-spec value_const_object_value_optional(ServiceDocument, InputTypeGraph, ObjectValue, InputValueDefinitionList) ->
+    proper_types:type()
+when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    InputTypeGraph :: argo_graphql_input_type_graph:t(),
+    ObjectValue :: argo_index_map:t(InputName, ValueConst),
+    InputName :: argo_types:name(),
+    ValueConst :: argo_graphql_value_const:t(),
+    InputValueDefinitionList :: [InputValueDefinition],
+    InputValueDefinition :: argo_graphql_input_value_definition:t().
 value_const_object_value_optional(_ServiceDocument, _InputTypeGraph, ObjectValue, []) ->
     exactly(ObjectValue);
 value_const_object_value_optional(ServiceDocument, InputTypeGraph, ObjectValue, InputValueDefinitionList) ->
@@ -1922,6 +1943,16 @@ value_const_object_value_optional(ServiceDocument, InputTypeGraph, ObjectValue, 
         value_const_object_value_required(ServiceDocument, InputTypeGraph, ObjectValue, lists:uniq(List))
     ).
 
+-spec value_const_object_value_required(ServiceDocument, InputTypeGraph, ObjectValue, InputValueDefinitionList) ->
+    proper_types:type()
+when
+    ServiceDocument :: argo_graphql_service_document:t(),
+    InputTypeGraph :: argo_graphql_input_type_graph:t(),
+    ObjectValue :: argo_index_map:t(InputName, ValueConst),
+    InputName :: argo_types:name(),
+    ValueConst :: argo_graphql_value_const:t(),
+    InputValueDefinitionList :: [InputValueDefinition],
+    InputValueDefinition :: argo_graphql_input_value_definition:t().
 value_const_object_value_required(_ServiceDocument, _InputTypeGraph, ObjectValue, []) ->
     exactly(ObjectValue);
 value_const_object_value_required(ServiceDocument, InputTypeGraph, ObjectValue1, [
