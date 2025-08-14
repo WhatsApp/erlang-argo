@@ -1842,9 +1842,10 @@ union_type_definition(ServiceDocument1, TypeName) ->
 value_const(ServiceDocument, Type = #argo_graphql_type{}) ->
     value_const(ServiceDocument, Type, argo_graphql_input_type_graph:new()).
 
--spec value_const(ServiceDocument, Type, InputTypeGraph) -> proper_types:type() when
+-spec value_const(ServiceDocument, Type | TypeDefinition, InputTypeGraph) -> proper_types:type() when
     ServiceDocument :: argo_graphql_service_document:t(),
     Type :: argo_graphql_type:t(),
+    TypeDefinition :: argo_graphql_type_definition:t(),
     InputTypeGraph :: argo_graphql_input_type_graph:t().
 value_const(ServiceDocument, Type = #argo_graphql_type{}, InputTypeGraph1) ->
     case Type of
