@@ -1,3 +1,4 @@
+%%% % @format
 %%%-----------------------------------------------------------------------------
 %%% Copyright (c) Meta Platforms, Inc. and affiliates.
 %%% Copyright (c) WhatsApp LLC
@@ -5,7 +6,6 @@
 %%% This source code is licensed under the MIT license found in the
 %%% LICENSE.md file in the root directory of this source tree.
 %%%-----------------------------------------------------------------------------
-%%% % @format
 -module(argo_test_zlib_scalar_encoder).
 -moduledoc """
 
@@ -15,7 +15,6 @@
 -moduledoc #{copyright => "Meta Platforms, Inc. and affiliates."}.
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
--compile(warn_missing_spec_all).
 
 -behaviour(argo_erlang_term_scalar_encoder).
 

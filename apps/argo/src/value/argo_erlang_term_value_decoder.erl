@@ -15,7 +15,6 @@
 -moduledoc #{copyright => "Meta Platforms, Inc. and affiliates."}.
 -compile(warn_missing_spec_all).
 -oncall("whatsapp_clr").
--compile(warn_missing_spec_all).
 
 -behaviour(argo_term_value_decoder).
 

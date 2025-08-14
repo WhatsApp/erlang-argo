@@ -1,13 +1,15 @@
+%%% % @format
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) Meta Platforms, Inc. and affiliates.
 %%% Copyright (c) WhatsApp LLC
 %%%
 %%% This source code is licensed under the MIT license found in the
 %%% LICENSE.md file in the root directory of this source tree.
-%%% % @format
+%%%-----------------------------------------------------------------------------
 
 AppDir = filename:dirname(SCRIPT),
-SourceDir = filename:join([AppDir, "src"]),
-AppSrcFile = filename:join([SourceDir, "argo.app.src"]),
+SourceDir = rebar_file_utils:absolute_path(filename:join([AppDir, "src"])),
+AppSrcFile = rebar_file_utils:absolute_path(filename:join([SourceDir, "argo.app.src"])),
 
 {ok, [{application, argo, Desc}]} = file:consult(AppSrcFile),
 {vsn, Vsn} = lists:keyfind(vsn, 1, Desc),
